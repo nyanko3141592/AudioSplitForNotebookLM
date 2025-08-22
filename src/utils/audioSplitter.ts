@@ -29,11 +29,29 @@ export class WebAudioSplitter {
       const numberOfChannels = audioBuffer.numberOfChannels;
       const duration = audioBuffer.duration;
       
+      console.log('Original file info:', {
+        size: file.size,
+        duration,
+        sampleRate,
+        channels: numberOfChannels
+      });
+      
       let numParts: number;
       
       if (mode === 'size' && options.maxSize) {
-        // Estimate number of parts based on file size
-        numParts = Math.ceil(file.size / options.maxSize);
+        // Calculate parts based on target size and estimated compression ratio
+        // WAV files are typically much larger when uncompressed
+        const estimatedUncompressedSize = duration * sampleRate * numberOfChannels * 2; // 16-bit
+        const compressionRatio = file.size / estimatedUncompressedSize;
+        const effectiveMaxSize = options.maxSize * Math.max(0.1, compressionRatio); // Adjust for compression
+        numParts = Math.ceil(estimatedUncompressedSize / effectiveMaxSize);
+        
+        console.log('Size-based splitting:', {
+          estimatedUncompressedSize,
+          compressionRatio,
+          effectiveMaxSize,
+          numParts
+        });
       } else if (mode === 'count' && options.count) {
         numParts = options.count;
       } else {
@@ -54,6 +72,13 @@ export class WebAudioSplitter {
         const endSample = Math.floor(endTime * sampleRate);
         const partLength = endSample - startSample;
         
+        console.log(`Creating part ${i + 1}:`, {
+          startTime: startTime.toFixed(2),
+          endTime: endTime.toFixed(2),
+          duration: actualDuration.toFixed(2),
+          samples: partLength
+        });
+        
         // Create new AudioBuffer for this part
         const partBuffer = this.audioContext.createBuffer(
           numberOfChannels,
@@ -71,8 +96,9 @@ export class WebAudioSplitter {
           }
         }
         
-        // Convert to WAV blob
-        const blob = await this.audioBufferToWav(partBuffer);
+        // Convert to WAV blob with compression consideration
+        const blob = await this.audioBufferToWav(partBuffer, true);
+        console.log(`Part ${i + 1} created:`, blob.size, 'bytes');
         results.push(blob);
       }
       
@@ -83,13 +109,18 @@ export class WebAudioSplitter {
     }
   }
 
-  private async audioBufferToWav(audioBuffer: AudioBuffer): Promise<Blob> {
+  private async audioBufferToWav(audioBuffer: AudioBuffer, compress = false): Promise<Blob> {
     const numberOfChannels = audioBuffer.numberOfChannels;
     const sampleRate = audioBuffer.sampleRate;
     const length = audioBuffer.length;
     
+    // Use 8-bit if compression is requested to reduce file size
+    const bytesPerSample = compress ? 1 : 2;
+    const maxValue = compress ? 127 : 32767;
+    const minValue = compress ? -128 : -32768;
+    
     // Create WAV header
-    const buffer = new ArrayBuffer(44 + length * numberOfChannels * 2);
+    const buffer = new ArrayBuffer(44 + length * numberOfChannels * bytesPerSample);
     const view = new DataView(buffer);
     
     // WAV header
@@ -100,26 +131,36 @@ export class WebAudioSplitter {
     };
     
     writeString(0, 'RIFF');
-    view.setUint32(4, 36 + length * numberOfChannels * 2, true);
+    view.setUint32(4, 36 + length * numberOfChannels * bytesPerSample, true);
     writeString(8, 'WAVE');
     writeString(12, 'fmt ');
     view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true);
+    view.setUint16(20, 1, true); // PCM
     view.setUint16(22, numberOfChannels, true);
     view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * numberOfChannels * 2, true);
-    view.setUint16(32, numberOfChannels * 2, true);
-    view.setUint16(34, 16, true);
+    view.setUint32(28, sampleRate * numberOfChannels * bytesPerSample, true);
+    view.setUint16(32, numberOfChannels * bytesPerSample, true);
+    view.setUint16(34, bytesPerSample * 8, true); // bits per sample
     writeString(36, 'data');
-    view.setUint32(40, length * numberOfChannels * 2, true);
+    view.setUint32(40, length * numberOfChannels * bytesPerSample, true);
     
-    // Convert audio data to 16-bit PCM
+    // Convert audio data
     let offset = 44;
     for (let i = 0; i < length; i++) {
       for (let channel = 0; channel < numberOfChannels; channel++) {
         const sample = Math.max(-1, Math.min(1, audioBuffer.getChannelData(channel)[i]));
-        view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
-        offset += 2;
+        
+        if (compress) {
+          // 8-bit PCM
+          const value = Math.round((sample + 1) * 127.5);
+          view.setUint8(offset, Math.max(0, Math.min(255, value)));
+          offset += 1;
+        } else {
+          // 16-bit PCM
+          const value = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+          view.setInt16(offset, Math.max(minValue, Math.min(maxValue, value)), true);
+          offset += 2;
+        }
       }
     }
     
