@@ -60,7 +60,7 @@ export const useFFmpeg = () => {
     }
 
     // Clear the log listener
-    ffmpeg.off('log');
+    ffmpeg.off('log', () => {});
 
     if (duration > 0) {
       return duration;
@@ -68,8 +68,6 @@ export const useFFmpeg = () => {
 
     // Fallback: estimate based on typical audio bitrates
     console.warn('Could not determine duration, using estimation');
-    // Assume average bitrate of 128kbps for estimation
-    const estimatedDuration = (fileName.includes('.wav') ? 1411 : 128) * 1000 / 8; // bits per second to bytes
     return 3600; // Default to 1 hour
   };
 
@@ -118,8 +116,9 @@ export const useFFmpeg = () => {
             ]);
             
             const data = await ffmpeg.readFile(outputFile);
-            if (data.byteLength > 0) {
-              results.push(new Blob([data], { type: file.type }));
+            const dataArray = new Uint8Array(data as ArrayBuffer);
+            if (dataArray.byteLength > 0) {
+              results.push(new Blob([dataArray], { type: file.type }));
             }
           } catch (error) {
             console.error(`Error creating part ${i + 1}:`, error);
@@ -152,8 +151,9 @@ export const useFFmpeg = () => {
             ]);
             
             const data = await ffmpeg.readFile(outputFile);
-            if (data.byteLength > 0) {
-              results.push(new Blob([data], { type: file.type }));
+            const dataArray = new Uint8Array(data as ArrayBuffer);
+            if (dataArray.byteLength > 0) {
+              results.push(new Blob([dataArray], { type: file.type }));
             }
           } catch (error) {
             console.error(`Error creating part ${i + 1}:`, error);
