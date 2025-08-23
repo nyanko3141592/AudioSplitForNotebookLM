@@ -30,8 +30,8 @@ export class WebAudioSplitter {
       const duration = audioBuffer.duration;
       
       console.log('Original file info:', {
-        size: file.size,
-        duration,
+        size: (file.size / 1024 / 1024).toFixed(2) + ' MB',
+        duration: duration.toFixed(2) + ' seconds',
         sampleRate,
         channels: numberOfChannels
       });
@@ -39,27 +39,20 @@ export class WebAudioSplitter {
       let numParts: number;
       
       if (mode === 'size' && options.maxSize) {
-        // Calculate parts based on target size and estimated compression ratio
-        // WAV files are typically much larger when uncompressed
-        const estimatedUncompressedSize = duration * sampleRate * numberOfChannels * 2; // 16-bit
-        const compressionRatio = file.size / estimatedUncompressedSize;
-        const effectiveMaxSize = options.maxSize * Math.max(0.1, compressionRatio); // Adjust for compression
-        numParts = Math.ceil(estimatedUncompressedSize / effectiveMaxSize);
-        
-        console.log('Size-based splitting:', {
-          estimatedUncompressedSize,
-          compressionRatio,
-          effectiveMaxSize,
-          numParts
-        });
+        // Simple calculation: divide original file size by max size
+        numParts = Math.ceil(file.size / options.maxSize);
+        console.log(`Size-based splitting: ${file.size} bytes / ${options.maxSize} bytes = ${numParts} parts`);
       } else if (mode === 'count' && options.count) {
         numParts = options.count;
+        console.log(`Count-based splitting: ${numParts} parts`);
       } else {
         throw new Error('Invalid split parameters');
       }
       
       const partDuration = duration / numParts;
       const results: Blob[] = [];
+      
+      console.log(`Creating ${numParts} parts, each ${partDuration.toFixed(2)} seconds long`);
       
       for (let i = 0; i < numParts; i++) {
         const startTime = i * partDuration;
@@ -72,12 +65,7 @@ export class WebAudioSplitter {
         const endSample = Math.floor(endTime * sampleRate);
         const partLength = endSample - startSample;
         
-        console.log(`Creating part ${i + 1}:`, {
-          startTime: startTime.toFixed(2),
-          endTime: endTime.toFixed(2),
-          duration: actualDuration.toFixed(2),
-          samples: partLength
-        });
+        console.log(`Part ${i + 1}: ${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s (${actualDuration.toFixed(2)}s, ${partLength} samples)`);
         
         // Create new AudioBuffer for this part
         const partBuffer = this.audioContext.createBuffer(
@@ -96,9 +84,11 @@ export class WebAudioSplitter {
           }
         }
         
-        // Convert to WAV blob with compression consideration
+        // Convert to WAV blob
+        // Use 8-bit compression to reduce file size while maintaining compatibility
         const blob = await this.audioBufferToWav(partBuffer, true);
-        console.log(`Part ${i + 1} created:`, blob.size, 'bytes');
+        const sizeInMB = (blob.size / 1024 / 1024).toFixed(2);
+        console.log(`Part ${i + 1} created: ${sizeInMB} MB`);
         results.push(blob);
       }
       
@@ -116,8 +106,6 @@ export class WebAudioSplitter {
     
     // Use 8-bit if compression is requested to reduce file size
     const bytesPerSample = compress ? 1 : 2;
-    const maxValue = compress ? 127 : 32767;
-    const minValue = compress ? -128 : -32768;
     
     // Create WAV header
     const buffer = new ArrayBuffer(44 + length * numberOfChannels * bytesPerSample);
@@ -151,14 +139,14 @@ export class WebAudioSplitter {
         const sample = Math.max(-1, Math.min(1, audioBuffer.getChannelData(channel)[i]));
         
         if (compress) {
-          // 8-bit PCM
+          // 8-bit PCM (unsigned)
           const value = Math.round((sample + 1) * 127.5);
           view.setUint8(offset, Math.max(0, Math.min(255, value)));
           offset += 1;
         } else {
-          // 16-bit PCM
+          // 16-bit PCM (signed)
           const value = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
-          view.setInt16(offset, Math.max(minValue, Math.min(maxValue, value)), true);
+          view.setInt16(offset, Math.max(-32768, Math.min(32767, value)), true);
           offset += 2;
         }
       }
@@ -168,7 +156,7 @@ export class WebAudioSplitter {
   }
 }
 
-// Fallback function that attempts FFmpeg first, then Web Audio API
+// Fallback function that attempts Web Audio API
 export const splitAudioFile = async (
   file: File,
   mode: 'size' | 'count',
