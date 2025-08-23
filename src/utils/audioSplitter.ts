@@ -15,15 +15,18 @@ export class WebAudioSplitter {
     mode: 'size' | 'count', 
     options: { maxSize?: number; count?: number }
   ): Promise<Blob[]> {
+    let arrayBuffer: ArrayBuffer | null = null;
+    let audioBuffer: AudioBuffer | null = null;
+    
     try {
       // Initialize AudioContext
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       
       // Read file as ArrayBuffer
-      const arrayBuffer = await file.arrayBuffer();
+      arrayBuffer = await file.arrayBuffer();
       
       // Decode audio data
-      const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+      audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
       
       const sampleRate = audioBuffer.sampleRate;
       const numberOfChannels = audioBuffer.numberOfChannels;
@@ -96,6 +99,20 @@ export class WebAudioSplitter {
     } catch (error) {
       console.error('Web Audio splitting failed:', error);
       throw error;
+    } finally {
+      // Clean up resources
+      this.cleanup();
+      
+      // Release large memory objects
+      arrayBuffer = null;
+      audioBuffer = null;
+      
+      // Suggest garbage collection (browser may or may not honor this)
+      if (typeof (globalThis as any).gc === 'function') {
+        (globalThis as any).gc();
+      }
+      
+      console.log('Memory cleanup completed');
     }
   }
 
@@ -154,6 +171,20 @@ export class WebAudioSplitter {
     
     return new Blob([buffer], { type: 'audio/wav' });
   }
+
+  // Clean up AudioContext and release resources
+  public cleanup(): void {
+    if (this.audioContext) {
+      try {
+        // Close the AudioContext to release resources
+        this.audioContext.close();
+        console.log('AudioContext closed');
+      } catch (error) {
+        console.warn('Error closing AudioContext:', error);
+      }
+      this.audioContext = null;
+    }
+  }
 }
 
 // Fallback function that attempts Web Audio API
@@ -183,5 +214,8 @@ export const splitAudioFile = async (
   } catch (error) {
     console.error('Audio splitting failed:', error);
     throw new Error('音声ファイルの分割に失敗しました。対応していない形式の可能性があります。');
+  } finally {
+    // Ensure cleanup happens even if there's an error
+    splitter.cleanup();
   }
 };

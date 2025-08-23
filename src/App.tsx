@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { FileUpload } from './components/FileUpload';
 import { SplitOptions, type SplitMode } from './components/SplitOptions';
 import { ProgressBar } from './components/ProgressBar';
@@ -17,14 +17,30 @@ function App() {
   
   const { splitAudio, progress } = useFFmpeg();
 
+  // Clean up function to release memory
+  const cleanupSplitFiles = useCallback(() => {
+    splitFiles.forEach(file => {
+      // If any blob URLs were created, revoke them
+      if (file.blob && (file as any).url) {
+        URL.revokeObjectURL((file as any).url);
+      }
+    });
+    console.log('Cleaned up previous split files');
+  }, [splitFiles]);
+
   const handleFileSelect = useCallback((file: File) => {
+    // Clean up previous split files
+    cleanupSplitFiles();
     setSelectedFile(file);
     setSplitFiles([]);
-  }, []);
+  }, [cleanupSplitFiles]);
 
   const handleSplit = useCallback(async () => {
     if (!selectedFile) return;
 
+    // Clean up any previous split files
+    cleanupSplitFiles();
+    
     setIsProcessing(true);
     setSplitFiles([]);
 
@@ -52,7 +68,7 @@ function App() {
     } finally {
       setIsProcessing(false);
     }
-  }, [selectedFile, splitMode, maxSize, splitCount, splitAudio]);
+  }, [selectedFile, splitMode, maxSize, splitCount, splitAudio, cleanupSplitFiles]);
 
   const handleDownload = useCallback((file: SplitFile) => {
     downloadFile(file);
@@ -63,6 +79,13 @@ function App() {
       downloadAllAsZip(splitFiles, selectedFile.name);
     }
   }, [splitFiles, selectedFile]);
+
+  // Clean up on component unmount
+  useEffect(() => {
+    return () => {
+      cleanupSplitFiles();
+    };
+  }, [cleanupSplitFiles]);
 
   return (
     <div className="min-h-screen bg-gray-50">
