@@ -17,9 +17,9 @@ const steps = [
 
 export function WorkflowStepper({ currentStep, onStepClick, completedSteps, availableSteps }: WorkflowStepperProps) {
   return (
-    <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-6 mb-6 border border-white/50">
-      <h2 className="text-lg font-bold text-gray-800 mb-4 text-center">処理の流れ</h2>
-      <div className="flex items-center justify-between max-w-4xl mx-auto">
+    <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-4 mb-4 border border-white/50">
+      <h2 className="text-sm font-bold text-gray-800 mb-3 text-center">処理の流れ</h2>
+      <div className="flex items-center justify-between max-w-3xl mx-auto">
         {steps.map((step, index) => (
           <div key={step.id} className="flex items-center">
             {/* Step Circle */}
@@ -30,7 +30,7 @@ export function WorkflowStepper({ currentStep, onStepClick, completedSteps, avai
               onClick={() => availableSteps.has(step.id) && onStepClick?.(step.id)}
             >
               <div className={`
-                flex items-center justify-center w-12 h-12 rounded-full border-2 mb-2 transition-all
+                flex items-center justify-center w-8 h-8 rounded-full border-2 mb-1 transition-all
                 ${currentStep === step.id
                   ? 'bg-gradient-to-r from-violet-600 to-blue-600 border-violet-600 text-white scale-110 shadow-lg' 
                   : completedSteps.has(step.id)
@@ -41,12 +41,12 @@ export function WorkflowStepper({ currentStep, onStepClick, completedSteps, avai
                 }
               `}>
                 {completedSteps.has(step.id) ? (
-                  <CheckCircle className="w-6 h-6" />
+                  <CheckCircle className="w-4 h-4" />
                 ) : (
-                  <Circle className="w-6 h-6" />
+                  <Circle className="w-4 h-4" />
                 )}
               </div>
-              <div className="text-center min-w-[80px]">
+              <div className="text-center min-w-[60px]">
                 <p className={`text-xs font-medium ${
                   currentStep === step.id ? 'text-violet-700 font-bold' :
                   completedSteps.has(step.id) ? 'text-green-600' :
@@ -55,55 +55,20 @@ export function WorkflowStepper({ currentStep, onStepClick, completedSteps, avai
                 }`}>
                   {step.title}
                 </p>
-                <p className={`text-xs ${
-                  currentStep === step.id ? 'text-gray-700' :
-                  completedSteps.has(step.id) ? 'text-gray-600' :
-                  availableSteps.has(step.id) ? 'text-gray-600' : 
-                  'text-gray-400'
-                }`}>
-                  {step.description}
-                </p>
                 {currentStep === step.id && (
-                  <p className="text-xs text-violet-600 font-medium mt-1">現在のステップ</p>
+                  <p className="text-xs text-violet-600 font-medium">進行中</p>
                 )}
               </div>
             </div>
             
             {/* Arrow */}
             {index < steps.length - 1 && (
-              <ArrowRight className={`w-4 h-4 mx-4 ${
+              <ArrowRight className={`w-3 h-3 mx-2 ${
                 completedSteps.has(step.id) ? 'text-green-500' : 'text-gray-300'
               }`} />
             )}
           </div>
         ))}
-      </div>
-      
-      {/* Skip Options */}
-      <div className="mt-4 text-center">
-        <p className="text-xs text-gray-500 mb-2">
-          どのステップでも停止できます（例：分割のみ使用）
-        </p>
-        <div className="flex gap-2 justify-center">
-          <button 
-            onClick={() => onStepClick?.(3)}
-            className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-full text-gray-600"
-          >
-            分割のみ
-          </button>
-          <button 
-            onClick={() => onStepClick?.(4)}
-            className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-full text-gray-600"
-          >
-            分割＋文字起こし
-          </button>
-          <button 
-            onClick={() => onStepClick?.(5)}
-            className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-full text-gray-600"
-          >
-            フル機能
-          </button>
-        </div>
       </div>
     </div>
   );

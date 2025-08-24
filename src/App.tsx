@@ -202,32 +202,34 @@ function App() {
       {/* Hero Section */}
       <div className="relative overflow-hidden bg-gradient-to-r from-violet-600 via-blue-600 to-cyan-600 animate-gradient-slow">
         <div className="absolute inset-0 bg-black/20"></div>
-        <div className="relative container mx-auto px-6 py-20">
+        <div className="relative container mx-auto px-6 py-6">
           <div className="text-center text-white">
-            <div className="inline-flex items-center justify-center p-4 mb-6 bg-white/20 backdrop-blur-sm rounded-2xl border border-white/30">
-              <Scissors className="w-12 h-12" />
+            <div className="inline-flex items-center justify-center gap-3 mb-3">
+              <div className="flex items-center justify-center p-2 bg-white/20 backdrop-blur-sm rounded-lg border border-white/30">
+                <Scissors className="w-6 h-6" />
+              </div>
+              <div className="text-left">
+                <h1 className="text-2xl md:text-3xl font-bold">AudioSplit</h1>
+                <p className="text-sm text-white/90">for NotebookLM</p>
+              </div>
             </div>
-            <h1 className="text-6xl md:text-7xl font-bold mb-4 animate-float">
-              AudioSplit
-            </h1>
-            <p className="text-xl md:text-2xl mb-2 text-white/90">for NotebookLM</p>
-            <p className="text-lg text-white/80 max-w-2xl mx-auto mb-8">
-              大容量音声ファイルを安全・簡単にNotebookLMの200MB制限に最適化
+            <p className="text-sm text-white/80 max-w-md mx-auto mb-4">
+              音声ファイルをNotebookLMの200MB制限に最適化
             </p>
             
             {/* Feature badges */}
-            <div className="flex flex-wrap justify-center gap-4 mb-8">
-              <div className="inline-flex items-center px-4 py-2 bg-white/20 backdrop-blur-sm rounded-full border border-white/30">
-                <Shield className="w-4 h-4 mr-2" />
-                <span className="text-sm font-medium">完全プライベート処理</span>
+            <div className="flex flex-wrap justify-center gap-2">
+              <div className="inline-flex items-center px-2 py-1 bg-white/20 backdrop-blur-sm rounded-full border border-white/30">
+                <Shield className="w-3 h-3 mr-1" />
+                <span className="text-xs font-medium">完全プライベート処理</span>
               </div>
-              <div className="inline-flex items-center px-4 py-2 bg-white/20 backdrop-blur-sm rounded-full border border-white/30">
-                <Zap className="w-4 h-4 mr-2" />
-                <span className="text-sm font-medium">高速処理</span>
+              <div className="inline-flex items-center px-2 py-1 bg-white/20 backdrop-blur-sm rounded-full border border-white/30">
+                <Zap className="w-3 h-3 mr-1" />
+                <span className="text-xs font-medium">高速処理</span>
               </div>
-              <div className="inline-flex items-center px-4 py-2 bg-white/20 backdrop-blur-sm rounded-full border border-white/30">
-                <Globe className="w-4 h-4 mr-2" />
-                <span className="text-sm font-medium">インストール不要</span>
+              <div className="inline-flex items-center px-2 py-1 bg-white/20 backdrop-blur-sm rounded-full border border-white/30">
+                <Globe className="w-3 h-3 mr-1" />
+                <span className="text-xs font-medium">インストール不要</span>
               </div>
             </div>
           </div>
@@ -235,7 +237,7 @@ function App() {
       </div>
 
       {/* Main Content */}
-      <div className="container mx-auto px-6 py-12">
+      <div className="container mx-auto px-6 py-8">
         <div className="max-w-4xl mx-auto">
           
           {/* Workflow Stepper */}
