@@ -299,19 +299,31 @@ ${summarySettings.backgroundInfo}
         </div>
       )}
 
-      {/* カスタムプロンプト - デフォルト表示 */}
+      {/* プロンプト入力 - 必須 */}
       <div className="space-y-2">
-        <label className="text-sm font-medium text-purple-900">
-          カスタムプロンプト（空欄の場合は下のプリセットを使用）
+        <label className="text-sm font-medium text-purple-900 flex items-center gap-1">
+          プロンプト <span className="text-red-500">*</span>
         </label>
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-2">
+          <p className="text-sm text-blue-800">
+            <strong>重要：</strong> プロンプトには必ず <code className="bg-blue-100 px-1 rounded">{"{transcriptions}"}</code> を含めてください。
+            この部分が実際の文字起こし結果に置き換えられます。
+          </p>
+        </div>
         <textarea
           value={summarySettings.customPrompt}
           onChange={(e) => handleCustomPromptChange(e.target.value)}
-          placeholder="例: この会話を営業報告書の形式でまとめてください。顧客の反応、課題、次のアクションを明確にしてください。"
-          className="w-full px-4 py-3 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent h-24 font-mono text-sm resize-none"
+          placeholder="例: 以下の会議内容を営業報告書の形式でまとめてください。
+
+文字起こし結果：
+{transcriptions}
+
+上記の内容から、顧客の反応、課題、次のアクションを明確にしてまとめてください。"
+          className="w-full px-4 py-3 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent h-40 font-mono text-sm resize-none"
           disabled={summarySettings.isProcessing}
+          required
         />
-        <div className="flex gap-2">
+        <div className="flex justify-between items-center">
           <button
             onClick={() => handleCustomPromptChange('')}
             className="text-xs text-purple-600 hover:text-purple-700"
@@ -319,15 +331,48 @@ ${summarySettings.backgroundInfo}
           >
             クリア
           </button>
+          <div className="text-xs text-gray-500">
+            {summarySettings.customPrompt.includes('{transcriptions}') ? (
+              <span className="text-green-600 flex items-center gap-1">
+                <CheckCircle className="w-3 h-3" />
+                {"{transcriptions}"} が含まれています
+              </span>
+            ) : (
+              <span className="text-red-600 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                {"{transcriptions}"} が必要です
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Background Info - Always visible */}
+      {/* プリセットボタン */}
+      {!summarySettings.isProcessing && (
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">
+            プリセットを選択（プロンプトに自動入力されます）
+          </label>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {Object.entries(formatPresets).map(([key, preset]) => (
+              <button
+                key={key}
+                onClick={() => setSummarySettings(prev => ({ ...prev, customPrompt: preset.prompt }))}
+                className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-purple-400 transition-all text-xs font-medium shadow-sm hover:shadow-md"
+              >
+                {preset.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 背景情報入力 - 必須 */}
       <div className="space-y-2 p-4 bg-purple-50 rounded-lg border border-purple-200">
         <div className="flex items-center justify-between">
           <label className="text-sm font-medium text-purple-900 flex items-center gap-1">
             <Info className="w-4 h-4" />
-            追加情報・背景（まとめ精度向上）
+            背景情報 <span className="text-red-500">*</span>
           </label>
           <button
             onClick={clearBackgroundInfo}
@@ -341,9 +386,10 @@ ${summarySettings.backgroundInfo}
         <textarea
           value={summarySettings.backgroundInfo}
           onChange={(e) => setSummarySettings(prev => ({ ...prev, backgroundInfo: e.target.value }))}
-          placeholder="例: 2024年1月26日の定例会議です。参加者：田中（営業部長）、佐藤（マーケティング）、鈴木（開発）"
-          className="w-full px-4 py-3 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent h-20 font-mono text-sm resize-none bg-white"
+          placeholder="例: 2024年1月26日の定例会議です。参加者：田中（営業部長）、佐藤（マーケティング）、鈴木（開発）。今四半期の売上目標達成状況と来四半期の戦略について議論しました。"
+          className="w-full px-4 py-3 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent h-24 font-mono text-sm resize-none bg-white"
           disabled={summarySettings.isProcessing}
+          required
         />
         <p className="text-xs text-purple-600">
           ※ 会議の日時、参加者、目的など、文字起こし結果に含まれない情報を入力してください
@@ -388,34 +434,30 @@ ${summarySettings.backgroundInfo}
         </div>
       )}
       
-      {/* Preset Buttons */}
+      {/* まとめ実行ボタン */}
       {!summarySettings.isProcessing && (
-        <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {Object.entries(formatPresets).map(([key, preset]) => (
-              <button
-                key={key}
-                onClick={() => handleSummarize(key as keyof typeof formatPresets)}
-                disabled={!apiKey}
-                className="px-4 py-3 bg-white border border-purple-300 text-purple-700 rounded-lg hover:bg-purple-50 hover:border-purple-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm font-medium shadow-sm hover:shadow-md"
-              >
-                {preset.name}
-              </button>
-            ))}
+        <div className="flex justify-center">
+          <button
+            onClick={() => handleSummarize()}
+            disabled={!summarySettings.customPrompt || !summarySettings.backgroundInfo || !apiKey || !summarySettings.customPrompt.includes('{transcriptions}')}
+            className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-lg rounded-lg hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-3 shadow-lg hover:shadow-xl"
+          >
+            <Sparkles className="w-5 h-5" />
+            まとめを実行
+          </button>
+        </div>
+      )}
+      
+      {/* 必須項目の注意書き */}
+      {(!summarySettings.customPrompt || !summarySettings.backgroundInfo || !summarySettings.customPrompt.includes('{transcriptions}')) && !summarySettings.isProcessing && (
+        <div className="text-center text-sm text-gray-500 space-y-1">
+          <div>※ 以下の項目を確認してください：</div>
+          <div className="text-xs space-y-1">
+            {!summarySettings.customPrompt && <div>• プロンプトを入力してください</div>}
+            {summarySettings.customPrompt && !summarySettings.customPrompt.includes('{transcriptions}') && <div>• プロンプトに {"{transcriptions}"} を含めてください</div>}
+            {!summarySettings.backgroundInfo && <div>• 背景情報を入力してください</div>}
           </div>
-
-          {/* カスタム実行ボタン */}
-          <div className="flex justify-center">
-            <button
-              onClick={() => handleSummarize()}
-              disabled={!summarySettings.customPrompt || !apiKey}
-              className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-medium rounded-lg hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2 shadow-lg hover:shadow-xl"
-            >
-              <Sparkles className="w-4 h-4" />
-              カスタムまとめ実行
-            </button>
-          </div>
-        </>
+        </div>
       )}
 
       {/* Error Message */}
