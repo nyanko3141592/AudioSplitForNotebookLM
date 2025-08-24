@@ -42,9 +42,25 @@ export class WebAudioSplitter {
       let numParts: number;
       
       if (mode === 'size' && options.maxSize) {
-        // Simple calculation: divide original file size by max size
-        numParts = Math.ceil(file.size / options.maxSize);
-        console.log(`Size-based splitting: ${file.size} bytes / ${options.maxSize} bytes = ${numParts} parts`);
+        const maxSizeBytes = options.maxSize * 1024 * 1024;
+        
+        // Calculate expected WAV size after 8-bit conversion
+        // 8-bit WAV = (sample_rate * channels * duration * 1) + 44 bytes header
+        const expectedWavSize = (sampleRate * numberOfChannels * duration * 1) + 44;
+        
+        // Calculate how many parts we need based on the expected WAV size
+        numParts = Math.ceil(expectedWavSize / maxSizeBytes);
+        
+        // Ensure at least 2 parts if original file is larger than max size
+        if (file.size > maxSizeBytes && numParts < 2) {
+          numParts = 2;
+        }
+        
+        console.log(`Size-based splitting:`);
+        console.log(`- Original file size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
+        console.log(`- Expected 8-bit WAV size: ${(expectedWavSize / 1024 / 1024).toFixed(2)} MB`);
+        console.log(`- Max size per part: ${options.maxSize} MB`);
+        console.log(`- Calculated parts: ${numParts}`);
       } else if (mode === 'count' && options.count) {
         numParts = options.count;
         console.log(`Count-based splitting: ${numParts} parts`);
@@ -92,6 +108,16 @@ export class WebAudioSplitter {
         const blob = await this.audioBufferToWav(partBuffer, true);
         const sizeInMB = (blob.size / 1024 / 1024).toFixed(2);
         console.log(`Part ${i + 1} created: ${sizeInMB} MB`);
+        
+        // Check if this part exceeds the target size (for size-based splitting)
+        if (mode === 'size' && options.maxSize) {
+          const maxSizeBytes = options.maxSize * 1024 * 1024;
+          if (blob.size > maxSizeBytes) {
+            console.warn(`Part ${i + 1} (${sizeInMB} MB) exceeds target size (${options.maxSize} MB)`);
+            // For now, just warn - in a future version we could recursively split this part
+          }
+        }
+        
         results.push(blob);
       }
       
