@@ -19,14 +19,23 @@ export class WebAudioSplitter {
     let audioBuffer: AudioBuffer | null = null;
     
     try {
+      console.log('=== Starting audio splitting process ===');
+      console.log('File:', file.name, 'Size:', (file.size / 1024 / 1024).toFixed(2), 'MB');
+      console.log('Mode:', mode, 'Options:', options);
+      
       // Initialize AudioContext
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      console.log('AudioContext created successfully');
       
       // Read file as ArrayBuffer
+      console.log('Reading file as ArrayBuffer...');
       arrayBuffer = await file.arrayBuffer();
+      console.log('ArrayBuffer size:', arrayBuffer.byteLength, 'bytes');
       
       // Decode audio data
+      console.log('Decoding audio data...');
       audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+      console.log('Audio decoded successfully');
       
       const sampleRate = audioBuffer.sampleRate;
       const numberOfChannels = audioBuffer.numberOfChannels;
@@ -44,23 +53,26 @@ export class WebAudioSplitter {
       if (mode === 'size' && options.maxSize) {
         const maxSizeBytes = options.maxSize * 1024 * 1024;
         
-        // Calculate expected WAV size after 8-bit conversion
-        // 8-bit WAV = (sample_rate * channels * duration * 1) + 44 bytes header
+        // For size-based splitting, we need to ensure files are small enough
+        // Use a more aggressive calculation to guarantee file size limits
+        
+        // Estimate output WAV size (8-bit = 1 byte per sample)
         const expectedWavSize = (sampleRate * numberOfChannels * duration * 1) + 44;
         
-        // Calculate how many parts we need based on the expected WAV size
-        numParts = Math.ceil(expectedWavSize / maxSizeBytes);
+        // Calculate minimum parts needed
+        const minPartsFromWav = Math.ceil(expectedWavSize / maxSizeBytes);
+        const minPartsFromOriginal = Math.ceil(file.size / maxSizeBytes);
         
-        // Ensure at least 2 parts if original file is larger than max size
-        if (file.size > maxSizeBytes && numParts < 2) {
-          numParts = 2;
-        }
+        // Use the larger of the two to be safe
+        numParts = Math.max(minPartsFromWav, minPartsFromOriginal, 2);
         
         console.log(`Size-based splitting:`);
         console.log(`- Original file size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
         console.log(`- Expected 8-bit WAV size: ${(expectedWavSize / 1024 / 1024).toFixed(2)} MB`);
         console.log(`- Max size per part: ${options.maxSize} MB`);
-        console.log(`- Calculated parts: ${numParts}`);
+        console.log(`- Min parts from WAV: ${minPartsFromWav}`);
+        console.log(`- Min parts from original: ${minPartsFromOriginal}`);
+        console.log(`- Final calculated parts: ${numParts}`);
       } else if (mode === 'count' && options.count) {
         numParts = options.count;
         console.log(`Count-based splitting: ${numParts} parts`);
@@ -121,10 +133,35 @@ export class WebAudioSplitter {
         results.push(blob);
       }
       
+      console.log(`=== Splitting completed successfully ===`);
+      console.log(`Generated ${results.length} parts`);
+      results.forEach((blob, i) => {
+        console.log(`Part ${i + 1}: ${(blob.size / 1024 / 1024).toFixed(2)} MB`);
+      });
+      
+      // Validate results - ensure we actually split the audio
+      if (results.length < 2 && (mode === 'size' && options.maxSize)) {
+        throw new Error('分割に失敗しました：分割されたファイルが2つ未満です');
+      }
+      
+      // Validate file sizes for size-based splitting
+      if (mode === 'size' && options.maxSize) {
+        const maxSizeBytes = options.maxSize * 1024 * 1024;
+        for (let i = 0; i < results.length; i++) {
+          if (results[i].size > maxSizeBytes) {
+            console.error(`Part ${i + 1} exceeds size limit: ${(results[i].size / 1024 / 1024).toFixed(2)} MB > ${options.maxSize} MB`);
+            throw new Error(`分割されたファイルが制限サイズを超えています`);
+          }
+        }
+      }
+      
       return results;
     } catch (error) {
       console.error('Web Audio splitting failed:', error);
-      throw error;
+      console.error('Error details:', error);
+      
+      // Never return the original file - always throw error
+      throw new Error(`音声分割処理に失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
     } finally {
       // Clean up resources
       this.cleanup();
@@ -213,33 +250,54 @@ export class WebAudioSplitter {
   }
 }
 
-// Fallback function that attempts Web Audio API
+// Main export function for audio splitting
 export const splitAudioFile = async (
   file: File,
   mode: 'size' | 'count',
   options: { maxSize?: number; count?: number },
   progressCallback?: (progress: number) => void
 ): Promise<Blob[]> => {
+  console.log('=== splitAudioFile called ===');
+  console.log('File:', file.name, 'Size:', (file.size / 1024 / 1024).toFixed(2), 'MB');
+  console.log('Mode:', mode, 'Options:', options);
+  
   const splitter = new WebAudioSplitter();
   
   try {
-    // Try Web Audio API approach (more compatible with GitHub Pages)
     if (progressCallback) progressCallback(0);
     
     let result: Blob[];
     if (mode === 'size' && options.maxSize) {
+      console.log(`Attempting size-based splitting with maxSize: ${options.maxSize} MB`);
       result = await splitter.splitAudioBySize(file, options.maxSize * 1024 * 1024);
     } else if (mode === 'count' && options.count) {
+      console.log(`Attempting count-based splitting with count: ${options.count}`);
       result = await splitter.splitAudioByCount(file, options.count);
     } else {
-      throw new Error('Invalid parameters');
+      throw new Error('Invalid split parameters provided');
     }
+    
+    // Final validation
+    if (!result || result.length === 0) {
+      throw new Error('分割結果が空です');
+    }
+    
+    if (result.length === 1 && file.size > 200 * 1024 * 1024) {
+      throw new Error('大きなファイルが1つのままです - 分割が失敗している可能性があります');
+    }
+    
+    console.log(`=== splitAudioFile completed successfully ===`);
+    console.log(`Returning ${result.length} split files`);
     
     if (progressCallback) progressCallback(100);
     return result;
   } catch (error) {
-    console.error('Audio splitting failed:', error);
-    throw new Error('音声ファイルの分割に失敗しました。対応していない形式の可能性があります。');
+    console.error('=== Audio splitting failed ===');
+    console.error('Error:', error);
+    
+    // Re-throw with more descriptive error
+    const errorMessage = error instanceof Error ? error.message : '不明なエラーが発生しました';
+    throw new Error(`音声ファイルの分割に失敗しました: ${errorMessage}`);
   } finally {
     // Ensure cleanup happens even if there's an error
     splitter.cleanup();
