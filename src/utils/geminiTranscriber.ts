@@ -132,9 +132,9 @@ export class GeminiTranscriber {
         return await this.transcribeConcurrently(blobs, fileNames, onProgress, delay, customPrompt, concurrency, fileStates);
       }
     } catch (error) {
-      if (error.name === 'AbortError') {
+      if (error instanceof Error && error.name === 'AbortError') {
         // キャンセルされた処理の状態を更新
-        for (const [key, result] of fileStates.entries()) {
+        for (const [, result] of fileStates.entries()) {
           if (result.status === 'processing') {
             result.status = 'cancelled';
             result.error = 'ユーザーによってキャンセルされました';
@@ -431,7 +431,11 @@ ${combinedText}
 上記の内容を整理してまとめてください。
 `;
 
-    const prompt = formatPrompt || defaultFormatPrompt;
+    // formatPromptに{transcriptions}プレースホルダーがある場合は置換
+    let prompt = formatPrompt || defaultFormatPrompt;
+    if (formatPrompt && formatPrompt.includes('{transcriptions}')) {
+      prompt = formatPrompt.replace('{transcriptions}', combinedText);
+    }
 
     try {
       const result = await this.model.generateContent(prompt);

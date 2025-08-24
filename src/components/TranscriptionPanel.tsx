@@ -199,8 +199,10 @@ export function TranscriptionPanel({ splitFiles, isProcessing }: TranscriptionPa
       setTranscriptionResults(results);
     } catch (error) {
       console.error('Transcription error:', error);
-      if (error.message !== 'キャンセルされました') {
-        setError(error instanceof Error ? error.message : '文字起こしに失敗しました');
+      if (error instanceof Error && error.message !== 'キャンセルされました') {
+        setError(error.message);
+      } else {
+        setError('文字起こしに失敗しました');
       }
     } finally {
       setIsTranscribing(false);

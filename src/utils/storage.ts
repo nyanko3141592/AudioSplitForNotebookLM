@@ -2,6 +2,7 @@
 
 const STORAGE_KEYS = {
   CUSTOM_PROMPT: 'audioSplit_customPrompt',
+  SUMMARY_CUSTOM_PROMPT: 'audioSplit_summaryCustomPrompt',
   API_KEY_HASH: 'audioSplit_apiKeyHash',
   SETTINGS: 'audioSplit_settings'
 } as const;
@@ -117,6 +118,23 @@ export const localStorage = {
   
   clearCustomPrompt: (): void => {
     window.localStorage.removeItem(STORAGE_KEYS.CUSTOM_PROMPT);
+  },
+  
+  // まとめ用カスタムプロンプト
+  saveSummaryCustomPrompt: (prompt: string): void => {
+    if (!prompt) {
+      window.localStorage.removeItem(STORAGE_KEYS.SUMMARY_CUSTOM_PROMPT);
+      return;
+    }
+    window.localStorage.setItem(STORAGE_KEYS.SUMMARY_CUSTOM_PROMPT, prompt);
+  },
+  
+  getSummaryCustomPrompt: (): string => {
+    return window.localStorage.getItem(STORAGE_KEYS.SUMMARY_CUSTOM_PROMPT) || '';
+  },
+  
+  clearSummaryCustomPrompt: (): void => {
+    window.localStorage.removeItem(STORAGE_KEYS.SUMMARY_CUSTOM_PROMPT);
   },
   
   // アプリ設定

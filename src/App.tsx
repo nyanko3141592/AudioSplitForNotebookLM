@@ -1,9 +1,12 @@
 import { useState, useCallback, useEffect } from 'react';
-import { FileUpload } from './components/FileUpload';
-import { SplitOptions, type SplitMode } from './components/SplitOptions';
-import { ProgressBar } from './components/ProgressBar';
-import { DownloadList, type SplitFile } from './components/DownloadList';
-import { TranscriptionPanel } from './components/TranscriptionPanel';
+import { WorkflowStepper } from './components/WorkflowStepper';
+import { FileSelectionStep } from './components/steps/FileSelectionStep';
+import { SplitConfigStep } from './components/steps/SplitConfigStep';
+import { SplitResultsStep } from './components/steps/SplitResultsStep';
+import { TranscriptionStep } from './components/steps/TranscriptionStep';
+import { SummaryStep } from './components/steps/SummaryStep';
+import { type SplitMode } from './components/SplitOptions';
+import { type SplitFile } from './components/DownloadList';
 import { useFFmpeg } from './hooks/useFFmpeg';
 import { downloadFile, downloadAllAsZip } from './utils/download';
 import { 
@@ -16,14 +19,21 @@ import {
   Github,
   Heart
 } from 'lucide-react';
+import type { TranscriptionResult } from './utils/geminiTranscriber';
+import { GeminiTranscriber, downloadTranscription } from './utils/geminiTranscriber';
 
 function App() {
+  const [currentStep, setCurrentStep] = useState(1);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [splitMode, setSplitMode] = useState<SplitMode>('size');
   const [maxSize, setMaxSize] = useState(190);
   const [splitCount, setSplitCount] = useState(2);
   const [isProcessing, setIsProcessing] = useState(false);
   const [splitFiles, setSplitFiles] = useState<SplitFile[]>([]);
+  const [transcriptionResults, setTranscriptionResults] = useState<TranscriptionResult[]>([]);
+  // const [summaryResult, setSummaryResult] = useState<string>(''); // TODO: Implement summary result handling
+  const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
+  const [availableSteps, setAvailableSteps] = useState<Set<number>>(new Set([1]));
   
   const { splitAudio, progress } = useFFmpeg();
 
@@ -43,6 +53,10 @@ function App() {
     cleanupSplitFiles();
     setSelectedFile(file);
     setSplitFiles([]);
+    setTranscriptionResults([]);
+    // Mark step 1 as completed and make step 2 available
+    setCompletedSteps(new Set([1]));
+    setAvailableSteps(new Set([1, 2]));
   }, [cleanupSplitFiles]);
 
   const handleSplit = useCallback(async () => {
@@ -72,6 +86,10 @@ function App() {
       });
       
       setSplitFiles(files);
+      // Mark step 2 as completed and make steps 3 and 4 available
+      setCompletedSteps(prev => new Set([...prev, 2]));
+      setAvailableSteps(new Set([1, 2, 3, 4]));
+      setCurrentStep(3); // Move to results step
     } catch (error) {
       console.error('Error splitting audio:', error);
       alert('音声ファイルの分割中にエラーが発生しました。');
@@ -96,6 +114,88 @@ function App() {
       cleanupSplitFiles();
     };
   }, [cleanupSplitFiles]);
+
+  const handleStepNavigation = (step: number) => {
+    // Allow navigation to any available step
+    if (availableSteps.has(step)) {
+      setCurrentStep(step);
+    }
+  };
+
+  const handleTranscriptionComplete = (results: TranscriptionResult[]) => {
+    setTranscriptionResults(results);
+    // Mark step 4 as completed and make step 5 available
+    if (results.length > 0 && results.some(r => !r.error)) {
+      setCompletedSteps(prev => new Set([...prev, 4]));
+      setAvailableSteps(new Set([1, 2, 3, 4, 5]));
+    }
+  };
+
+  const renderCurrentStep = () => {
+    switch (currentStep) {
+      case 1:
+        return (
+          <FileSelectionStep
+            selectedFile={selectedFile}
+            onFileSelect={handleFileSelect}
+            onNext={() => setCurrentStep(2)}
+            isProcessing={isProcessing}
+          />
+        );
+      case 2:
+        return (
+          <SplitConfigStep
+            splitMode={splitMode}
+            onModeChange={setSplitMode}
+            maxSize={maxSize}
+            onMaxSizeChange={setMaxSize}
+            splitCount={splitCount}
+            onSplitCountChange={setSplitCount}
+            onNext={handleSplit}
+            isProcessing={isProcessing}
+          />
+        );
+      case 3:
+        return (
+          <SplitResultsStep
+            splitFiles={splitFiles}
+            onDownload={handleDownload}
+            onDownloadAll={handleDownloadAll}
+            onNext={() => setCurrentStep(4)}
+            isProcessing={isProcessing}
+            progress={progress}
+          />
+        );
+      case 4:
+        return (
+          <TranscriptionStep
+            splitFiles={splitFiles}
+            transcriptionResults={transcriptionResults}
+            onNext={() => setCurrentStep(5)}
+            onDownloadSplit={handleDownload}
+            onDownloadAllSplits={handleDownloadAll}
+            onTranscriptionComplete={handleTranscriptionComplete}
+          />
+        );
+      case 5:
+        return (
+          <SummaryStep
+            transcriptionResults={transcriptionResults}
+            splitFiles={splitFiles}
+            onDownloadSplit={handleDownload}
+            onDownloadAllSplits={handleDownloadAll}
+            onDownloadTranscription={() => {
+              // Implement transcription download
+              const transcriber = new GeminiTranscriber();
+              const formatted = transcriber.formatTranscriptions(transcriptionResults);
+              downloadTranscription(formatted);
+            }}
+          />
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-violet-50 via-blue-50 to-cyan-50">
@@ -138,94 +238,16 @@ function App() {
       <div className="container mx-auto px-6 py-12">
         <div className="max-w-4xl mx-auto">
           
-          {/* File Upload Section */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-8 mb-8 border border-white/50">
-            <FileUpload 
-              onFileSelect={handleFileSelect}
-              disabled={isProcessing}
-            />
-            
-            {selectedFile && (
-              <div className="mt-6 p-6 bg-gradient-to-r from-blue-100 to-violet-100 rounded-2xl border border-blue-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">選択されたファイル</p>
-                    <p className="font-bold text-gray-900">{selectedFile.name}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm text-gray-600 mb-1">ファイルサイズ</p>
-                    <p className="font-bold text-2xl bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">
-                      {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          {/* Workflow Stepper */}
+          <WorkflowStepper 
+            currentStep={currentStep} 
+            onStepClick={handleStepNavigation}
+            completedSteps={completedSteps}
+            availableSteps={availableSteps}
+          />
 
-          {/* Split Options Section */}
-          {selectedFile && (
-            <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-8 mb-8 border border-white/50">
-              <SplitOptions
-                mode={splitMode}
-                onModeChange={setSplitMode}
-                maxSize={maxSize}
-                onMaxSizeChange={setMaxSize}
-                splitCount={splitCount}
-                onSplitCountChange={setSplitCount}
-                disabled={isProcessing}
-              />
-              
-              <button
-                onClick={handleSplit}
-                disabled={isProcessing}
-                className="mt-8 w-full py-4 px-8 bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 text-white font-bold rounded-2xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed disabled:transform-none"
-              >
-                {isProcessing ? (
-                  <span className="flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mr-3"></div>
-                    処理中...
-                  </span>
-                ) : (
-                  <span className="flex items-center justify-center text-lg">
-                    <Scissors className="w-6 h-6 mr-3" />
-                    分割開始
-                  </span>
-                )}
-              </button>
-            </div>
-          )}
-
-          {/* Progress Section */}
-          {isProcessing && (
-            <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-8 mb-8 border border-white/50">
-              <ProgressBar 
-                progress={progress}
-                message="音声ファイルを分割しています..."
-              />
-            </div>
-          )}
-
-          {/* Results Section */}
-          {splitFiles.length > 0 && (
-            <>
-              <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-8 mb-8 border border-white/50">
-                <DownloadList
-                  files={splitFiles}
-                  onDownload={handleDownload}
-                  onDownloadAll={handleDownloadAll}
-                />
-              </div>
-              
-              {/* Transcription Section */}
-              <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-8 border border-white/50">
-                <TranscriptionPanel
-                  splitFiles={splitFiles}
-                  isProcessing={isProcessing}
-                />
-              </div>
-            </>
-          )}
+          {/* Current Step Content */}
+          {renderCurrentStep()}
         </div>
 
         {/* Security Features Section */}
