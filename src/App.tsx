@@ -3,6 +3,7 @@ import { FileUpload } from './components/FileUpload';
 import { SplitOptions, type SplitMode } from './components/SplitOptions';
 import { ProgressBar } from './components/ProgressBar';
 import { DownloadList, type SplitFile } from './components/DownloadList';
+import { TranscriptionPanel } from './components/TranscriptionPanel';
 import { useFFmpeg } from './hooks/useFFmpeg';
 import { downloadFile, downloadAllAsZip } from './utils/download';
 import { 
@@ -207,13 +208,23 @@ function App() {
 
           {/* Results Section */}
           {splitFiles.length > 0 && (
-            <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-8 border border-white/50">
-              <DownloadList
-                files={splitFiles}
-                onDownload={handleDownload}
-                onDownloadAll={handleDownloadAll}
-              />
-            </div>
+            <>
+              <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-8 mb-8 border border-white/50">
+                <DownloadList
+                  files={splitFiles}
+                  onDownload={handleDownload}
+                  onDownloadAll={handleDownloadAll}
+                />
+              </div>
+              
+              {/* Transcription Section */}
+              <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-8 border border-white/50">
+                <TranscriptionPanel
+                  splitFiles={splitFiles}
+                  isProcessing={isProcessing}
+                />
+              </div>
+            </>
           )}
         </div>
 
