@@ -97,93 +97,63 @@ function App() {
   }, [cleanupSplitFiles]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-violet-50 via-blue-50 to-cyan-50">
       {/* Hero Section */}
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-400/10 to-purple-400/10"></div>
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
-        
-        <div className="relative container mx-auto px-4 py-12">
-          <div className="text-center">
-            <div className="flex justify-center items-center space-x-3 mb-4">
-              <div className="p-3 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-lg">
-                <Scissors className="w-10 h-10 text-white" />
-              </div>
-              <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                AudioSplit
-              </h1>
+      <div className="relative overflow-hidden bg-gradient-to-r from-violet-600 via-blue-600 to-cyan-600 animate-gradient-slow">
+        <div className="absolute inset-0 bg-black/20"></div>
+        <div className="relative container mx-auto px-6 py-20">
+          <div className="text-center text-white">
+            <div className="inline-flex items-center justify-center p-4 mb-6 bg-white/20 backdrop-blur-sm rounded-2xl border border-white/30">
+              <Scissors className="w-12 h-12" />
             </div>
-            <p className="text-xl text-gray-600 mb-2">for NotebookLM</p>
-            <p className="text-gray-500 max-w-2xl mx-auto">
-              大容量の音声ファイルを簡単・安全にNotebookLMの200MB制限に最適化
+            <h1 className="text-6xl md:text-7xl font-bold mb-4 animate-float">
+              AudioSplit
+            </h1>
+            <p className="text-xl md:text-2xl mb-2 text-white/90">for NotebookLM</p>
+            <p className="text-lg text-white/80 max-w-2xl mx-auto mb-8">
+              大容量音声ファイルを安全・簡単にNotebookLMの200MB制限に最適化
             </p>
+            
+            {/* Feature badges */}
+            <div className="flex flex-wrap justify-center gap-4 mb-8">
+              <div className="inline-flex items-center px-4 py-2 bg-white/20 backdrop-blur-sm rounded-full border border-white/30">
+                <Shield className="w-4 h-4 mr-2" />
+                <span className="text-sm font-medium">完全プライベート処理</span>
+              </div>
+              <div className="inline-flex items-center px-4 py-2 bg-white/20 backdrop-blur-sm rounded-full border border-white/30">
+                <Zap className="w-4 h-4 mr-2" />
+                <span className="text-sm font-medium">高速処理</span>
+              </div>
+              <div className="inline-flex items-center px-4 py-2 bg-white/20 backdrop-blur-sm rounded-full border border-white/30">
+                <Globe className="w-4 h-4 mr-2" />
+                <span className="text-sm font-medium">インストール不要</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Features Section */}
-      <div className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <div className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow">
-            <div className="flex items-center space-x-3 mb-3">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <Shield className="w-6 h-6 text-green-600" />
-              </div>
-              <h3 className="font-semibold text-gray-800">完全プライベート処理</h3>
-            </div>
-            <p className="text-sm text-gray-600">
-              音声ファイルはブラウザ内でのみ処理。
-              サーバーへのアップロード一切なし。
-            </p>
-          </div>
-
-          <div className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow">
-            <div className="flex items-center space-x-3 mb-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Zap className="w-6 h-6 text-blue-600" />
-              </div>
-              <h3 className="font-semibold text-gray-800">高速処理</h3>
-            </div>
-            <p className="text-sm text-gray-600">
-              WebAssembly技術により、
-              大容量ファイルも高速に分割。
-            </p>
-          </div>
-
-          <div className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow">
-            <div className="flex items-center space-x-3 mb-3">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <Globe className="w-6 h-6 text-purple-600" />
-              </div>
-              <h3 className="font-semibold text-gray-800">インストール不要</h3>
-            </div>
-            <p className="text-sm text-gray-600">
-              ブラウザだけで動作。
-              ソフトのインストール不要で今すぐ使える。
-            </p>
-          </div>
-        </div>
-
-        {/* Main Content */}
+      {/* Main Content */}
+      <div className="container mx-auto px-6 py-12">
         <div className="max-w-4xl mx-auto">
+          
           {/* File Upload Section */}
-          <div className="bg-white rounded-2xl shadow-xl p-8 mb-6 border border-gray-100">
+          <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-8 mb-8 border border-white/50">
             <FileUpload 
               onFileSelect={handleFileSelect}
               disabled={isProcessing}
             />
             
             {selectedFile && (
-              <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200">
+              <div className="mt-6 p-6 bg-gradient-to-r from-blue-100 to-violet-100 rounded-2xl border border-blue-200">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">選択されたファイル</p>
-                    <p className="font-semibold text-gray-900">{selectedFile.name}</p>
+                    <p className="text-sm text-gray-600 mb-1">選択されたファイル</p>
+                    <p className="font-bold text-gray-900">{selectedFile.name}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm text-gray-600">ファイルサイズ</p>
-                    <p className="font-semibold text-gray-900">
+                    <p className="text-sm text-gray-600 mb-1">ファイルサイズ</p>
+                    <p className="font-bold text-2xl bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">
                       {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
                     </p>
                   </div>
@@ -194,7 +164,7 @@ function App() {
 
           {/* Split Options Section */}
           {selectedFile && (
-            <div className="bg-white rounded-2xl shadow-xl p-8 mb-6 border border-gray-100">
+            <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-8 mb-8 border border-white/50">
               <SplitOptions
                 mode={splitMode}
                 onModeChange={setSplitMode}
@@ -208,16 +178,16 @@ function App() {
               <button
                 onClick={handleSplit}
                 disabled={isProcessing}
-                className="mt-6 w-full py-4 px-6 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                className="mt-8 w-full py-4 px-8 bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 text-white font-bold rounded-2xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed disabled:transform-none"
               >
                 {isProcessing ? (
                   <span className="flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mr-3"></div>
                     処理中...
                   </span>
                 ) : (
-                  <span className="flex items-center justify-center">
-                    <Scissors className="w-5 h-5 mr-2" />
+                  <span className="flex items-center justify-center text-lg">
+                    <Scissors className="w-6 h-6 mr-3" />
                     分割開始
                   </span>
                 )}
@@ -227,7 +197,7 @@ function App() {
 
           {/* Progress Section */}
           {isProcessing && (
-            <div className="bg-white rounded-2xl shadow-xl p-8 mb-6 border border-gray-100">
+            <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-8 mb-8 border border-white/50">
               <ProgressBar 
                 progress={progress}
                 message="音声ファイルを分割しています..."
@@ -237,7 +207,7 @@ function App() {
 
           {/* Results Section */}
           {splitFiles.length > 0 && (
-            <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+            <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-8 border border-white/50">
               <DownloadList
                 files={splitFiles}
                 onDownload={handleDownload}
@@ -247,61 +217,67 @@ function App() {
           )}
         </div>
 
-        {/* Security Features */}
-        <div className="max-w-4xl mx-auto mt-12">
-          <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-2xl p-8 border border-green-200">
-            <h3 className="text-xl font-bold text-gray-800 mb-6 flex items-center">
-              <Lock className="w-6 h-6 mr-2 text-green-600" />
-              セキュリティ & プライバシー
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-start space-x-3">
-                <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="font-semibold text-gray-800">ローカル処理</p>
-                  <p className="text-sm text-gray-600">すべての処理はあなたのデバイス内で完結</p>
-                </div>
+        {/* Security Features Section */}
+        <div className="max-w-6xl mx-auto mt-16">
+          <div className="text-center mb-12">
+            <h2 className="text-4xl font-bold bg-gradient-to-r from-violet-600 to-blue-600 bg-clip-text text-transparent mb-4">
+              なぜAudioSplitなのか？
+            </h2>
+            <p className="text-lg text-gray-600">
+              セキュリティと利便性を両立した音声分割ツール
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+            <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+              <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-emerald-600 rounded-xl flex items-center justify-center mb-4">
+                <Lock className="w-6 h-6 text-white" />
               </div>
-              <div className="flex items-start space-x-3">
-                <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="font-semibold text-gray-800">データ送信なし</p>
-                  <p className="text-sm text-gray-600">外部サーバーへの通信は一切発生しません</p>
-                </div>
+              <h3 className="font-bold text-gray-800 mb-2">完全ローカル処理</h3>
+              <p className="text-sm text-gray-600">あなたのデバイス内で完結。外部サーバーは一切使用しません。</p>
+            </div>
+
+            <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-cyan-600 rounded-xl flex items-center justify-center mb-4">
+                <Zap className="w-6 h-6 text-white" />
               </div>
-              <div className="flex items-start space-x-3">
-                <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="font-semibold text-gray-800">自動メモリ管理</p>
-                  <p className="text-sm text-gray-600">処理後は自動的にメモリを解放</p>
-                </div>
+              <h3 className="font-bold text-gray-800 mb-2">高速処理</h3>
+              <p className="text-sm text-gray-600">WebAssembly技術で大容量ファイルも瞬時に分割。</p>
+            </div>
+
+            <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+              <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-violet-600 rounded-xl flex items-center justify-center mb-4">
+                <Globe className="w-6 h-6 text-white" />
               </div>
-              <div className="flex items-start space-x-3">
-                <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="font-semibold text-gray-800">オープンソース</p>
-                  <p className="text-sm text-gray-600">GitHubでコードを公開・検証可能</p>
-                </div>
+              <h3 className="font-bold text-gray-800 mb-2">ブラウザで完結</h3>
+              <p className="text-sm text-gray-600">ソフトウェアのインストール不要。今すぐ使えます。</p>
+            </div>
+
+            <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+              <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-red-600 rounded-xl flex items-center justify-center mb-4">
+                <CheckCircle className="w-6 h-6 text-white" />
               </div>
+              <h3 className="font-bold text-gray-800 mb-2">オープンソース</h3>
+              <p className="text-sm text-gray-600">GitHubでコードを公開。安全性を確認できます。</p>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <footer className="mt-16 pb-8 text-center">
-          <div className="flex justify-center items-center space-x-6 mb-4">
+        <footer className="text-center py-12">
+          <div className="flex justify-center items-center space-x-6 mb-6">
             <a
               href="https://github.com/nyanko3141592/AudioSplitForNotebookLM"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center space-x-2 text-gray-600 hover:text-gray-800 transition-colors"
+              className="inline-flex items-center px-6 py-3 bg-gray-900 hover:bg-gray-800 text-white rounded-full transition-colors duration-200 shadow-lg hover:shadow-xl"
             >
-              <Github className="w-5 h-5" />
-              <span>GitHub</span>
+              <Github className="w-5 h-5 mr-2" />
+              <span className="font-medium">GitHub</span>
             </a>
           </div>
-          <p className="text-sm text-gray-500">
-            Made with <Heart className="w-4 h-4 inline text-red-500" /> for NotebookLM users
+          <p className="text-gray-600">
+            Made with <Heart className="w-5 h-5 inline text-red-500" /> for NotebookLM users
           </p>
         </footer>
       </div>

@@ -45,10 +45,10 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect, disabled }
   return (
     <div
       className={cn(
-        "relative border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300",
+        "relative border-2 border-dashed rounded-3xl p-16 text-center transition-all duration-300 cursor-pointer",
         isDragging 
-          ? "border-blue-500 bg-gradient-to-br from-blue-50 to-purple-50 scale-[1.02]" 
-          : "border-gray-300 hover:border-gray-400 bg-gradient-to-br from-gray-50 to-gray-100",
+          ? "border-violet-400 bg-gradient-to-br from-violet-100 to-blue-100 scale-[1.02]" 
+          : "border-gray-300 hover:border-violet-300 bg-gradient-to-br from-white to-gray-50 hover:from-violet-50 hover:to-blue-50",
         disabled && "opacity-50 cursor-not-allowed"
       )}
       onDragOver={handleDragOver}
@@ -62,28 +62,31 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect, disabled }
         disabled={disabled}
         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
       />
-      <div className="flex justify-center mb-4">
+      
+      <div className="flex justify-center mb-6">
         <div className="relative">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-purple-400 rounded-full blur-xl opacity-30 animate-pulse"></div>
-          <div className="relative p-4 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full">
-            <Upload className="h-8 w-8 text-white" />
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-400 to-blue-400 rounded-full blur-xl opacity-40 animate-pulse"></div>
+          <div className="relative p-6 bg-gradient-to-br from-violet-500 to-blue-600 rounded-full shadow-lg">
+            <Upload className="w-10 h-10 text-white" />
           </div>
         </div>
       </div>
-      <p className="text-lg font-semibold text-gray-800">
+      
+      <h3 className="text-2xl font-bold text-gray-800 mb-2">
         音声ファイルをドロップ
+      </h3>
+      <p className="text-lg text-gray-600 mb-8">
+        または <span className="font-semibold bg-gradient-to-r from-violet-600 to-blue-600 bg-clip-text text-transparent">クリックして選択</span>
       </p>
-      <p className="text-sm text-gray-600 mt-2">
-        または <span className="text-blue-600 font-medium">クリックして選択</span>
-      </p>
-      <div className="flex items-center justify-center space-x-6 mt-6">
-        <div className="flex items-center space-x-2 text-xs text-gray-500">
-          <FileAudio className="w-4 h-4" />
-          <span>MP3 / WAV</span>
+      
+      <div className="flex items-center justify-center space-x-8">
+        <div className="flex items-center space-x-2 px-4 py-2 bg-gray-100 rounded-full">
+          <FileAudio className="w-5 h-5 text-gray-600" />
+          <span className="text-sm font-medium text-gray-700">MP3・WAV</span>
         </div>
-        <div className="flex items-center space-x-2 text-xs text-gray-500">
-          <Music className="w-4 h-4" />
-          <span>M4A / OGG / WebM</span>
+        <div className="flex items-center space-x-2 px-4 py-2 bg-gray-100 rounded-full">
+          <Music className="w-5 h-5 text-gray-600" />
+          <span className="text-sm font-medium text-gray-700">M4A・OGG・WebM</span>
         </div>
       </div>
     </div>
