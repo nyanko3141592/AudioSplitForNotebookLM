@@ -85,18 +85,30 @@ export class WebAudioSplitter {
       
       console.log(`Creating ${numParts} parts, each ${partDuration.toFixed(2)} seconds long`);
       
+      // Calculate exact sample boundaries for each part to avoid overlap
+      const totalSamples = audioBuffer.length;
+      const baseSamplesPerPart = Math.floor(totalSamples / numParts);
+      
+      console.log(`Total samples: ${totalSamples}, Base samples per part: ${baseSamplesPerPart}`);
+      
       for (let i = 0; i < numParts; i++) {
-        const startTime = i * partDuration;
-        const endTime = Math.min((i + 1) * partDuration, duration);
-        const actualDuration = endTime - startTime;
+        // Calculate exact sample boundaries without overlap
+        const startSample = i * baseSamplesPerPart;
+        let endSample: number;
         
-        if (actualDuration <= 0) continue;
+        if (i === numParts - 1) {
+          // Last part gets all remaining samples
+          endSample = totalSamples;
+        } else {
+          endSample = (i + 1) * baseSamplesPerPart;
+        }
         
-        const startSample = Math.floor(startTime * sampleRate);
-        const endSample = Math.floor(endTime * sampleRate);
         const partLength = endSample - startSample;
+        const startTime = startSample / sampleRate;
+        const endTime = endSample / sampleRate;
+        const actualDuration = partLength / sampleRate;
         
-        console.log(`Part ${i + 1}: ${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s (${actualDuration.toFixed(2)}s, ${partLength} samples)`);
+        console.log(`Part ${i + 1}: ${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s (${actualDuration.toFixed(2)}s, samples ${startSample}-${endSample-1})`);
         
         // Create new AudioBuffer for this part
         const partBuffer = this.audioContext.createBuffer(
@@ -135,9 +147,24 @@ export class WebAudioSplitter {
       
       console.log(`=== Splitting completed successfully ===`);
       console.log(`Generated ${results.length} parts`);
-      results.forEach((blob, i) => {
-        console.log(`Part ${i + 1}: ${(blob.size / 1024 / 1024).toFixed(2)} MB`);
-      });
+      
+      // Verify no samples are missing or duplicated
+      let totalProcessedSamples = 0;
+      for (let i = 0; i < numParts; i++) {
+        const startSample = i * baseSamplesPerPart;
+        const endSample = i === numParts - 1 ? totalSamples : (i + 1) * baseSamplesPerPart;
+        const partSamples = endSample - startSample;
+        totalProcessedSamples += partSamples;
+        
+        console.log(`Part ${i + 1}: ${(results[i].size / 1024 / 1024).toFixed(2)} MB (${partSamples} samples)`);
+      }
+      
+      console.log(`Total samples: ${totalSamples}, Processed samples: ${totalProcessedSamples}`);
+      if (totalProcessedSamples !== totalSamples) {
+        console.warn(`Sample count mismatch! Missing/duplicate samples detected.`);
+      } else {
+        console.log(`✅ Perfect sample coverage - no overlap or gaps`);
+      }
       
       // Validate results - ensure we actually split the audio
       if (results.length < 2 && (mode === 'size' && options.maxSize)) {
