@@ -2,8 +2,8 @@
 export class WebAudioSplitter {
   private audioContext: AudioContext | null = null;
 
-  async splitAudioBySize(file: File, maxSizeBytes: number): Promise<Blob[]> {
-    return this.splitAudio(file, 'size', { maxSize: maxSizeBytes });
+  async splitAudioBySize(file: File, maxSizeMB: number): Promise<Blob[]> {
+    return this.splitAudio(file, 'size', { maxSize: maxSizeMB });
   }
 
   async splitAudioByCount(file: File, count: number): Promise<Blob[]> {
@@ -69,7 +69,7 @@ export class WebAudioSplitter {
         console.log(`Size-based splitting:`);
         console.log(`- Original file size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
         console.log(`- Expected 8-bit WAV size: ${(expectedWavSize / 1024 / 1024).toFixed(2)} MB`);
-        console.log(`- Max size per part: ${options.maxSize} MB`);
+        console.log(`- Max size per part: ${options.maxSize} MB (${maxSizeBytes} bytes)`);
         console.log(`- Min parts from WAV: ${minPartsFromWav}`);
         console.log(`- Min parts from original: ${minPartsFromOriginal}`);
         console.log(`- Final calculated parts: ${numParts}`);
@@ -269,7 +269,7 @@ export const splitAudioFile = async (
     let result: Blob[];
     if (mode === 'size' && options.maxSize) {
       console.log(`Attempting size-based splitting with maxSize: ${options.maxSize} MB`);
-      result = await splitter.splitAudioBySize(file, options.maxSize * 1024 * 1024);
+      result = await splitter.splitAudioBySize(file, options.maxSize);
     } else if (mode === 'count' && options.count) {
       console.log(`Attempting count-based splitting with count: ${options.count}`);
       result = await splitter.splitAudioByCount(file, options.count);
