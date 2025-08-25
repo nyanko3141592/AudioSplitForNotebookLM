@@ -10,6 +10,7 @@ import type { SplitFile } from '../DownloadList';
 interface SummaryStepProps {
   transcriptionResults: TranscriptionResult[];
   splitFiles?: SplitFile[];
+  transcriptionBackgroundInfo?: string;
   onDownloadSplit?: (file: SplitFile) => void;
   onDownloadAllSplits?: () => void;
   onDownloadTranscription?: () => void;
@@ -18,6 +19,7 @@ interface SummaryStepProps {
 export function SummaryStep({ 
   transcriptionResults,
   splitFiles = [],
+  transcriptionBackgroundInfo = '',
   onDownloadSplit,
   onDownloadAllSplits,
   onDownloadTranscription
@@ -105,26 +107,57 @@ export function SummaryStep({
   useEffect(() => {
     const savedApiKey = apiKeyStorage.get();
     const savedPrompt = localStorage.getSummaryCustomPrompt();
+    const savedBackgroundInfo = localStorage.getSummaryBackgroundInfo();
     
     if (savedApiKey) {
       setApiKey(savedApiKey);
-      setShowApiKeyInput(false); // APIキーがある場合は非表示
+      setShowApiKeyInput(false);
     } else {
-      setShowApiKeyInput(true); // APIキーがない場合は表示
+      setShowApiKeyInput(true);
     }
     
+    // デフォルトプロンプトを設定
+    const defaultPrompt = formatPresets.summary.prompt;
     if (savedPrompt) {
       setSummarySettings(prev => ({ ...prev, customPrompt: savedPrompt }));
+    } else {
+      setSummarySettings(prev => ({ ...prev, customPrompt: defaultPrompt }));
     }
-  }, []);
+    
+    // 文字起こしの背景情報を引き継ぐ
+    const backgroundToUse = transcriptionBackgroundInfo || savedBackgroundInfo || '';
+    setSummarySettings(prev => ({ ...prev, backgroundInfo: backgroundToUse }));
+    if (backgroundToUse) {
+      localStorage.saveSummaryBackgroundInfo(backgroundToUse);
+    }
+  }, [transcriptionBackgroundInfo]);
+
+  // 自動的にまとめを実行（APIキーがあり、結果がない場合）
+  useEffect(() => {
+    if (apiKey && transcriptionResults.length > 0 && !summarySettings.result && !summarySettings.isProcessing && !error) {
+      // プロンプトが空の場合はデフォルトを設定
+      if (!summarySettings.customPrompt) {
+        setSummarySettings(prev => ({ ...prev, customPrompt: formatPresets.summary.prompt }));
+      }
+      setTimeout(() => {
+        handleSummarize();
+      }, 500);
+    }
+  }, [apiKey, transcriptionResults, summarySettings.customPrompt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCustomPromptChange = (value: string) => {
     setSummarySettings(prev => ({ ...prev, customPrompt: value }));
     localStorage.saveSummaryCustomPrompt(value);
   };
 
+  const handleBackgroundInfoChange = (value: string) => {
+    setSummarySettings(prev => ({ ...prev, backgroundInfo: value }));
+    localStorage.saveSummaryBackgroundInfo(value);
+  };
+
   const clearBackgroundInfo = () => {
     setSummarySettings(prev => ({ ...prev, backgroundInfo: '' }));
+    localStorage.saveSummaryBackgroundInfo('');
   };
 
   const handleCopySummary = () => {
@@ -245,7 +278,7 @@ ${summarySettings.backgroundInfo}
   return (
     <StepContent
       title="✨ まとめ"
-      description="Gemini APIを使用して文字起こし結果をまとめます"
+      description={apiKey ? "文字起こし結果を自動的にまとめます" : "APIキーを設定してまとめを開始"}
       showNext={false}
     >
       {/* Previous Results Summary */}
@@ -299,66 +332,26 @@ ${summarySettings.backgroundInfo}
         </div>
       )}
 
-      {/* プロンプト入力 - 必須 */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-purple-900 flex items-center gap-1">
-          プロンプト <span className="text-red-500">*</span>
-        </label>
-        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-2">
-          <p className="text-sm text-blue-800">
-            <strong>重要：</strong> プロンプトには必ず <code className="bg-blue-100 px-1 rounded">{"{transcriptions}"}</code> を含めてください。
-            この部分が実際の文字起こし結果に置き換えられます。
-          </p>
-        </div>
-        <textarea
-          value={summarySettings.customPrompt}
-          onChange={(e) => handleCustomPromptChange(e.target.value)}
-          placeholder="例: 以下の会議内容を営業報告書の形式でまとめてください。
 
-文字起こし結果：
-{transcriptions}
-
-上記の内容から、顧客の反応、課題、次のアクションを明確にしてまとめてください。"
-          className="w-full px-4 py-3 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent h-40 font-mono text-sm resize-none"
-          disabled={summarySettings.isProcessing}
-          required
-        />
-        <div className="flex justify-between items-center">
-          <button
-            onClick={() => handleCustomPromptChange('')}
-            className="text-xs text-purple-600 hover:text-purple-700"
-            disabled={summarySettings.isProcessing}
-          >
-            クリア
-          </button>
-          <div className="text-xs text-gray-500">
-            {summarySettings.customPrompt.includes('{transcriptions}') ? (
-              <span className="text-green-600 flex items-center gap-1">
-                <CheckCircle className="w-3 h-3" />
-                {"{transcriptions}"} が含まれています
-              </span>
-            ) : (
-              <span className="text-red-600 flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" />
-                {"{transcriptions}"} が必要です
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* プリセットボタン */}
-      {!summarySettings.isProcessing && (
+      {/* まとめ形式選択 */}
+      {!summarySettings.isProcessing && !summarySettings.result && (
         <div className="space-y-2">
           <label className="text-sm font-medium text-gray-700">
-            プリセットを選択（プロンプトに自動入力されます）
+            まとめ形式を選択
           </label>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             {Object.entries(formatPresets).map(([key, preset]) => (
               <button
                 key={key}
-                onClick={() => setSummarySettings(prev => ({ ...prev, customPrompt: preset.prompt }))}
-                className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-purple-400 transition-all text-xs font-medium shadow-sm hover:shadow-md"
+                onClick={() => {
+                  setSummarySettings(prev => ({ ...prev, customPrompt: preset.prompt }));
+                  localStorage.saveSummaryCustomPrompt(preset.prompt);
+                }}
+                className={`px-4 py-3 rounded-lg transition-all text-sm font-medium ${
+                  summarySettings.customPrompt === preset.prompt
+                    ? 'bg-purple-100 border-2 border-purple-500 text-purple-700'
+                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-purple-400'
+                }`}
               >
                 {preset.name}
               </button>
@@ -367,34 +360,25 @@ ${summarySettings.backgroundInfo}
         </div>
       )}
 
-      {/* 背景情報入力 - 必須 */}
-      <div className="space-y-2 p-4 bg-purple-50 rounded-lg border border-purple-200">
-        <div className="flex items-center justify-between">
-          <label className="text-sm font-medium text-purple-900 flex items-center gap-1">
+      {/* 背景情報入力 - シンプル版 */}
+      {!summarySettings.isProcessing && !summarySettings.result && (
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700 flex items-center gap-1">
             <Info className="w-4 h-4" />
-            背景情報 <span className="text-red-500">*</span>
+            背景情報（オプション）
           </label>
-          <button
-            onClick={clearBackgroundInfo}
-            className="text-xs text-purple-600 hover:text-purple-700 flex items-center gap-1"
+          <textarea
+            value={summarySettings.backgroundInfo}
+            onChange={(e) => handleBackgroundInfoChange(e.target.value)}
+            placeholder="例: 2024年1月26日の定例会議。参加者：田中、佐藤、鈴木。議題：新商品の戦略"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent min-h-16 text-sm resize-y"
             disabled={summarySettings.isProcessing}
-          >
-            <RefreshCw className="w-3 h-3" />
-            クリア
-          </button>
+          />
+          <p className="text-xs text-gray-500">
+            会議の日時、参加者、目的などを入力するとまとめの精度が向上します
+          </p>
         </div>
-        <textarea
-          value={summarySettings.backgroundInfo}
-          onChange={(e) => setSummarySettings(prev => ({ ...prev, backgroundInfo: e.target.value }))}
-          placeholder="例: 2024年1月26日の定例会議です。参加者：田中（営業部長）、佐藤（マーケティング）、鈴木（開発）。今四半期の売上目標達成状況と来四半期の戦略について議論しました。"
-          className="w-full px-4 py-3 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent h-24 font-mono text-sm resize-none bg-white"
-          disabled={summarySettings.isProcessing}
-          required
-        />
-        <p className="text-xs text-purple-600">
-          ※ 会議の日時、参加者、目的など、文字起こし結果に含まれない情報を入力してください
-        </p>
-      </div>
+      )}
 
       {/* Processing Status */}
       {summarySettings.isProcessing && (
@@ -434,29 +418,19 @@ ${summarySettings.backgroundInfo}
         </div>
       )}
       
-      {/* まとめ実行ボタン */}
-      {!summarySettings.isProcessing && (
+      {/* まとめ再実行ボタン */}
+      {!summarySettings.isProcessing && summarySettings.result && (
         <div className="flex justify-center">
           <button
-            onClick={() => handleSummarize()}
-            disabled={!summarySettings.customPrompt || !summarySettings.backgroundInfo || !apiKey || !summarySettings.customPrompt.includes('{transcriptions}')}
-            className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-lg rounded-lg hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-3 shadow-lg hover:shadow-xl"
+            onClick={() => {
+              setSummarySettings(prev => ({ ...prev, result: '' }));
+              setTimeout(() => handleSummarize(), 100);
+            }}
+            className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all flex items-center gap-2 shadow-lg hover:shadow-xl"
           >
-            <Sparkles className="w-5 h-5" />
-            まとめを実行
+            <RefreshCw className="w-5 h-5" />
+            まとめを再実行
           </button>
-        </div>
-      )}
-      
-      {/* 必須項目の注意書き */}
-      {(!summarySettings.customPrompt || !summarySettings.backgroundInfo || !summarySettings.customPrompt.includes('{transcriptions}')) && !summarySettings.isProcessing && (
-        <div className="text-center text-sm text-gray-500 space-y-1">
-          <div>※ 以下の項目を確認してください：</div>
-          <div className="text-xs space-y-1">
-            {!summarySettings.customPrompt && <div>• プロンプトを入力してください</div>}
-            {summarySettings.customPrompt && !summarySettings.customPrompt.includes('{transcriptions}') && <div>• プロンプトに {"{transcriptions}"} を含めてください</div>}
-            {!summarySettings.backgroundInfo && <div>• 背景情報を入力してください</div>}
-          </div>
         </div>
       )}
 

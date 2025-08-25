@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { FileText, Download, Loader2, Key, AlertCircle, StopCircle, CheckCircle, XCircle, Clock, Copy, Info, RefreshCw } from 'lucide-react';
+import { Download, Loader2, Key, AlertCircle, StopCircle, CheckCircle, XCircle, Clock, Copy, Info, RefreshCw } from 'lucide-react';
 import { GeminiTranscriber, downloadTranscription } from '../../utils/geminiTranscriber';
 import type { TranscriptionResult, TranscriptionProgress } from '../../utils/geminiTranscriber';
 import type { SplitFile } from '../DownloadList';
@@ -16,6 +16,7 @@ interface TranscriptionStepProps {
   onDownloadSplit?: (file: SplitFile) => void;
   onDownloadAllSplits?: () => void;
   onTranscriptionComplete?: (results: TranscriptionResult[]) => void;
+  onBackgroundInfoChange?: (backgroundInfo: string) => void;
 }
 
 export function TranscriptionStep({ 
@@ -26,7 +27,8 @@ export function TranscriptionStep({
   nextButtonText = "まとめへ",
   onDownloadSplit,
   onDownloadAllSplits,
-  onTranscriptionComplete
+  onTranscriptionComplete,
+  onBackgroundInfoChange
 }: TranscriptionStepProps) {
   const [apiKey, setApiKey] = useState('');
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -75,6 +77,13 @@ export function TranscriptionStep({
       setCustomPrompt(savedPrompt);
     }
   }, []);
+
+  // 自動的に文字起こしを開始（APIキーがあり、結果がまだない場合）
+  useEffect(() => {
+    if (apiKey && splitFiles.length > 0 && transcriptionResults.length === 0 && !isTranscribing && !error) {
+      handleTranscribe();
+    }
+  }, [apiKey, splitFiles]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 親コンポーネントから結果が渡された場合に更新
   useEffect(() => {
@@ -227,7 +236,7 @@ export function TranscriptionStep({
   return (
     <StepContent
       title="📝 文字起こし"
-      description="Gemini APIを使用して音声ファイルを文字起こしします"
+      description={apiKey ? "音声ファイルを自動的に文字起こしします" : "APIキーを設定して文字起こしを開始"}
       nextButtonText={nextButtonText}
       onNext={onNext}
       nextDisabled={!canProceed}
@@ -285,127 +294,30 @@ export function TranscriptionStep({
         </div>
       )}
 
-      {/* カスタムプロンプト - デフォルト表示 */}
-      <div className="space-y-2">
-        <label htmlFor="custom-prompt" className="text-sm font-medium text-gray-700">
-          カスタムプロンプト（空欄の場合はデフォルトを使用）
-        </label>
-        <textarea
-          id="custom-prompt"
-          value={customPrompt}
-          onChange={(e) => handleCustomPromptChange(e.target.value)}
-          placeholder={defaultPrompt}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent h-32 font-mono text-sm"
-        />
-        <div className="flex gap-2">
-          <button
-            onClick={() => handleCustomPromptChange(defaultPrompt)}
-            className="text-xs text-gray-500 hover:text-gray-700"
-          >
-            デフォルトに戻す
-          </button>
-          <button
-            onClick={() => handleCustomPromptChange('')}
-            className="text-xs text-gray-500 hover:text-gray-700"
-          >
-            クリア
-          </button>
-        </div>
-      </div>
 
-      {/* 背景情報 - デフォルト表示 */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <label className="text-sm font-medium text-gray-700 flex items-center gap-1">
-            <Info className="w-4 h-4" />
-            背景情報（文字起こし精度向上）
-          </label>
-          <button
-            onClick={() => setBackgroundInfo('')}
-            className="text-xs text-gray-600 hover:text-gray-700 flex items-center gap-1"
-          >
-            <RefreshCw className="w-3 h-3" />
-            クリア
-          </button>
-        </div>
-        <textarea
-          value={backgroundInfo}
-          onChange={(e) => setBackgroundInfo(e.target.value)}
-          placeholder="例: 2024年1月26日の定例会議。参加者：田中（営業）、佐藤（マーケ）、鈴木（開発）。議題：新商品のマーケティング戦略"
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent h-16 font-mono text-sm resize-none bg-blue-50"
-        />
-        <p className="text-xs text-gray-500">
-          ※ 会議の日時、参加者、議題などを入力すると、固有名詞や専門用語の認識精度が向上します
-        </p>
-      </div>
-      
-      {/* 詳細設定トグル */}
-      <div className="space-y-4">
-        <button
-          onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
-          className="text-sm text-violet-600 hover:text-violet-700 font-medium"
-        >
-          {showAdvancedSettings ? '▼' : '▶'} 詳細設定（並列処理など）
-        </button>
-        
-        {showAdvancedSettings && (
-          <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
-
-
-            {/* Concurrency Settings */}
-            <div className="space-y-3">
-              <label className="text-sm font-medium text-gray-700">処理設定</label>
-              <div className="space-y-3">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={concurrencySettings.enabled}
-                    onChange={(e) => setConcurrencySettings(prev => ({ ...prev, enabled: e.target.checked }))}
-                    className="mr-2"
-                  />
-                  <span className="text-sm">並列処理を有効にする（高速化・API使用量増加）</span>
-                </label>
-                
-                {concurrencySettings.enabled && (
-                  <div className="ml-6 space-y-2">
-                    <div>
-                      <label className="text-xs text-gray-600">同時処理数</label>
-                      <select
-                        value={concurrencySettings.count}
-                        onChange={(e) => setConcurrencySettings(prev => ({ ...prev, count: parseInt(e.target.value) }))}
-                        className="ml-2 px-2 py-1 border border-gray-300 rounded text-sm"
-                      >
-                        <option value={2}>2個</option>
-                        <option value={3}>3個</option>
-                        <option value={4}>4個</option>
-                        <option value={5}>5個</option>
-                      </select>
-                    </div>
-                    
-                    <div>
-                      <label className="text-xs text-gray-600">リクエスト間隔（ms）</label>
-                      <select
-                        value={concurrencySettings.delay}
-                        onChange={(e) => setConcurrencySettings(prev => ({ ...prev, delay: parseInt(e.target.value) }))}
-                        className="ml-2 px-2 py-1 border border-gray-300 rounded text-sm"
-                      >
-                        <option value={500}>500ms（高速）</option>
-                        <option value={1000}>1000ms（標準）</option>
-                        <option value={2000}>2000ms（安全）</option>
-                        <option value={3000}>3000ms（保守的）</option>
-                      </select>
-                    </div>
-                    
-                    <p className="text-xs text-orange-600">
-                      ⚠️ 並列処理はAPI使用量が増加し、レート制限に引っかかる可能性があります
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
+      {/* 背景情報 - シンプル版 */}
+      {!isTranscribing && !hasResults && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-gray-700 flex items-center gap-1">
+              <Info className="w-4 h-4" />
+              背景情報（文字起こし精度向上・オプション）
+            </label>
           </div>
-        )}
-      </div>
+          <textarea
+            value={backgroundInfo}
+            onChange={(e) => {
+              setBackgroundInfo(e.target.value);
+              onBackgroundInfoChange?.(e.target.value);
+            }}
+            placeholder="例: 2024年1月26日の定例会議。参加者：田中、佐藤、鈴木。議題：新商品の戦略"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent min-h-16 text-sm resize-y"
+          />
+          <p className="text-xs text-gray-500">
+            会議の日時、参加者、議題などを入力すると精度が向上します
+          </p>
+        </div>
+      )}
 
       {/* Error Message */}
       {error && (
@@ -415,15 +327,17 @@ export function TranscriptionStep({
         </div>
       )}
 
-      {/* Transcribe Button */}
-      <button
-        onClick={handleTranscribe}
-        disabled={!apiKey || splitFiles.length === 0}
-        className="w-full px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold rounded-xl hover:from-violet-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
-      >
-        <FileText className="w-5 h-5" />
-        文字起こしを開始 ({splitFiles.length}ファイル)
-      </button>
+      {/* Transcribe Button - 再実行用 */}
+      {!isTranscribing && (hasResults || error) && (
+        <button
+          onClick={handleTranscribe}
+          disabled={!apiKey || splitFiles.length === 0}
+          className="w-full px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold rounded-xl hover:from-violet-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
+        >
+          <RefreshCw className="w-5 h-5" />
+          文字起こしを再実行 ({splitFiles.length}ファイル)
+        </button>
+      )}
 
       {/* Results */}
       {hasResults && (

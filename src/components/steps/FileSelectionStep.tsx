@@ -7,12 +7,14 @@ interface FileSelectionStepProps {
   selectedFile: File | null;
   onFileSelect: (file: File) => void;
   onNext: () => void;
+  onSkipSplit?: () => void;
   isProcessing: boolean;
 }
 
-export function FileSelectionStep({ selectedFile, onFileSelect, onNext, isProcessing }: FileSelectionStepProps) {
+export function FileSelectionStep({ selectedFile, onFileSelect, onNext, onSkipSplit, isProcessing }: FileSelectionStepProps) {
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractionProgress, setExtractionProgress] = useState(0);
+  const [skipSplit, setSkipSplit] = useState(false);
 
   const isVideoFile = (file: File): boolean => {
     const videoMimeTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska', 'video/webm'];
@@ -47,11 +49,11 @@ export function FileSelectionStep({ selectedFile, onFileSelect, onNext, isProces
   return (
     <StepContent
       title="📁 ファイル選択"
-      description="分割したい音声・動画ファイルをアップロードしてください"
+      description="音声・動画ファイルをアップロードしてください"
       nextButtonText="分割設定へ"
       onNext={onNext}
-      nextDisabled={!selectedFile || isExtracting}
-      showNext={!!selectedFile && !isExtracting}
+      nextDisabled={!selectedFile || isExtracting || skipSplit}
+      showNext={!!selectedFile && !isExtracting && !skipSplit}
       isLoading={isProcessing || isExtracting}
     >
       <FileUpload 
@@ -75,20 +77,58 @@ export function FileSelectionStep({ selectedFile, onFileSelect, onNext, isProces
       )}
       
       {selectedFile && (
-        <div className="p-6 bg-gradient-to-r from-blue-100 to-violet-100 rounded-2xl border border-blue-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 mb-1">選択されたファイル</p>
-              <p className="font-bold text-gray-900">{selectedFile.name}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-600 mb-1">ファイルサイズ</p>
-              <p className="font-bold text-2xl bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">
-                {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
-              </p>
+        <>
+          <div className="p-6 bg-gradient-to-r from-blue-100 to-violet-100 rounded-2xl border border-blue-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600 mb-1">選択されたファイル</p>
+                <p className="font-bold text-gray-900">{selectedFile.name}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-gray-600 mb-1">ファイルサイズ</p>
+                <p className="font-bold text-2xl bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">
+                  {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+          
+          {/* 分割スキップオプション */}
+          <div className="p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-xl border border-green-200">
+            <label className="flex items-center space-x-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={skipSplit}
+                onChange={(e) => setSkipSplit(e.target.checked)}
+                className="w-5 h-5 text-green-600 rounded focus:ring-green-500"
+              />
+              <div className="flex-1">
+                <span className="font-medium text-gray-900">分割をスキップして文字起こしへ進む</span>
+                <p className="text-sm text-gray-600 mt-1">
+                  ファイルサイズが200MB以下の場合、分割せずに直接文字起こしできます
+                </p>
+              </div>
+            </label>
+            
+            {skipSplit && selectedFile.size > 200 * 1024 * 1024 && (
+              <div className="mt-3 p-3 bg-yellow-100 rounded-lg border border-yellow-300">
+                <p className="text-sm text-yellow-800">
+                  ⚠️ ファイルサイズが200MBを超えています。NotebookLMで使用する場合は分割が必要です。
+                </p>
+              </div>
+            )}
+          </div>
+          
+          {/* 次へボタンのカスタマイズ */}
+          {skipSplit && onSkipSplit && (
+            <button
+              onClick={onSkipSplit}
+              className="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-blue-600 text-white font-semibold rounded-xl hover:from-green-700 hover:to-blue-700 transition-all duration-200"
+            >
+              文字起こしへ進む（分割をスキップ）
+            </button>
+          )}
+        </>
       )}
     </StepContent>
   );
