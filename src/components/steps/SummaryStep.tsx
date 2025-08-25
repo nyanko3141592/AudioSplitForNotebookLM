@@ -14,6 +14,8 @@ interface SummaryStepProps {
   onDownloadSplit?: (file: SplitFile) => void;
   onDownloadAllSplits?: () => void;
   onDownloadTranscription?: () => void;
+  onBackgroundInfoChange?: (backgroundInfo: string) => void;
+  presetApiKey?: string;
 }
 
 export function SummaryStep({ 
@@ -22,7 +24,9 @@ export function SummaryStep({
   transcriptionBackgroundInfo = '',
   onDownloadSplit,
   onDownloadAllSplits,
-  onDownloadTranscription
+  onDownloadTranscription,
+  onBackgroundInfoChange,
+  presetApiKey = ''
 }: SummaryStepProps) {
   const [apiKey, setApiKey] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -41,19 +45,39 @@ export function SummaryStep({
   const formatPresets = {
     meeting: {
       name: '議事録形式',
-      prompt: `以下の音声文字起こし結果を議事録形式でまとめてください。
+      prompt: `役割と目標：
+* ユーザーの会議内容に基づいて、正確かつ詳細な議事録を作成すること。
+* 決定事項、ネクストアクション、メモ（会話のテーマごとに整理）を明確に記録すること。
+* 作成された議事録が見やすく、理解しやすい形式であること。
 
-要求事項：
-- 日時、参加者、議題を明記（推測可能な場合）
-- 主要な議論ポイントを箇条書きで整理
-- 決定事項と次回のアクションアイテムを明確にする
-- 話者が特定できる場合は発言者を明記
-- 重要なキーワードは太字で強調
+振る舞いとルール：
+1) 初期設定：
+a) ユーザーに議事録作成の専門家として挨拶する。
+b) ユーザーに議事録の作成方法について理解していることを伝える。
+c) ユーザーから提供された会議内容（または作成方法の指示）に基づいて議事録を作成する準備ができていることを示す。
+
+2) 議事録の作成：
+a) ユーザーが指定した形式（箇条書き、表など）で議事録を作成する。
+b) 決定事項は「▼決まったこと」として明確に箇条書きで記述する。
+c) ネクストアクションは「▼Next Action」として、担当者や期限が明記されていればそれらを含めて記述する。
+d) メモは会話の主要なテーマごとに整理し、「▼Memo」以下に記述する。各テーマの中で、関連する発言や議論の内容を簡潔に箇条書きで記述する。
+e) 曖昧な表現や不明確な点は避け、客観的な事実に基づいて記述する。
+f) 必要に応じて、時間の経過や発言者の変更を記録する。
+
+3) 出力と確認：
+a) 作成した議事録をユーザーに提示する。
+b) ユーザーに議事録の内容を確認してもらい、必要に応じて修正や追記を行う。
+c) ユーザーからのフィードバックを真摯に受け止め、議事録の質を向上させる。
+
+全体的なトーン：
+* 専門的かつ丁寧な言葉遣いを心がける。
+* 冷静かつ客観的な視点で議事録を作成する。
+* ユーザーの指示を正確に理解し、迅速に対応する。
 
 文字起こし結果：
 {transcriptions}
 
-上記を議事録として整理してください。`
+上記の会議内容から議事録を作成してください。`
     },
     summary: {
       name: '要約形式',
@@ -105,16 +129,22 @@ export function SummaryStep({
   };
 
   useEffect(() => {
-    const savedApiKey = apiKeyStorage.get();
-    const savedPrompt = localStorage.getSummaryCustomPrompt();
-    const savedBackgroundInfo = localStorage.getSummaryBackgroundInfo();
-    
-    if (savedApiKey) {
-      setApiKey(savedApiKey);
+    // preset APIキーがある場合はそれを使用、なければストレージから読み込み
+    if (presetApiKey) {
+      setApiKey(presetApiKey);
       setShowApiKeyInput(false);
     } else {
-      setShowApiKeyInput(true);
+      const savedApiKey = apiKeyStorage.get();
+      if (savedApiKey) {
+        setApiKey(savedApiKey);
+        setShowApiKeyInput(false);
+      } else {
+        setShowApiKeyInput(true);
+      }
     }
+    
+    const savedPrompt = localStorage.getSummaryCustomPrompt();
+    const savedBackgroundInfo = localStorage.getSummaryBackgroundInfo();
     
     // デフォルトプロンプトを設定
     const defaultPrompt = formatPresets.summary.prompt;
@@ -130,7 +160,7 @@ export function SummaryStep({
     if (backgroundToUse) {
       localStorage.saveSummaryBackgroundInfo(backgroundToUse);
     }
-  }, [transcriptionBackgroundInfo]);
+  }, [transcriptionBackgroundInfo, presetApiKey]);
 
   // 自動的にまとめを実行（APIキーがあり、結果がない場合）
   useEffect(() => {
@@ -153,6 +183,13 @@ export function SummaryStep({
   const handleBackgroundInfoChange = (value: string) => {
     setSummarySettings(prev => ({ ...prev, backgroundInfo: value }));
     localStorage.saveSummaryBackgroundInfo(value);
+    onBackgroundInfoChange?.(value);
+  };
+  
+  const handlePresetSelect = (presetKey: keyof typeof formatPresets) => {
+    const preset = formatPresets[presetKey];
+    setSummarySettings(prev => ({ ...prev, customPrompt: preset.prompt }));
+    localStorage.saveSummaryCustomPrompt(preset.prompt);
   };
 
   const clearBackgroundInfo = () => {
@@ -292,7 +329,7 @@ ${summarySettings.backgroundInfo}
       />
 
       {/* API Key Status/Input */}
-      {showApiKeyInput ? (
+      {!presetApiKey && (showApiKeyInput ? (
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
             <Key className="w-4 h-4" />
@@ -330,53 +367,77 @@ ${summarySettings.backgroundInfo}
             変更
           </button>
         </div>
-      )}
+      ))}
 
 
-      {/* まとめ形式選択 */}
-      {!summarySettings.isProcessing && !summarySettings.result && (
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-700">
-            まとめ形式を選択
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            {Object.entries(formatPresets).map(([key, preset]) => (
-              <button
-                key={key}
-                onClick={() => {
-                  setSummarySettings(prev => ({ ...prev, customPrompt: preset.prompt }));
-                  localStorage.saveSummaryCustomPrompt(preset.prompt);
-                }}
-                className={`px-4 py-3 rounded-lg transition-all text-sm font-medium ${
-                  summarySettings.customPrompt === preset.prompt
-                    ? 'bg-purple-100 border-2 border-purple-500 text-purple-700'
-                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-purple-400'
-                }`}
-              >
-                {preset.name}
-              </button>
-            ))}
-          </div>
+      {/* まとめ形式選択 - 常時表示 */}
+      <div className="space-y-3">
+        <label className="text-sm font-medium text-gray-700">
+          まとめ形式プリセット
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          {Object.entries(formatPresets).map(([key, preset]) => (
+            <button
+              key={key}
+              onClick={() => handlePresetSelect(key as keyof typeof formatPresets)}
+              disabled={summarySettings.isProcessing}
+              className={`px-3 py-2 rounded-lg transition-all text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${
+                summarySettings.customPrompt === preset.prompt
+                  ? 'bg-purple-100 border-2 border-purple-500 text-purple-700'
+                  : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-purple-400'
+              }`}
+            >
+              {preset.name}
+            </button>
+          ))}
         </div>
-      )}
+      </div>
 
-      {/* 背景情報入力 - シンプル版 */}
-      {!summarySettings.isProcessing && !summarySettings.result && (
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-700 flex items-center gap-1">
-            <Info className="w-4 h-4" />
-            背景情報（オプション）
-          </label>
-          <textarea
-            value={summarySettings.backgroundInfo}
-            onChange={(e) => handleBackgroundInfoChange(e.target.value)}
-            placeholder="例: 2024年1月26日の定例会議。参加者：田中、佐藤、鈴木。議題：新商品の戦略"
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent min-h-16 text-sm resize-y"
-            disabled={summarySettings.isProcessing}
-          />
-          <p className="text-xs text-gray-500">
-            会議の日時、参加者、目的などを入力するとまとめの精度が向上します
-          </p>
+      {/* カスタムプロンプト - 常時表示 */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-gray-700">
+          カスタムプロンプト
+        </label>
+        <textarea
+          value={summarySettings.customPrompt}
+          onChange={(e) => handleCustomPromptChange(e.target.value)}
+          placeholder="カスタムプロンプトを入力してください..."
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent min-h-32 text-sm resize-y font-mono"
+          disabled={summarySettings.isProcessing}
+        />
+        <p className="text-xs text-gray-500">
+          上のプリセットボタンでプロンプトを選択するか、直接カスタムプロンプトを入力できます
+        </p>
+      </div>
+
+      {/* 背景情報入力 - 常時表示 */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-gray-700 flex items-center gap-1">
+          <Info className="w-4 h-4" />
+          背景情報（オプション）
+        </label>
+        <textarea
+          value={summarySettings.backgroundInfo}
+          onChange={(e) => handleBackgroundInfoChange(e.target.value)}
+          placeholder="例: 2024年1月26日の定例会議。参加者：田中、佐藤、鈴木。議題：新商品の戦略"
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent min-h-16 text-sm resize-y"
+          disabled={summarySettings.isProcessing}
+        />
+        <p className="text-xs text-gray-500">
+          会議の日時、参加者、目的などを入力するとまとめの精度が向上します
+        </p>
+      </div>
+      
+      {/* まとめ実行ボタン */}
+      {!summarySettings.isProcessing && !summarySettings.result && apiKey && (
+        <div className="flex justify-center">
+          <button
+            onClick={() => handleSummarize()}
+            className="px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl"
+          >
+            <Sparkles className="w-5 h-5" />
+            まとめを作成
+          </button>
         </div>
       )}
 
@@ -426,7 +487,7 @@ ${summarySettings.backgroundInfo}
               setSummarySettings(prev => ({ ...prev, result: '' }));
               setTimeout(() => handleSummarize(), 100);
             }}
-            className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all flex items-center gap-2 shadow-lg hover:shadow-xl"
+            className="px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl"
           >
             <RefreshCw className="w-5 h-5" />
             まとめを再実行

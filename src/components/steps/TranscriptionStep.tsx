@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Download, Loader2, Key, AlertCircle, StopCircle, CheckCircle, XCircle, Clock, Copy, Info, RefreshCw } from 'lucide-react';
+import { Download, Loader2, Key, AlertCircle, StopCircle, CheckCircle, XCircle, Clock, Copy, Info, RefreshCw, Sparkles } from 'lucide-react';
 import { GeminiTranscriber, downloadTranscription } from '../../utils/geminiTranscriber';
 import type { TranscriptionResult, TranscriptionProgress } from '../../utils/geminiTranscriber';
 import type { SplitFile } from '../DownloadList';
 import { apiKeyStorage, localStorage } from '../../utils/storage';
-import { StepContent } from '../StepContent';
 import { ResultsSummary } from '../ResultsSummary';
 
 interface TranscriptionStepProps {
@@ -17,6 +16,15 @@ interface TranscriptionStepProps {
   onDownloadAllSplits?: () => void;
   onTranscriptionComplete?: (results: TranscriptionResult[]) => void;
   onBackgroundInfoChange?: (backgroundInfo: string) => void;
+  hideBackgroundInfo?: boolean;
+  presetApiKey?: string;
+  presetBackgroundInfo?: string;
+  presetConcurrencySettings?: {
+    enabled: boolean;
+    count: number;
+    delay: number;
+  };
+  presetCustomPrompt?: string;
 }
 
 export function TranscriptionStep({ 
@@ -28,7 +36,12 @@ export function TranscriptionStep({
   onDownloadSplit,
   onDownloadAllSplits,
   onTranscriptionComplete,
-  onBackgroundInfoChange
+  onBackgroundInfoChange,
+  hideBackgroundInfo = false,
+  presetApiKey = '',
+  presetBackgroundInfo = '',
+  presetConcurrencySettings,
+  presetCustomPrompt = ''
 }: TranscriptionStepProps) {
   const [apiKey, setApiKey] = useState('');
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -44,7 +57,6 @@ export function TranscriptionStep({
   const [customPrompt, setCustomPrompt] = useState('');
   const [backgroundInfo, setBackgroundInfo] = useState('');
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
-  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [concurrencySettings, setConcurrencySettings] = useState({
     enabled: false,
     count: 2,
@@ -61,22 +73,40 @@ export function TranscriptionStep({
 
 文字起こし結果のみを出力してください。`;
 
-  // 初回読み込み時にストレージからデータを復元
+  // 初回読み込み時にストレージからデータを復元またはpresetを使用
   useEffect(() => {
-    const savedApiKey = apiKeyStorage.get();
-    const savedPrompt = localStorage.getCustomPrompt();
-    
-    if (savedApiKey) {
-      setApiKey(savedApiKey);
-      setShowApiKeyInput(false); // APIキーがある場合は非表示
+    if (presetApiKey) {
+      setApiKey(presetApiKey);
+      setShowApiKeyInput(false);
     } else {
-      setShowApiKeyInput(true); // APIキーがない場合は表示
+      const savedApiKey = apiKeyStorage.get();
+      if (savedApiKey) {
+        setApiKey(savedApiKey);
+        setShowApiKeyInput(false);
+      } else {
+        setShowApiKeyInput(true);
+      }
     }
     
-    if (savedPrompt) {
-      setCustomPrompt(savedPrompt);
+    if (presetBackgroundInfo) {
+      setBackgroundInfo(presetBackgroundInfo);
+      onBackgroundInfoChange?.(presetBackgroundInfo);
     }
-  }, []);
+    
+    // presetがある場合はそれを使用、なければストレージから読み込み
+    if (presetCustomPrompt !== undefined) {
+      setCustomPrompt(presetCustomPrompt);
+    } else {
+      const savedPrompt = localStorage.getCustomPrompt();
+      if (savedPrompt) {
+        setCustomPrompt(savedPrompt);
+      }
+    }
+    
+    if (presetConcurrencySettings) {
+      setConcurrencySettings(presetConcurrencySettings);
+    }
+  }, [presetApiKey, presetBackgroundInfo, presetCustomPrompt, presetConcurrencySettings, onBackgroundInfoChange]);
 
   // 自動的に文字起こしを開始（APIキーがあり、結果がまだない場合）
   useEffect(() => {
@@ -180,68 +210,55 @@ export function TranscriptionStep({
 
   if (isTranscribing) {
     return (
-      <StepContent
-        title="📝 文字起こし実行中"
-        description="Gemini APIで音声ファイルを文字起こししています..."
-        showNext={false}
-      >
-        <div className="space-y-4">
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-sm text-blue-700 font-medium">{currentProgress.status}</p>
-          </div>
-          
-          {currentProgress.fileStates.size > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-gray-700">各ファイルの状態</p>
-              <div className="grid gap-2">
-                {Array.from(currentProgress.fileStates.entries()).map(([partNumber, result]) => (
-                  <div key={partNumber} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1">
-                        {result.status === 'pending' && <Clock className="w-4 h-4 text-gray-400" />}
-                        {result.status === 'processing' && <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />}
-                        {result.status === 'completed' && <CheckCircle className="w-4 h-4 text-green-500" />}
-                        {result.status === 'error' && <XCircle className="w-4 h-4 text-red-500" />}
-                        {result.status === 'cancelled' && <StopCircle className="w-4 h-4 text-orange-500" />}
-                      </div>
-                      <span className="text-sm text-gray-700">{result.fileName}</span>
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {result.status === 'pending' && '待機中'}
-                      {result.status === 'processing' && '処理中'}
-                      {result.status === 'completed' && '完了'}
-                      {result.status === 'error' && 'エラー'}
-                      {result.status === 'cancelled' && 'キャンセル'}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          
-          <div className="flex justify-center">
-            <button
-              onClick={handleCancelTranscription}
-              className="px-6 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
-            >
-              <StopCircle className="w-5 h-5" />
-              中止
-            </button>
-          </div>
+      <div className="space-y-4">
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-sm text-blue-700 font-medium">{currentProgress.status}</p>
         </div>
-      </StepContent>
+        
+        {currentProgress.fileStates.size > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-gray-700">各ファイルの状態</p>
+            <div className="grid gap-2">
+              {Array.from(currentProgress.fileStates.entries()).map(([partNumber, result]) => (
+                <div key={partNumber} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      {result.status === 'pending' && <Clock className="w-4 h-4 text-gray-400" />}
+                      {result.status === 'processing' && <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />}
+                      {result.status === 'completed' && <CheckCircle className="w-4 h-4 text-green-500" />}
+                      {result.status === 'error' && <XCircle className="w-4 h-4 text-red-500" />}
+                      {result.status === 'cancelled' && <StopCircle className="w-4 h-4 text-orange-500" />}
+                    </div>
+                    <span className="text-sm text-gray-700">{result.fileName}</span>
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {result.status === 'pending' && '待機中'}
+                    {result.status === 'processing' && '処理中'}
+                    {result.status === 'completed' && '完了'}
+                    {result.status === 'error' && 'エラー'}
+                    {result.status === 'cancelled' && 'キャンセル'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        <div className="flex justify-center">
+          <button
+            onClick={handleCancelTranscription}
+            className="px-6 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+          >
+            <StopCircle className="w-5 h-5" />
+            中止
+          </button>
+        </div>
+      </div>
     );
   }
 
   return (
-    <StepContent
-      title="📝 文字起こし"
-      description={apiKey ? "音声ファイルを自動的に文字起こしします" : "APIキーを設定して文字起こしを開始"}
-      nextButtonText={nextButtonText}
-      onNext={onNext}
-      nextDisabled={!canProceed}
-      showNext={showNext && canProceed}
-    >
+    <div className="space-y-6">
       {/* Previous Results Summary */}
       {splitFiles.length > 0 && (
         <ResultsSummary
@@ -253,7 +270,7 @@ export function TranscriptionStep({
       )}
 
       {/* API Key Status/Input */}
-      {showApiKeyInput ? (
+      {!presetApiKey && (showApiKeyInput ? (
         <div className="space-y-2">
           <label htmlFor="api-key" className="flex items-center gap-2 text-sm font-medium text-gray-700">
             <Key className="w-4 h-4" />
@@ -292,11 +309,10 @@ export function TranscriptionStep({
             変更
           </button>
         </div>
-      )}
-
+      ))}
 
       {/* 背景情報 - シンプル版 */}
-      {!isTranscribing && !hasResults && (
+      {!hideBackgroundInfo && !isTranscribing && !hasResults && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium text-gray-700 flex items-center gap-1">
@@ -316,6 +332,17 @@ export function TranscriptionStep({
           <p className="text-xs text-gray-500">
             会議の日時、参加者、議題などを入力すると精度が向上します
           </p>
+        </div>
+      )}
+      
+      {/* 背景情報表示（hideBackgroundInfo=trueの場合） */}
+      {hideBackgroundInfo && presetBackgroundInfo && (
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <Info className="w-4 h-4 text-blue-600" />
+            <span className="text-sm font-medium text-blue-800">背景情報を使用中</span>
+          </div>
+          <p className="text-xs text-blue-700">{presetBackgroundInfo}</p>
         </div>
       )}
 
@@ -391,6 +418,19 @@ export function TranscriptionStep({
           </div>
         </div>
       )}
-    </StepContent>
+
+      {/* Next Button */}
+      {showNext && canProceed && onNext && (
+        <div className="flex justify-center">
+          <button
+            onClick={onNext}
+            className="px-8 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold rounded-xl hover:from-violet-700 hover:to-purple-700 transition-all duration-200 flex items-center gap-2"
+          >
+            <Sparkles className="w-5 h-5" />
+            {nextButtonText}
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
