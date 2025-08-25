@@ -167,7 +167,7 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
     if (apiKey && transcriptionResults.length > 0 && !summarySettings.result && !summarySettings.isProcessing && !error) {
       // プロンプトが空の場合はデフォルトを設定
       if (!summarySettings.customPrompt) {
-        setSummarySettings(prev => ({ ...prev, customPrompt: formatPresets.summary.prompt }));
+        setSummarySettings(prev => ({ ...prev, customPrompt: formatPresets.meeting.prompt }));
       }
       setTimeout(() => {
         handleSummarize();
