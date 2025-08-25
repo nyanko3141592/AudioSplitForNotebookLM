@@ -14,8 +14,17 @@ export const useFFmpeg = () => {
     setIsLoading(true);
     const ffmpeg = new FFmpeg();
     
+    // Throttle progress updates to reduce UI stuttering
+    let lastProgressUpdate = 0;
     ffmpeg.on('progress', ({ progress }) => {
-      setProgress(Math.round(progress * 100));
+      const now = Date.now();
+      const progressValue = Math.round(progress * 100);
+      
+      // Update progress at most every 100ms or for significant changes
+      if (now - lastProgressUpdate > 100 || progressValue === 100) {
+        lastProgressUpdate = now;
+        setProgress(progressValue);
+      }
     });
 
     // Use single-threaded version for compatibility with GitHub Pages

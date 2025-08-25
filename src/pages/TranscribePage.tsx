@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useTransition } from 'react';
 import { FileUpload } from '../components/FileUpload';
 import { TranscriptionStep } from '../components/steps/TranscriptionStep';
 import { SummaryStep } from '../components/steps/SummaryStep';
@@ -18,7 +18,9 @@ import {
   ChevronDown,
   ChevronUp,
   Cpu,
-  MessageSquare
+  MessageSquare,
+  Info,
+  ArrowRight
 } from 'lucide-react';
 import type { TranscriptionResult } from '../utils/geminiTranscriber';
 import { GeminiTranscriber, downloadTranscription } from '../utils/geminiTranscriber';
@@ -27,6 +29,7 @@ export function TranscribePage() {
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const [splitFiles, setSplitFiles] = useState<SplitFile[]>([]);
   const [transcriptionResults, setTranscriptionResults] = useState<TranscriptionResult[]>([]);
   const [transcriptionBackgroundInfo, setTranscriptionBackgroundInfo] = useState<string>('');
@@ -115,38 +118,49 @@ export function TranscribePage() {
     if (file.size > MAX_FILE_SIZE) {
       // Auto-split large files
       setIsProcessing(true);
-      try {
-        const maxSizeMB = 190; // Safe margin under 200MB
-        const blobs = await splitAudio(file, 'size', { maxSize: maxSizeMB });
-        
-        const files: SplitFile[] = blobs.map((blob, index) => {
-          const baseName = file.name.replace(/\.[^/.]+$/, '');
-          const extension = 'wav'; // FFmpeg outputs WAV
-          return {
-            name: `${baseName}_part${index + 1}.${extension}`,
-            size: blob.size,
-            blob
-          };
-        });
-        
-        setSplitFiles(files);
-      } catch (error) {
-        console.error('Error splitting audio:', error);
-        setError('音声ファイルの自動分割中にエラーが発生しました。');
-        return;
-      } finally {
-        setIsProcessing(false);
-      }
-    } else {
-      // Use file directly without splitting
-      const fileAsBlob = new Blob([file], { type: file.type });
-      const splitFile: SplitFile = {
-        name: file.name,
-        size: file.size,
-        blob: fileAsBlob
-      };
       
-      setSplitFiles([splitFile]);
+      // Use requestAnimationFrame to ensure smooth UI updates
+      requestAnimationFrame(async () => {
+        try {
+          const maxSizeMB = 190; // Safe margin under 200MB
+          const blobs = await splitAudio(file, 'size', { maxSize: maxSizeMB });
+          
+          const files: SplitFile[] = blobs.map((blob, index) => {
+            const baseName = file.name.replace(/\.[^/.]+$/, '');
+            const extension = 'wav'; // FFmpeg outputs WAV
+            return {
+              name: `${baseName}_part${index + 1}.${extension}`,
+              size: blob.size,
+              blob
+            };
+          });
+          
+          // Use startTransition for non-urgent state updates
+          startTransition(() => {
+            setSplitFiles(files);
+          });
+        } catch (error) {
+          console.error('Error splitting audio:', error);
+          setError('音声ファイルの自動分割中にエラーが発生しました。');
+          return;
+        } finally {
+          setIsProcessing(false);
+        }
+      });
+    } else {
+      // Use file directly without splitting - defer to prevent blocking
+      requestAnimationFrame(() => {
+        const fileAsBlob = new Blob([file], { type: file.type });
+        const splitFile: SplitFile = {
+          name: file.name,
+          size: file.size,
+          blob: fileAsBlob
+        };
+        
+        startTransition(() => {
+          setSplitFiles([splitFile]);
+        });
+      });
     }
   }, [cleanupSplitFiles, splitAudio]);
 
@@ -277,13 +291,50 @@ export function TranscribePage() {
               </div>
             </div>
             
+            {/* Step-by-step guide */}
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <h3 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
+                <Info className="w-4 h-4" />
+                APIキー取得手順
+              </h3>
+              <ol className="space-y-2 text-sm text-blue-700">
+                <li className="flex items-start gap-2">
+                  <span className="flex-shrink-0 w-5 h-5 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center">1</span>
+                  <span>下のリンクから Google AI Studio にアクセス</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="flex-shrink-0 w-5 h-5 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center">2</span>
+                  <span>「Create API Key」ボタンをクリック</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="flex-shrink-0 w-5 h-5 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center">3</span>
+                  <span>生成されたAPIキー（AIzaSy... で始まる文字列）をコピー</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="flex-shrink-0 w-5 h-5 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center">4</span>
+                  <span>下の入力フィールドに貼り付け</span>
+                </li>
+              </ol>
+              <div className="mt-4">
+                <a 
+                  href="https://aistudio.google.com/app/apikey" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  Google AI Studio を開く
+                </a>
+              </div>
+            </div>
+            
             <div className="space-y-4">
               <div className="flex gap-2">
                 <input
                   type="password"
                   value={apiKey}
                   onChange={(e) => handleApiKeyChange(e.target.value)}
-                  placeholder="AIzaSy..."
+                  placeholder="AIzaSy... で始まるAPIキーを入力してください"
                   className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent text-lg"
                 />
                 {apiKey && (
@@ -296,17 +347,13 @@ export function TranscribePage() {
                   </button>
                 )}
               </div>
-              <p className="text-sm text-gray-600">
-                🔒 APIキーはブラウザに安全に保存されます。
-                <a 
-                  href="https://aistudio.google.com/app/apikey" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-violet-600 hover:underline ml-1"
-                >
-                  Google AI Studioで取得
-                </a>
-              </p>
+              <div className="flex items-start gap-2 text-sm text-gray-600">
+                <div className="flex-shrink-0">🔒</div>
+                <div>
+                  <p>APIキーはブラウザに安全に保存され、サーバーには送信されません。</p>
+                  <p className="mt-1">本アプリケーションは完全にクライアントサイドで動作します。</p>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -346,12 +393,30 @@ export function TranscribePage() {
               <>
                 <FileUpload
                   onFileSelect={handleFileSelect}
+                  disabled={isProcessing || isPending}
                 />
-                <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                  <p className="text-sm text-amber-800">
-                    💡 200MB以上のファイルは自動的に分割されます
-                  </p>
-                </div>
+                {(isProcessing || isPending) && (
+                  <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                      <div>
+                        <p className="text-sm font-medium text-blue-800">
+                          {isProcessing ? '音声ファイルを処理中...' : 'ファイルを準備中...'}
+                        </p>
+                        <p className="text-xs text-blue-600 mt-1">
+                          大きなファイルの場合、数分かかることがあります
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {!isProcessing && !isPending && (
+                  <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-sm text-amber-800">
+                      💡 200MB以上のファイルは自動的に分割されます
+                    </p>
+                  </div>
+                )}
               </>
             ) : (
               <>
@@ -377,18 +442,45 @@ export function TranscribePage() {
                 
                 <div className="space-y-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      背景情報（文字起こし精度向上のため）
-                    </label>
+                    <div className="flex items-center gap-2 mb-3">
+                      <label className="block text-sm font-medium text-gray-700">
+                        背景情報（文字起こし精度向上のため）
+                      </label>
+                      <span className="px-2 py-1 bg-amber-100 text-amber-800 text-xs rounded-md font-medium">推奨</span>
+                    </div>
+                    
+                    {/* 背景情報の重要性説明 */}
+                    <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                        <div className="text-sm">
+                          <p className="text-amber-800 font-medium mb-1">なぜ背景情報が重要？</p>
+                          <ul className="text-amber-700 space-y-1 text-xs">
+                            <li>• 固有名詞（人名、会社名、商品名）の認識精度が向上</li>
+                            <li>• 専門用語の正確な文字起こしが可能</li>
+                            <li>• 話者の識別がより正確に</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+
                     <textarea
                       value={transcriptionBackgroundInfo}
                       onChange={(e) => setTranscriptionBackgroundInfo(e.target.value)}
-                      placeholder="例: 2024年1月26日の定例会議。参加者：田中、佐藤、鈴木。議題：新商品のマーケティング戦略"
+                      placeholder="例: 2024年1月26日の定例会議。参加者：田中部長、佐藤さん、鈴木さん。議題：新商品「スマートウォッチX1」のマーケティング戦略について討議。主要な検討事項はターゲット層とプロモーション手法。"
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent min-h-24 resize-y"
                     />
-                    <p className="text-xs text-gray-500 mt-2">
-                      会議の日時、参加者、議題などを入力すると固有名詞や専門用語の認識精度が向上します
-                    </p>
+                    
+                    {/* 入力例の提示 */}
+                    <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                      <p className="text-xs font-medium text-gray-700 mb-2">📝 入力例:</p>
+                      <div className="space-y-1 text-xs text-gray-600">
+                        <p><strong>会議:</strong> 参加者名、会議の目的、主要な議題</p>
+                        <p><strong>インタビュー:</strong> インタビュイーの職種、テーマ、専門分野</p>
+                        <p><strong>講演:</strong> 講師名、講演テーマ、対象聴衆</p>
+                        <p><strong>商談:</strong> 企業名、商品名、担当者名</p>
+                      </div>
+                    </div>
                   </div>
                   
                   {/* 詳細設定セクション */}
@@ -514,13 +606,29 @@ export function TranscribePage() {
                     )}
                   </div>
                   
-                  <button
-                    onClick={() => setCurrentStep(2)}
-                    className="w-full px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold rounded-xl hover:from-violet-700 hover:to-purple-700 transition-all duration-200 flex items-center justify-center gap-2"
-                  >
-                    <FileAudio className="w-5 h-5" />
-                    文字起こしを開始
-                  </button>
+                  {/* Navigation buttons */}
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      onClick={() => {
+                        setSelectedFile(null);
+                        setSplitFiles([]);
+                        setCurrentStep(1);
+                      }}
+                      className="px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors flex items-center gap-2"
+                    >
+                      <ArrowRight className="w-4 h-4 rotate-180" />
+                      ファイルを変更
+                    </button>
+                    <button
+                      onClick={() => setCurrentStep(2)}
+                      disabled={!selectedFile}
+                      className="flex-1 px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold rounded-xl hover:from-violet-700 hover:to-purple-700 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <FileAudio className="w-5 h-5" />
+                      文字起こしを開始
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </>
             )}
@@ -544,6 +652,7 @@ export function TranscribePage() {
               splitFiles={splitFiles}
               transcriptionResults={transcriptionResults}
               onNext={() => setCurrentStep(3)}
+              onBack={() => setCurrentStep(1)}
               onDownloadSplit={handleDownload}
               onDownloadAllSplits={handleDownloadAll}
               onTranscriptionComplete={handleTranscriptionComplete}
@@ -582,6 +691,7 @@ export function TranscribePage() {
                 downloadTranscription(formatted);
               }}
               onBackgroundInfoChange={setSummaryBackgroundInfo}
+              onBack={() => setCurrentStep(2)}
               presetApiKey={apiKey}
             />
           </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Download, Loader2, Key, AlertCircle, StopCircle, CheckCircle, XCircle, Clock, Copy, Info, RefreshCw, Sparkles } from 'lucide-react';
+import { Download, Loader2, Key, AlertCircle, StopCircle, CheckCircle, XCircle, Clock, Copy, Info, RefreshCw, Sparkles, ArrowRight } from 'lucide-react';
 import { GeminiTranscriber, downloadTranscription } from '../../utils/geminiTranscriber';
 import type { TranscriptionResult, TranscriptionProgress } from '../../utils/geminiTranscriber';
 import type { SplitFile } from '../DownloadList';
@@ -10,6 +10,7 @@ interface TranscriptionStepProps {
   splitFiles: SplitFile[];
   transcriptionResults?: TranscriptionResult[];
   onNext?: () => void;
+  onBack?: () => void;
   showNext?: boolean;
   nextButtonText?: string;
   onDownloadSplit?: (file: SplitFile) => void;
@@ -31,6 +32,7 @@ export function TranscriptionStep({
   splitFiles, 
   transcriptionResults: parentTranscriptionResults,
   onNext, 
+  onBack,
   showNext = true, 
   nextButtonText = "まとめへ",
   onDownloadSplit,
@@ -406,16 +408,28 @@ export function TranscriptionStep({
         </div>
       )}
 
-      {/* Next Button */}
-      {showNext && canProceed && onNext && (
-        <div className="flex justify-center">
-          <button
-            onClick={onNext}
-            className="px-8 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold rounded-xl hover:from-violet-700 hover:to-purple-700 transition-all duration-200 flex items-center gap-2"
-          >
-            <Sparkles className="w-5 h-5" />
-            {nextButtonText}
-          </button>
+      {/* Navigation Buttons */}
+      {canProceed && (onBack || onNext) && (
+        <div className="flex gap-3 justify-center">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors flex items-center gap-2"
+            >
+              <ArrowRight className="w-4 h-4 rotate-180" />
+              戻る
+            </button>
+          )}
+          {showNext && onNext && (
+            <button
+              onClick={onNext}
+              className="px-8 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold rounded-xl hover:from-violet-700 hover:to-purple-700 transition-all duration-200 flex items-center gap-2"
+            >
+              <Sparkles className="w-5 h-5" />
+              {nextButtonText}
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          )}
         </div>
       )}
     </div>
