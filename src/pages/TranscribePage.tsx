@@ -346,7 +346,6 @@ export function TranscribePage() {
               <>
                 <FileUpload
                   onFileSelect={handleFileSelect}
-                  isProcessing={isProcessing}
                 />
                 <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
                   <p className="text-sm text-amber-800">

@@ -192,10 +192,6 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
     localStorage.saveSummaryCustomPrompt(preset.prompt);
   };
 
-  const clearBackgroundInfo = () => {
-    setSummarySettings(prev => ({ ...prev, backgroundInfo: '' }));
-    localStorage.saveSummaryBackgroundInfo('');
-  };
 
   const handleCopySummary = () => {
     if (summarySettings.result) {

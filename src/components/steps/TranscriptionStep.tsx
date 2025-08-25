@@ -63,15 +63,6 @@ export function TranscriptionStep({
     delay: 1000
   });
   
-  const defaultPrompt = `この音声ファイルの内容を正確に文字起こししてください。
-以下の点に注意してください：
-- 話者の発言を忠実に文字起こしする
-- 適切な句読点を追加する
-- 専門用語や固有名詞は正確に記載する
-- フィラー語（えー、あのー等）は適度に省略して読みやすくする
-- 複数の話者がいる場合は、話者を区別して記載する
-
-文字起こし結果のみを出力してください。`;
 
   // 初回読み込み時にストレージからデータを復元またはpresetを使用
   useEffect(() => {
@@ -127,10 +118,6 @@ export function TranscriptionStep({
     apiKeyStorage.save(value);
   };
 
-  const handleCustomPromptChange = (value: string) => {
-    setCustomPrompt(value);
-    localStorage.saveCustomPrompt(value);
-  };
 
   const handleTranscribe = async () => {
     if (!apiKey) {

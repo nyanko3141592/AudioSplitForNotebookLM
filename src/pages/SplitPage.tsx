@@ -102,7 +102,6 @@ export function SplitPage() {
             
             <FileUpload 
               onFileSelect={handleFileSelect}
-              isProcessing={isProcessing}
             />
             
             {selectedFile && (
@@ -179,6 +178,7 @@ export function SplitPage() {
               <DownloadList 
                 files={splitFiles}
                 onDownload={handleDownload}
+                onDownloadAll={handleDownloadAll}
               />
               
               {splitFiles.length > 1 && (
