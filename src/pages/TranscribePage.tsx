@@ -26,7 +26,11 @@ import type { TranscriptionResult } from '../utils/geminiTranscriber';
 import { GeminiTranscriber, downloadTranscription } from '../utils/geminiTranscriber';
 import { RecordingPanel } from '../components/RecordingPanel';
 
-export function TranscribePage() {
+type Props = {
+  onRecordingStateChange?: (isActive: boolean) => void;
+};
+
+export function TranscribePage({ onRecordingStateChange }: Props) {
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -39,6 +43,11 @@ export function TranscribePage() {
   const [apiKey, setApiKey] = useState<string>('');
   const [showAdvancedSettings, setShowAdvancedSettings] = useState<boolean>(false);
   const [isRecordingActive, setIsRecordingActive] = useState<boolean>(false);
+  
+  const handleRecordingStateChange = (isActive: boolean) => {
+    setIsRecordingActive(isActive);
+    onRecordingStateChange?.(isActive);
+  };
   const [transcriptionSettings, setTranscriptionSettings] = useState({
     concurrencySettings: {
       enabled: false,
@@ -394,7 +403,7 @@ export function TranscribePage() {
             {/* Recording (Mic + Other tab audio) */}
             <RecordingPanel 
               onRecorded={handleFileSelect} 
-              onRecordingStateChange={setIsRecordingActive}
+              onRecordingStateChange={handleRecordingStateChange}
             />
 
             {!selectedFile && !isRecordingActive ? (
