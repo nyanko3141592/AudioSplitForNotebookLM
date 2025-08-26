@@ -146,7 +146,6 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
     }
     
     const savedPrompt = localStorage.getSummaryCustomPrompt();
-    const savedBackgroundInfo = localStorage.getSummaryBackgroundInfo();
     
     // デフォルトプロンプトを設定
     const defaultPrompt = formatPresets.summary.prompt;
@@ -156,12 +155,9 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
       setSummarySettings(prev => ({ ...prev, customPrompt: defaultPrompt }));
     }
     
-    // 文字起こしの背景情報を引き継ぐ
-    const backgroundToUse = transcriptionBackgroundInfo || savedBackgroundInfo || '';
+    // 文字起こしの背景情報のみ引き継ぐ（リロードで永続化しない）
+    const backgroundToUse = transcriptionBackgroundInfo || '';
     setSummarySettings(prev => ({ ...prev, backgroundInfo: backgroundToUse }));
-    if (backgroundToUse) {
-      localStorage.saveSummaryBackgroundInfo(backgroundToUse);
-    }
   }, [transcriptionBackgroundInfo, presetApiKey]);
 
   // 自動的にまとめを実行（APIキーがあり、結果がない場合）
@@ -184,7 +180,7 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
 
   const handleBackgroundInfoChange = (value: string) => {
     setSummarySettings(prev => ({ ...prev, backgroundInfo: value }));
-    localStorage.saveSummaryBackgroundInfo(value);
+    // リロードで永続化しない。親へはセッション内で引き回すため通知
     onBackgroundInfoChange?.(value);
   };
   
