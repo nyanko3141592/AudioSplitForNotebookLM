@@ -227,6 +227,14 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
       }
       setTabStream(s);
       
+      // Ensure AudioContext is ready and start monitoring
+      if (!previewCtxRef.current || previewCtxRef.current.state === 'closed') {
+        previewCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      if (previewCtxRef.current.state === 'suspended') {
+        await previewCtxRef.current.resume();
+      }
+      
       // Start monitoring audio levels immediately
       startTabMonitoring(s);
       
@@ -248,16 +256,19 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
     setError(null);
     
     // Complete cleanup of existing mic stream
-    stopMicMonitoring();
     if (micStream) {
+      stopMicMonitoring();
       stopStream(micStream);
       setMicStream(null);
     }
     
-    // Clean up preview audio context to force fresh start
-    if (previewCtxRef.current) {
-      try { previewCtxRef.current.close(); } catch {}
-      previewCtxRef.current = null;
+    // Keep AudioContext alive instead of closing it
+    if (previewCtxRef.current && previewCtxRef.current.state === 'suspended') {
+      try { 
+        await previewCtxRef.current.resume();
+      } catch (e) {
+        console.warn('Failed to resume AudioContext:', e);
+      }
     }
     
     try {
@@ -320,12 +331,19 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
       
       setMicStream(s);
       
-      // Wait a bit for the stream to stabilize before starting monitoring
-      setTimeout(() => {
-        if (s && s.getAudioTracks().length > 0) {
-          startMicMonitoring(s);
+      // Immediately start monitoring and ensure AudioContext is running
+      if (s && s.getAudioTracks().length > 0) {
+        // Create/resume AudioContext first
+        if (!previewCtxRef.current || previewCtxRef.current.state === 'closed') {
+          previewCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
         }
-      }, 100);
+        if (previewCtxRef.current.state === 'suspended') {
+          previewCtxRef.current.resume().catch(console.error);
+        }
+        
+        // Start monitoring immediately
+        startMicMonitoring(s);
+      }
       
       // Clean up when tracks end
       s.getAudioTracks().forEach(track => {
@@ -652,9 +670,16 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
           {/* マイク制御ボタン */}
           <button
             onClick={enableMic}
-            className="w-full px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors font-medium"
+            className={`w-full px-4 py-2 rounded-lg font-medium transition-colors ${
+              micStream && isMonitoringMic
+                ? 'bg-green-600 text-white hover:bg-green-700'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}
           >
-            マイクを有効化
+            {micStream && isMonitoringMic
+              ? '🎙️ マイク接続中'
+              : 'マイクを接続'
+            }
           </button>
         </div>
 
@@ -705,9 +730,16 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
           {/* システム音声制御ボタン */}
           <button
             onClick={pickTabAudio}
-            className="w-full px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors font-medium"
+            className={`w-full px-4 py-2 rounded-lg font-medium transition-colors ${
+              tabStream && isMonitoringTab
+                ? 'bg-green-600 text-white hover:bg-green-700'
+                : 'bg-emerald-600 text-white hover:bg-emerald-700'
+            }`}
           >
-            タブ音声を選択
+            {tabStream && isMonitoringTab
+              ? '🖥️ システム音声接続中'
+              : 'システム音声を選択'
+            }
           </button>
         </div>
       </div>

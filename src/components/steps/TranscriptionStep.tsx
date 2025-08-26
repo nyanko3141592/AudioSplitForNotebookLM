@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Download, Loader2, Key, AlertCircle, StopCircle, CheckCircle, XCircle, Clock, Copy, Info, RefreshCw, Sparkles, ArrowRight } from 'lucide-react';
+import { Download, Loader2, Key, AlertCircle, StopCircle, CheckCircle, XCircle, Clock, Copy, Info, RefreshCw, Sparkles, ArrowRight, DollarSign } from 'lucide-react';
 import { GeminiTranscriber, downloadTranscription } from '../../utils/geminiTranscriber';
 import type { TranscriptionResult, TranscriptionProgress } from '../../utils/geminiTranscriber';
 import type { SplitFile } from '../DownloadList';
@@ -56,6 +56,7 @@ export function TranscriptionStep({
     fileStates: new Map() 
   });
   const [error, setError] = useState<string | null>(null);
+  const [actualCost, setActualCost] = useState<number | null>(null);
   const transcriberRef = useRef<GeminiTranscriber | null>(null);
   const [customPrompt, setCustomPrompt] = useState('');
   const [backgroundInfo, setBackgroundInfo] = useState('');
@@ -127,6 +128,39 @@ export function TranscriptionStep({
     window.localStorage.setItem('transcription_model', value);
   };
 
+  // コスト計算関数
+  const calculateCost = (durationInSeconds: number, model: string) => {
+    const audioTokens = durationInSeconds * 32; // 1秒 = 32トークン
+    const millionTokens = audioTokens / 1000000;
+    
+    const modelPricing = {
+      'gemini-2.0-flash-lite': { input: 0.075, output: 0.30 }, // 音声も同じ価格
+      'gemini-2.5-flash': { input: 1.00, output: 2.50 }, // 音声価格
+      'gemini-2.5-pro': { input: 1.00, output: 2.50 }, // 音声価格（仮定）
+    };
+    
+    const pricing = modelPricing[model as keyof typeof modelPricing] || modelPricing['gemini-2.0-flash-lite'];
+    const inputCost = millionTokens * pricing.input;
+    const outputCost = millionTokens * pricing.output * 0.1; // 出力は入力の約10%と仮定
+    
+    return {
+      inputCost,
+      outputCost,
+      totalCost: inputCost + outputCost,
+      tokens: audioTokens
+    };
+  };
+
+  // 総再生時間を計算
+  const getTotalDuration = () => {
+    return splitFiles.reduce((total, file) => {
+      // BlobのdurationプロパティまたはFile.sizeから推定
+      // WAVファイルの場合、おおよそ1MB = 10秒と仮定
+      const estimatedDuration = file.size / (1024 * 1024) * 10;
+      return total + estimatedDuration;
+    }, 0);
+  };
+
 
   const handleTranscribe = async () => {
     if (!apiKey) {
@@ -160,6 +194,11 @@ export function TranscriptionStep({
         customPrompt || undefined,
         concurrency
       );
+
+      // 実際のコストを計算
+      const duration = getTotalDuration();
+      const cost = calculateCost(duration, selectedModel);
+      setActualCost(cost.totalCost);
 
       setTranscriptionResults(results);
       onTranscriptionComplete?.(results);
@@ -374,6 +413,29 @@ export function TranscriptionStep({
         </div>
       )}
 
+      {/* Cost Estimate */}
+      {!isTranscribing && apiKey && splitFiles.length > 0 && (
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center gap-2 text-sm">
+            <DollarSign className="w-4 h-4 text-blue-600" />
+            <span className="font-medium text-blue-800">予想コスト</span>
+            <span className="text-blue-700">
+              ${(() => {
+                const duration = getTotalDuration();
+                const cost = calculateCost(duration, selectedModel);
+                return cost.totalCost.toFixed(4);
+              })()}
+            </span>
+            <span className="text-xs text-blue-600">
+              ({Math.round(getTotalDuration())}秒の音声)
+            </span>
+          </div>
+          <p className="text-xs text-blue-600 mt-1">
+            実際の料金は音声の長さとモデルによって変動します
+          </p>
+        </div>
+      )}
+
       {/* Transcribe Button - 初回実行と再実行 */}
       {!isTranscribing && (
         <button
@@ -439,10 +501,32 @@ export function TranscriptionStep({
             ))}
           </div>
           
-          <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-            <p className="text-sm text-green-800">
-              💡 文字起こしが完了しました。下の要約セクションでまとめを作成できます。
-            </p>
+          <div className="space-y-3">
+            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-sm text-green-800">
+                💡 文字起こしが完了しました。下の要約セクションでまとめを作成できます。
+              </p>
+            </div>
+            
+            {/* Actual Cost Display */}
+            {actualCost !== null && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center gap-2 text-sm">
+                  <DollarSign className="w-4 h-4 text-blue-600" />
+                  <span className="font-medium text-blue-800">実際のコスト</span>
+                  <span className="text-blue-700 font-semibold">
+                    ${actualCost.toFixed(4)}
+                  </span>
+                  <span className="text-xs text-blue-600">
+                    (モデル: {selectedModel === 'gemini-2.0-flash-lite' ? 'Flash-Lite' : 
+                              selectedModel === 'gemini-2.5-flash' ? '2.5 Flash' : '2.5 Pro'})
+                  </span>
+                </div>
+                <p className="text-xs text-blue-600 mt-1">
+                  処理された音声: {Math.round(getTotalDuration())}秒
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, Download, Loader2, AlertCircle, CheckCircle, Info, RefreshCw, Copy, Key } from 'lucide-react';
+import { Sparkles, Download, Loader2, AlertCircle, CheckCircle, Info, RefreshCw, Copy, Key, DollarSign } from 'lucide-react';
 import { GeminiTranscriber, downloadTranscription } from '../../utils/geminiTranscriber';
 import type { TranscriptionResult } from '../../utils/geminiTranscriber';
 import { apiKeyStorage, localStorage } from '../../utils/storage';
@@ -41,6 +41,7 @@ export function SummaryStep({
     totalSteps: 3
   });
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+  const [actualSummaryCost, setActualSummaryCost] = useState<number | null>(null);
 
   // フォーマットプリセット
   const formatPresets = {
@@ -170,6 +171,36 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
     window.localStorage.setItem('summary_model', value);
   };
 
+  // コスト計算関数（要約用）
+  const calculateSummaryCost = (textLength: number, model: string) => {
+    const inputTokens = textLength / 4; // おおよそ4文字 = 1トークン
+    const millionTokens = inputTokens / 1000000;
+    
+    const modelPricing = {
+      'gemini-2.0-flash-lite': { input: 0.075, output: 0.30 },
+      'gemini-2.5-flash': { input: 0.30, output: 2.50 }, // テキスト価格
+      'gemini-2.5-pro': { input: 0.30, output: 2.50 }, // テキスト価格（仮定）
+    };
+    
+    const pricing = modelPricing[model as keyof typeof modelPricing] || modelPricing['gemini-2.0-flash-lite'];
+    const inputCost = millionTokens * pricing.input;
+    const outputCost = millionTokens * pricing.output * 0.3; // 出力は入力の約30%と仮定
+    
+    return {
+      inputCost,
+      outputCost,
+      totalCost: inputCost + outputCost,
+      tokens: inputTokens
+    };
+  };
+
+  // 文字起こし結果の総文字数を計算
+  const getTotalTextLength = () => {
+    return transcriptionResults.reduce((total, result) => {
+      return total + (result.transcription?.length || 0);
+    }, 0);
+  };
+
   // Auto-summarization removed - summary now requires manual trigger
 
   const handleCustomPromptChange = (value: string) => {
@@ -270,6 +301,11 @@ ${summarySettings.backgroundInfo}
           }));
         }
       );
+
+      // 実際のコストを計算
+      const textLength = getTotalTextLength();
+      const cost = calculateSummaryCost(textLength, selectedModel);
+      setActualSummaryCost(cost.totalCost);
 
       setSummarySettings(prev => ({ 
         ...prev, 
@@ -444,6 +480,29 @@ ${summarySettings.backgroundInfo}
         </p>
       </div>
       
+      {/* Cost Estimate for Summary */}
+      {!summarySettings.isProcessing && !summarySettings.result && apiKey && transcriptionResults.length > 0 && (
+        <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+          <div className="flex items-center gap-2 text-sm">
+            <DollarSign className="w-4 h-4 text-purple-600" />
+            <span className="font-medium text-purple-800">予想コスト</span>
+            <span className="text-purple-700">
+              ${(() => {
+                const textLength = getTotalTextLength();
+                const cost = calculateSummaryCost(textLength, selectedModel);
+                return cost.totalCost.toFixed(4);
+              })()}
+            </span>
+            <span className="text-xs text-purple-600">
+              ({getTotalTextLength().toLocaleString()}文字のテキスト)
+            </span>
+          </div>
+          <p className="text-xs text-purple-600 mt-1">
+            実際の料金はテキストの長さとモデルによって変動します
+          </p>
+        </div>
+      )}
+
       {/* まとめ実行ボタン */}
       {!summarySettings.isProcessing && !summarySettings.result && apiKey && (
         <div className="flex justify-center">
@@ -547,6 +606,26 @@ ${summarySettings.backgroundInfo}
           <div className="max-h-64 overflow-y-auto border border-purple-200 rounded-lg p-4 bg-white">
             <pre className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{summarySettings.result}</pre>
           </div>
+          
+          {/* Actual Summary Cost Display */}
+          {actualSummaryCost !== null && (
+            <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+              <div className="flex items-center gap-2 text-sm">
+                <DollarSign className="w-4 h-4 text-purple-600" />
+                <span className="font-medium text-purple-800">実際のコスト</span>
+                <span className="text-purple-700 font-semibold">
+                  ${actualSummaryCost.toFixed(4)}
+                </span>
+                <span className="text-xs text-purple-600">
+                  (モデル: {selectedModel === 'gemini-2.0-flash-lite' ? 'Flash-Lite' : 
+                            selectedModel === 'gemini-2.5-flash' ? '2.5 Flash' : '2.5 Pro'})
+                </span>
+              </div>
+              <p className="text-xs text-purple-600 mt-1">
+                処理されたテキスト: {getTotalTextLength().toLocaleString()}文字
+              </p>
+            </div>
+          )}
         </div>
       )}
 
