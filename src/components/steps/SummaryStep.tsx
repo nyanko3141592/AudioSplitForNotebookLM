@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, Download, Loader2, AlertCircle, CheckCircle, Info, RefreshCw, Copy, Key, ArrowRight } from 'lucide-react';
+import { Sparkles, Download, Loader2, AlertCircle, CheckCircle, Info, RefreshCw, Copy, Key } from 'lucide-react';
 import { GeminiTranscriber, downloadTranscription } from '../../utils/geminiTranscriber';
 import type { TranscriptionResult } from '../../utils/geminiTranscriber';
 import { apiKeyStorage, localStorage } from '../../utils/storage';
@@ -15,7 +15,6 @@ interface SummaryStepProps {
   onDownloadAllSplits?: () => void;
   onDownloadTranscription?: () => void;
   onBackgroundInfoChange?: (backgroundInfo: string) => void;
-  onBack?: () => void;
   presetApiKey?: string;
 }
 
@@ -27,7 +26,6 @@ export function SummaryStep({
   onDownloadAllSplits,
   onDownloadTranscription,
   onBackgroundInfoChange,
-  onBack,
   presetApiKey = ''
 }: SummaryStepProps) {
   const [apiKey, setApiKey] = useState('');
@@ -535,18 +533,6 @@ ${summarySettings.backgroundInfo}
         </p>
       </div>
 
-      {/* Navigation Buttons */}
-      {onBack && (
-        <div className="flex justify-start">
-          <button
-            onClick={onBack}
-            className="px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors flex items-center gap-2"
-          >
-            <ArrowRight className="w-4 h-4 rotate-180" />
-            文字起こしに戻る
-          </button>
-        </div>
-      )}
     </StepContent>
   );
 }

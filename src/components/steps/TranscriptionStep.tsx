@@ -409,27 +409,16 @@ export function TranscriptionStep({
       )}
 
       {/* Navigation Buttons */}
-      {canProceed && (onBack || onNext) && (
-        <div className="flex gap-3 justify-center">
-          {onBack && (
-            <button
-              onClick={onBack}
-              className="px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors flex items-center gap-2"
-            >
-              <ArrowRight className="w-4 h-4 rotate-180" />
-              戻る
-            </button>
-          )}
-          {showNext && onNext && (
-            <button
-              onClick={onNext}
-              className="px-8 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold rounded-xl hover:from-violet-700 hover:to-purple-700 transition-all duration-200 flex items-center gap-2"
-            >
-              <Sparkles className="w-5 h-5" />
-              {nextButtonText}
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          )}
+      {canProceed && showNext && onNext && (
+        <div className="flex justify-center">
+          <button
+            onClick={onNext}
+            className="px-8 py-4 bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold rounded-xl hover:from-violet-700 hover:to-purple-700 transition-all duration-200 flex items-center gap-2"
+          >
+            <Sparkles className="w-5 h-5" />
+            {nextButtonText}
+            <ArrowRight className="w-4 h-4" />
+          </button>
         </div>
       )}
     </div>

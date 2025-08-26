@@ -79,7 +79,7 @@ export const HeroSection: React.FC<Props> = ({ currentPage, onPageChange, isReco
             onClick={() => onPageChange('transcribe')}
             className="bg-white/10 backdrop-blur border border-white/20 rounded-2xl px-6 py-3 text-white hover:bg-white/20 transition-all"
           >
-            文字起こしに戻る
+            文字起こし
           </button>
         )}
       </div>
