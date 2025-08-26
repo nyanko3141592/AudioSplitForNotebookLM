@@ -158,18 +158,7 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
     setSummarySettings(prev => ({ ...prev, backgroundInfo: backgroundToUse }));
   }, [transcriptionBackgroundInfo, presetApiKey]);
 
-  // 自動的にまとめを実行（APIキーがあり、結果がない場合）
-  useEffect(() => {
-    if (apiKey && transcriptionResults.length > 0 && !summarySettings.result && !summarySettings.isProcessing && !error) {
-      // プロンプトが空の場合はデフォルトを設定
-      if (!summarySettings.customPrompt) {
-        setSummarySettings(prev => ({ ...prev, customPrompt: formatPresets.meeting.prompt }));
-      }
-      setTimeout(() => {
-        handleSummarize();
-      }, 500);
-    }
-  }, [apiKey, transcriptionResults, summarySettings.customPrompt]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Auto-summarization removed - summary now requires manual trigger
 
   const handleCustomPromptChange = (value: string) => {
     setSummarySettings(prev => ({ ...prev, customPrompt: value }));

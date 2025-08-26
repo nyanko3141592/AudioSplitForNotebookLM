@@ -167,8 +167,54 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
     };
   }, [cleanupSplitFiles]);
 
+  // Warn before page unload if there's unsaved data
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      const hasUnsavedData = 
+        isRecordingActive || // 録音中
+        splitFiles.length > 0 || // 音声ファイルあり
+        transcriptionResults.length > 0 || // 文字起こし結果あり
+        transcriptionBackgroundInfo.trim() !== '' || // 背景情報入力済み
+        summaryBackgroundInfo.trim() !== ''; // 要約用背景情報あり
+
+      if (hasUnsavedData) {
+        let message = '';
+        
+        if (isRecordingActive) {
+          message = '録音中です。ページを離れると録音データが失われます。';
+        } else {
+          const dataTypes = [];
+          if (splitFiles.length > 0) dataTypes.push('音声ファイル');
+          if (transcriptionResults.length > 0) dataTypes.push('文字起こし結果');
+          if (transcriptionBackgroundInfo.trim() !== '' || summaryBackgroundInfo.trim() !== '') {
+            dataTypes.push('入力された背景情報');
+          }
+          
+          if (dataTypes.length > 0) {
+            message = `${dataTypes.join('・')}が失われます。本当にページを離れますか？`;
+          } else {
+            message = '処理したデータが失われます。本当にページを離れますか？';
+          }
+        }
+        
+        event.preventDefault();
+        // Modern browsers show a generic message regardless of returnValue
+        event.returnValue = '';
+        return message;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isRecordingActive, splitFiles.length, transcriptionResults.length, transcriptionBackgroundInfo, summaryBackgroundInfo]);
+
   // ステップの状態を計算
-  const currentStep = !selectedFile ? 1 : transcriptionResults.length > 0 ? 3 : 2;
+  const currentStep = !selectedFile ? 1 : 
+                     splitFiles.length === 0 ? 2 : 
+                     transcriptionResults.length === 0 ? 3 : 4;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -177,43 +223,68 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
         {/* ステップインジケーター */}
         <div className="mb-8">
           <div className="flex items-center justify-center">
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 sm:space-x-4">
               {/* Step 1 */}
               <div className={`flex items-center ${currentStep >= 1 ? 'text-violet-600' : 'text-gray-400'}`}>
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 ${
+                <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold border-2 ${
                   currentStep >= 1 ? 'bg-violet-600 text-white border-violet-600' : 'bg-white border-gray-300'
                 }`}>
                   1
                 </div>
-                <span className="ml-2 font-medium hidden sm:inline">音声選択</span>
+                <span className="ml-1 sm:ml-2 font-medium hidden sm:inline text-sm">音声選択</span>
               </div>
               
-              <div className={`w-16 h-0.5 ${currentStep >= 2 ? 'bg-violet-600' : 'bg-gray-300'}`}></div>
+              <div className={`w-8 sm:w-16 h-0.5 ${currentStep >= 2 ? 'bg-violet-600' : 'bg-gray-300'}`}></div>
               
               {/* Step 2 */}
               <div className={`flex items-center ${currentStep >= 2 ? 'text-violet-600' : 'text-gray-400'}`}>
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 ${
+                <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold border-2 ${
                   currentStep >= 2 ? 'bg-violet-600 text-white border-violet-600' : 'bg-white border-gray-300'
                 }`}>
                   2
                 </div>
-                <span className="ml-2 font-medium hidden sm:inline">文字起こし</span>
+                <span className="ml-1 sm:ml-2 font-medium hidden sm:inline text-sm">設定</span>
               </div>
               
-              <div className={`w-16 h-0.5 ${currentStep >= 3 ? 'bg-violet-600' : 'bg-gray-300'}`}></div>
+              <div className={`w-8 sm:w-16 h-0.5 ${currentStep >= 3 ? 'bg-violet-600' : 'bg-gray-300'}`}></div>
               
               {/* Step 3 */}
               <div className={`flex items-center ${currentStep >= 3 ? 'text-violet-600' : 'text-gray-400'}`}>
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 ${
+                <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold border-2 ${
                   currentStep >= 3 ? 'bg-violet-600 text-white border-violet-600' : 'bg-white border-gray-300'
                 }`}>
                   3
                 </div>
-                <span className="ml-2 font-medium hidden sm:inline">要約作成</span>
+                <span className="ml-1 sm:ml-2 font-medium hidden sm:inline text-sm">文字起こし</span>
+              </div>
+              
+              <div className={`w-8 sm:w-16 h-0.5 ${currentStep >= 4 ? 'bg-violet-600' : 'bg-gray-300'}`}></div>
+              
+              {/* Step 4 */}
+              <div className={`flex items-center ${currentStep >= 4 ? 'text-violet-600' : 'text-gray-400'}`}>
+                <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold border-2 ${
+                  currentStep >= 4 ? 'bg-violet-600 text-white border-violet-600' : 'bg-white border-gray-300'
+                }`}>
+                  4
+                </div>
+                <span className="ml-1 sm:ml-2 font-medium hidden sm:inline text-sm">要約作成</span>
               </div>
             </div>
           </div>
         </div>
+
+        {/* Unsaved Data Indicator */}
+        {(isRecordingActive || splitFiles.length > 0 || transcriptionResults.length > 0 || transcriptionBackgroundInfo.trim() !== '' || summaryBackgroundInfo.trim() !== '') && (
+          <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center">
+            <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse mr-3"></div>
+            <p className="text-sm text-amber-800">
+              {isRecordingActive 
+                ? '録音中 - ブラウザを閉じると録音データが失われます'
+                : 'データが未保存です - ブラウザを閉じる前に必要なファイルをダウンロードしてください'
+              }
+            </p>
+          </div>
+        )}
         
         {/* Status Messages */}
         {isProcessing && (
@@ -301,7 +372,7 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
           )}
         </div>
 
-        {/* Step 2: Background Info & Start */}
+        {/* Step 2: Background Info & Settings */}
         {selectedFile && (
           <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
             <div className="flex items-center mb-6">
@@ -347,20 +418,14 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
               />
             </div>
 
-            <button
-              onClick={() => {
-                // 文字起こしを自動開始
-                console.log('Start transcription for files:', splitFiles.length);
-              }}
-              disabled={!selectedFile || splitFiles.length === 0}
-              className="w-full px-6 py-4 bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold rounded-xl hover:from-violet-700 hover:to-purple-700 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              🚀 文字起こしを開始
-            </button>
+            <div className="text-center">
+              <p className="text-gray-600 font-medium">設定完了！</p>
+              <p className="text-sm text-gray-500 mt-1">下のステップ3で文字起こしを開始できます</p>
+            </div>
           </div>
         )}
 
-        {/* Step 3: Results */}
+        {/* Step 3: Transcription */}
         {splitFiles.length > 0 && (
           <>
             <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
@@ -368,7 +433,7 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
                 <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold mr-3">
                   3
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900">文字起こし & 要約</h2>
+                <h2 className="text-2xl font-bold text-gray-900">文字起こし</h2>
               </div>
               
               <TranscriptionStep
@@ -387,8 +452,16 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
               />
             </div>
 
+            {/* Step 4: Summary */}
             {transcriptionResults.length > 0 && (
-              <div className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-2xl p-8">
+              <div className="bg-white rounded-2xl shadow-lg p-8">
+                <div className="flex items-center mb-6">
+                  <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold mr-3">
+                    4
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900">要約作成</h2>
+                </div>
+                
                 <SummaryStep
                   transcriptionResults={transcriptionResults}
                   splitFiles={splitFiles}

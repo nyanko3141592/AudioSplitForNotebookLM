@@ -83,10 +83,50 @@ export function SplitPage() {
     };
   }, [cleanupSplitFiles]);
 
+  // Warn before page unload if there's unsaved data
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      const hasUnsavedData = 
+        isProcessing || // 処理中
+        splitFiles.length > 0 || // 分割ファイルあり
+        selectedFile !== null; // 選択済みファイルあり
+
+      if (hasUnsavedData) {
+        const message = isProcessing 
+          ? '音声ファイルを処理中です。ページを離れると処理が中断されます。'
+          : '分割したファイルが失われます。本当にページを離れますか？';
+        
+        event.preventDefault();
+        // Modern browsers show a generic message regardless of returnValue
+        event.returnValue = '';
+        return message;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isProcessing, splitFiles.length, selectedFile]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-violet-50 via-blue-50 to-cyan-50">
       <div className="container mx-auto px-6 py-8">
         <div className="max-w-4xl mx-auto">
+
+          {/* Unsaved Data Indicator */}
+          {(isProcessing || splitFiles.length > 0 || selectedFile !== null) && (
+            <div className="mb-6 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center">
+              <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse mr-3"></div>
+              <p className="text-sm text-amber-800">
+                {isProcessing 
+                  ? '処理中 - ブラウザを閉じると処理が中断されます'
+                  : '分割されたファイルがあります - ブラウザを閉じる前にダウンロードしてください'
+                }
+              </p>
+            </div>
+          )}
           
           {/* Step 1: File Upload */}
           <div className="mb-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-8">

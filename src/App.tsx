@@ -8,7 +8,6 @@ import {
 
 function App() {
   const [currentPage, setCurrentPage] = useState<'transcribe' | 'split'>('transcribe');
-  const [isRecordingActive, setIsRecordingActive] = useState(false);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-violet-50 via-blue-50 to-cyan-50">
@@ -16,12 +15,11 @@ function App() {
       <HeroSection 
         currentPage={currentPage} 
         onPageChange={setCurrentPage}
-        isRecordingActive={isRecordingActive}
       />
 
       {/* Main Content */}
       {currentPage === 'transcribe' ? (
-        <TranscribePage onRecordingStateChange={setIsRecordingActive} />
+        <TranscribePage onRecordingStateChange={() => {}} />
       ) : (
         <SplitPage />
       )}

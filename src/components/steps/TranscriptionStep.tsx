@@ -32,7 +32,7 @@ export function TranscriptionStep({
   splitFiles, 
   transcriptionResults: parentTranscriptionResults,
   onNext, 
-  onBack,
+  onBack: _onBack,
   showNext = true, 
   nextButtonText = "まとめへ",
   onDownloadSplit,
@@ -101,12 +101,7 @@ export function TranscriptionStep({
     }
   }, [presetApiKey, presetBackgroundInfo, presetCustomPrompt, presetConcurrencySettings, onBackgroundInfoChange]);
 
-  // 自動的に文字起こしを開始（APIキーがあり、結果がまだない場合）
-  useEffect(() => {
-    if (apiKey && splitFiles.length > 0 && transcriptionResults.length === 0 && !isTranscribing && !error) {
-      handleTranscribe();
-    }
-  }, [apiKey, splitFiles]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Auto-start removed - transcription now requires manual trigger
 
   // 親コンポーネントから結果が渡された場合に更新
   useEffect(() => {
@@ -343,15 +338,24 @@ export function TranscriptionStep({
         </div>
       )}
 
-      {/* Transcribe Button - 再実行用 */}
-      {!isTranscribing && (hasResults || error) && (
+      {/* Transcribe Button - 初回実行と再実行 */}
+      {!isTranscribing && (
         <button
           onClick={handleTranscribe}
           disabled={!apiKey || splitFiles.length === 0}
           className="w-full px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold rounded-xl hover:from-violet-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
         >
-          <RefreshCw className="w-5 h-5" />
-          文字起こしを再実行 ({splitFiles.length}ファイル)
+          {hasResults || error ? (
+            <>
+              <RefreshCw className="w-5 h-5" />
+              文字起こしを再実行 ({splitFiles.length}ファイル)
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-5 h-5" />
+              🚀 文字起こしを開始 ({splitFiles.length}ファイル)
+            </>
+          )}
         </button>
       )}
 
