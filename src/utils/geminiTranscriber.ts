@@ -21,6 +21,7 @@ export class GeminiTranscriber {
   private abortController: AbortController | null = null;
   private modelName: string = 'gemini-2.0-flash-lite';
   private apiEndpoint: string = 'https://generativelanguage.googleapis.com';
+  private apiKey: string = '';
 
   constructor(apiKey?: string, modelName?: string, apiEndpoint?: string) {
     if (modelName) {
@@ -30,7 +31,7 @@ export class GeminiTranscriber {
       this.apiEndpoint = apiEndpoint;
     }
     if (apiKey) {
-      this.initialize(apiKey);
+      this.initialize(apiKey, apiEndpoint);
     }
   }
 
@@ -38,6 +39,9 @@ export class GeminiTranscriber {
     if (!apiKey) {
       throw new Error('Gemini API キーが設定されていません');
     }
+    
+    // APIキーを保存
+    this.apiKey = apiKey;
     
     if (apiEndpoint) {
       this.apiEndpoint = apiEndpoint;
@@ -89,6 +93,19 @@ export class GeminiTranscriber {
 
       const prompt = customPrompt || defaultPrompt;
 
+      // デバッグ用：現在のエンドポイント確認
+      console.log('🔍 現在のエンドポイント:', this.apiEndpoint);
+      console.log('🔍 デフォルトかどうか:', this.apiEndpoint === 'https://generativelanguage.googleapis.com');
+      
+      // カスタムエンドポイント使用時は直接HTTPリクエスト
+      if (this.apiEndpoint !== 'https://generativelanguage.googleapis.com') {
+        console.log('🌐 カスタムエンドポイント使用:', this.apiEndpoint);
+        return await this.transcribeWithCustomEndpoint(base64Audio, prompt, fileName);
+      }
+      
+      console.log('✅ Google SDK使用');
+
+      // デフォルトエンドポイント使用時はSDKを使用
       const result = await this.model.generateContent([
         {
           inlineData: {
@@ -409,6 +426,115 @@ export class GeminiTranscriber {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
+  // カスタムエンドポイント用の直接HTTPリクエスト
+  private async transcribeWithCustomEndpoint(
+    base64Audio: string,
+    prompt: string,
+    _fileName: string
+  ): Promise<string> {
+    // 開発環境ではプロキシ経由でアクセス
+    const isDev = import.meta.env.DEV;
+    const endpoint = isDev 
+      ? `/api/cloudflare${this.apiEndpoint.replace('https://gateway.ai.cloudflare.com', '')}/v1/models/${this.modelName}:generateContent`
+      : `${this.apiEndpoint}/v1/models/${this.modelName}:generateContent`;
+    
+    const requestBody = {
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              inlineData: {
+                mimeType: 'audio/wav',
+                data: base64Audio
+              }
+            },
+            {
+              text: prompt
+            }
+          ]
+        }
+      ]
+    };
+
+    console.log('🌐 送信先URL:', endpoint);
+    
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': this.getApiKey()
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ HTTPエラー:', response.status, errorText);
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+
+    const result = await response.json();
+    
+    if (!result.candidates || !result.candidates[0] || !result.candidates[0].content) {
+      throw new Error('レスポンス形式が不正です');
+    }
+
+    return result.candidates[0].content.parts[0].text;
+  }
+
+  // カスタムエンドポイント用の要約メソッド
+  private async summarizeWithCustomEndpoint(prompt: string): Promise<string> {
+    // 開発環境ではプロキシ経由でアクセス
+    const isDev = import.meta.env.DEV;
+    const endpoint = isDev 
+      ? `/api/cloudflare${this.apiEndpoint.replace('https://gateway.ai.cloudflare.com', '')}/v1/models/${this.modelName}:generateContent`
+      : `${this.apiEndpoint}/v1/models/${this.modelName}:generateContent`;
+    
+    const requestBody = {
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: prompt
+            }
+          ]
+        }
+      ]
+    };
+
+    console.log('🌐 要約送信先URL:', endpoint);
+    
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': this.apiKey
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ 要約HTTPエラー:', response.status, errorText);
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+
+    const result = await response.json();
+    
+    if (!result.candidates || !result.candidates[0] || !result.candidates[0].content) {
+      throw new Error('要約レスポンス形式が不正です');
+    }
+
+    return result.candidates[0].content.parts[0].text;
+  }
+
+  // APIキーを取得するプライベートメソッド
+  private getApiKey(): string {
+    return this.apiKey;
+  }
+
   // 文字起こし結果をフォーマットしてまとめる
   async summarizeTranscriptions(
     results: TranscriptionResult[],
@@ -457,6 +583,15 @@ ${combinedText}
     }
 
     try {
+      // カスタムエンドポイント使用時は直接HTTPリクエスト
+      if (this.apiEndpoint !== 'https://generativelanguage.googleapis.com') {
+        console.log('🌐 まとめ処理でカスタムエンドポイント使用:', this.apiEndpoint);
+        const summary = await this.summarizeWithCustomEndpoint(prompt);
+        if (onProgress) onProgress('まとめ完了');
+        return summary;
+      }
+
+      // デフォルトエンドポイント使用時はSDKを使用
       const result = await this.model.generateContent(prompt);
       const response = await result.response;
       const summary = response.text();
