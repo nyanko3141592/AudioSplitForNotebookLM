@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import type { TranscriptionResult } from '../utils/geminiTranscriber';
 import { GeminiTranscriber, downloadTranscription } from '../utils/geminiTranscriber';
+import { RecordingPanel } from '../components/RecordingPanel';
 
 export function TranscribePage() {
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
@@ -388,6 +389,9 @@ export function TranscribePage() {
                 </button>
               </div>
             </div>
+
+            {/* Recording (Mic + Other tab audio) */}
+            <RecordingPanel onRecorded={handleFileSelect} />
 
             {!selectedFile ? (
               <>
