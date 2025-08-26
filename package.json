@@ -1,8 +1,9 @@
 {
-  "name": "audio-split-for-notebooklm",
+  "name": "bakusoku-gijiroku",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
+  "description": "オンラインミーティングから議事録まで3ステップで完了 - 爆速議事録アプリ",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
