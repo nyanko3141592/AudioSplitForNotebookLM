@@ -26,6 +26,8 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded }) => {
   const [error, setError] = useState<string | null>(null);
   const [levelMic, setLevelMic] = useState(0);
   const [levelTab, setLevelTab] = useState(0);
+  const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedMicId, setSelectedMicId] = useState<string>('');
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -40,6 +42,17 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded }) => {
       stopAll();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const handleDeviceChange = () => {
+      refreshDevices();
+    };
+    navigator.mediaDevices?.addEventListener?.('devicechange', handleDeviceChange);
+    refreshDevices();
+    return () => {
+      navigator.mediaDevices?.removeEventListener?.('devicechange', handleDeviceChange);
+    };
   }, []);
 
   const stopStream = (s: MediaStream | null) => {
@@ -74,6 +87,9 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded }) => {
       });
       // Remove video track immediately; we only need audio
       s.getVideoTracks().forEach(t => s.removeTrack(t));
+      if (s.getAudioTracks().length === 0) {
+        setError('選択したソースに音声トラックがありません。共有ダイアログで「タブの音声を共有」をオンにしてください。');
+      }
       setTabStream(s);
     } catch (e: any) {
       if (e?.name !== 'NotAllowedError') {
@@ -85,10 +101,35 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded }) => {
   const enableMic = async () => {
     setError(null);
     try {
-      const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // First, try selected device if any
+      let constraints: MediaStreamConstraints = { audio: true };
+      if (selectedMicId) {
+        constraints = { audio: { deviceId: { exact: selectedMicId } as any } };
+      }
+      let s = await navigator.mediaDevices.getUserMedia(constraints);
+      // Fallback if exact device failed to provide audio tracks
+      if (s.getAudioTracks().length === 0 && !selectedMicId) {
+        s = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
       setMicStream(s);
+      // After permission granted, refresh device labels
+      await refreshDevices();
     } catch (e: any) {
       setError('マイクのアクセスが許可されませんでした。ブラウザの権限設定を確認してください。');
+    }
+  };
+
+  const refreshDevices = async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const mics = devices.filter(d => d.kind === 'audioinput');
+      setMicDevices(mics);
+      if (!selectedMicId) {
+        const preferred = mics.find(d => /default|internal/i.test(d.label)) || mics[0];
+        if (preferred) setSelectedMicId(preferred.deviceId);
+      }
+    } catch (e) {
+      // Ignore; happens if no permissions yet
     }
   };
 
@@ -104,6 +145,7 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded }) => {
       const destination = ctx.createMediaStreamDestination();
 
       const mix = (s: MediaStream, setLevel: (v: number) => void, analyserRef: React.MutableRefObject<AnalyserNode | null>) => {
+        if (!s || s.getAudioTracks().length === 0) return false;
         const source = ctx.createMediaStreamSource(s);
         const gain = ctx.createGain();
         gain.gain.value = 1.0;
@@ -121,10 +163,17 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded }) => {
           rafRef.current = requestAnimationFrame(loop);
         };
         loop();
+        return true;
       };
 
-      if (micStream) mix(micStream, setLevelMic, analyserMicRef);
-      if (tabStream) mix(tabStream, setLevelTab, analyserTabRef);
+      const usedMic = micStream ? mix(micStream, setLevelMic, analyserMicRef) : false;
+      const usedTab = tabStream ? mix(tabStream, setLevelTab, analyserTabRef) : false;
+      if (!usedMic && !usedTab) {
+        setError('有効な音声トラックが見つかりません。マイク/タブ音声の設定を確認してください。');
+        await ctx.close();
+        audioCtxRef.current = null;
+        return;
+      }
 
       const options: MediaRecorderOptions = {};
       if (mimeType) options.mimeType = mimeType as any;
@@ -213,6 +262,31 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded }) => {
           <div className="w-full h-2 bg-gray-200 rounded">
             <div className="h-2 bg-green-500 rounded transition-all" style={{ width: `${levelMic}%` }} />
           </div>
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 items-center">
+            <select
+              value={selectedMicId}
+              onChange={(e) => setSelectedMicId(e.target.value)}
+              className="px-2 py-2 border border-gray-300 rounded"
+              title="マイクデバイスを選択"
+            >
+              {micDevices.length === 0 ? (
+                <option value="">マイクが見つかりません</option>
+              ) : (
+                micDevices.map(d => (
+                  <option key={d.deviceId} value={d.deviceId}>{d.label || 'マイク'}</option>
+                ))
+              )}
+            </select>
+            <button
+              onClick={refreshDevices}
+              className="px-3 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+            >
+              端末更新
+            </button>
+            <div className="text-xs text-gray-500">
+              ラベルが空の場合は一度「マイクを有効化」してください
+            </div>
+          </div>
         </div>
         <div className="p-3 border rounded-lg bg-gray-50">
           <div className="flex items-center justify-between mb-2">
@@ -251,4 +325,3 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded }) => {
     </div>
   );
 };
-
