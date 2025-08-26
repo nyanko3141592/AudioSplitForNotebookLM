@@ -38,6 +38,7 @@ export function TranscribePage() {
   const [error, setError] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState<string>('');
   const [showAdvancedSettings, setShowAdvancedSettings] = useState<boolean>(false);
+  const [isRecordingActive, setIsRecordingActive] = useState<boolean>(false);
   const [transcriptionSettings, setTranscriptionSettings] = useState({
     concurrencySettings: {
       enabled: false,
@@ -391,9 +392,12 @@ export function TranscribePage() {
             </div>
 
             {/* Recording (Mic + Other tab audio) */}
-            <RecordingPanel onRecorded={handleFileSelect} />
+            <RecordingPanel 
+              onRecorded={handleFileSelect} 
+              onRecordingStateChange={setIsRecordingActive}
+            />
 
-            {!selectedFile ? (
+            {!selectedFile && !isRecordingActive ? (
               <>
                 <FileUpload
                   onFileSelect={handleFileSelect}
@@ -422,7 +426,7 @@ export function TranscribePage() {
                   </div>
                 )}
               </>
-            ) : (
+            ) : selectedFile ? (
               <>
                 <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
                   <div className="flex items-center justify-between">
@@ -635,6 +639,13 @@ export function TranscribePage() {
                   </div>
                 </div>
               </>
+            ) : (
+              // 録音中はアップロードUIを隠す
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-800">
+                  現在録音中のため、ファイルアップロードは一時的に非表示です。録音停止後に音声が自動で取り込まれます。
+                </p>
+              </div>
             )}
           </div>
         )}

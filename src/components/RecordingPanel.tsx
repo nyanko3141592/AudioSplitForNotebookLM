@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 type Props = {
   onRecorded: (file: File) => void;
+  onRecordingStateChange?: (active: boolean) => void;
 };
 
 function supportMimeTypes(): string {
@@ -19,7 +20,7 @@ function supportMimeTypes(): string {
   return '';
 }
 
-export const RecordingPanel: React.FC<Props> = ({ onRecorded }) => {
+export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateChange }) => {
   const [micStream, setMicStream] = useState<MediaStream | null>(null);
   const [tabStream, setTabStream] = useState<MediaStream | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -34,6 +35,8 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded }) => {
   const analyserMicRef = useRef<AnalyserNode | null>(null);
   const analyserTabRef = useRef<AnalyserNode | null>(null);
   const rafRef = useRef<number | null>(null);
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const timerRef = useRef<number | null>(null);
 
   const mimeType = useMemo(() => supportMimeTypes(), []);
 
@@ -75,6 +78,9 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded }) => {
     analyserMicRef.current = null;
     analyserTabRef.current = null;
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    if (timerRef.current) window.clearInterval(timerRef.current);
+    setElapsedSec(0);
+    onRecordingStateChange?.(false);
   };
 
   const pickTabAudio = async () => {
@@ -191,10 +197,18 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded }) => {
         const file = new File([blob], fileName, { type: blob.type });
         onRecorded(file);
         setIsRecording(false);
+        if (timerRef.current) window.clearInterval(timerRef.current);
+        setElapsedSec(0);
+        onRecordingStateChange?.(false);
         // Keep streams for additional recordings unless user resets
       };
       mr.start(1000);
       setIsRecording(true);
+      onRecordingStateChange?.(true);
+      const started = Date.now();
+      timerRef.current = window.setInterval(() => {
+        setElapsedSec(Math.floor((Date.now() - started) / 1000));
+      }, 1000);
     } catch (e: any) {
       console.error(e);
       setError('録音の開始に失敗しました。ブラウザの対応状況や権限をご確認ください。');
@@ -218,6 +232,17 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded }) => {
 
   return (
     <div className="mb-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-6">
+      {isRecording && (
+        <div className="mb-4 p-3 rounded-lg border border-red-300 bg-red-50 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="inline-block w-2.5 h-2.5 bg-red-600 rounded-full animate-pulse" />
+            <span className="font-semibold text-red-800">録音中</span>
+          </div>
+          <div className="text-red-700 font-mono tabular-nums">
+            {String(Math.floor(elapsedSec / 60)).padStart(2, '0')}:{String(elapsedSec % 60).padStart(2, '0')}
+          </div>
+        </div>
+      )}
       <div className="flex items-center gap-3 mb-4">
         <div className="flex items-center justify-center p-2 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl shadow-lg">
           <span className="text-white font-bold">REC</span>
