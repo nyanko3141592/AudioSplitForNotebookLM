@@ -415,23 +415,13 @@ export function TranscriptionStep({
 
       {/* Cost Estimate */}
       {!isTranscribing && apiKey && splitFiles.length > 0 && (
-        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex items-center gap-2 text-sm">
-            <DollarSign className="w-4 h-4 text-blue-600" />
-            <span className="font-medium text-blue-800">予想コスト</span>
-            <span className="text-blue-700">
-              ${(() => {
-                const duration = getTotalDuration();
-                const cost = calculateCost(duration, selectedModel);
-                return cost.totalCost.toFixed(4);
-              })()}
-            </span>
-            <span className="text-xs text-blue-600">
-              ({Math.round(getTotalDuration())}秒の音声)
-            </span>
-          </div>
-          <p className="text-xs text-blue-600 mt-1">
-            実際の料金は音声の長さとモデルによって変動します
+        <div className="text-right">
+          <p className="text-xs text-gray-500">
+            予想コスト: ${(() => {
+              const duration = getTotalDuration();
+              const cost = calculateCost(duration, selectedModel);
+              return cost.totalCost.toFixed(4);
+            })()} ({Math.round(getTotalDuration())}秒)
           </p>
         </div>
       )}
@@ -510,20 +500,10 @@ export function TranscriptionStep({
             
             {/* Actual Cost Display */}
             {actualCost !== null && (
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center gap-2 text-sm">
-                  <DollarSign className="w-4 h-4 text-blue-600" />
-                  <span className="font-medium text-blue-800">実際のコスト</span>
-                  <span className="text-blue-700 font-semibold">
-                    ${actualCost.toFixed(4)}
-                  </span>
-                  <span className="text-xs text-blue-600">
-                    (モデル: {selectedModel === 'gemini-2.0-flash-lite' ? 'Flash-Lite' : 
-                              selectedModel === 'gemini-2.5-flash' ? '2.5 Flash' : '2.5 Pro'})
-                  </span>
-                </div>
-                <p className="text-xs text-blue-600 mt-1">
-                  処理された音声: {Math.round(getTotalDuration())}秒
+              <div className="text-right">
+                <p className="text-xs text-gray-500">
+                  コスト: ${actualCost.toFixed(4)} ({selectedModel === 'gemini-2.0-flash-lite' ? 'Flash-Lite' : 
+                            selectedModel === 'gemini-2.5-flash' ? '2.5 Flash' : '2.5 Pro'})
                 </p>
               </div>
             )}

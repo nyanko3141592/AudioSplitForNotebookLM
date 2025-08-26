@@ -482,23 +482,13 @@ ${summarySettings.backgroundInfo}
       
       {/* Cost Estimate for Summary */}
       {!summarySettings.isProcessing && !summarySettings.result && apiKey && transcriptionResults.length > 0 && (
-        <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
-          <div className="flex items-center gap-2 text-sm">
-            <DollarSign className="w-4 h-4 text-purple-600" />
-            <span className="font-medium text-purple-800">予想コスト</span>
-            <span className="text-purple-700">
-              ${(() => {
-                const textLength = getTotalTextLength();
-                const cost = calculateSummaryCost(textLength, selectedModel);
-                return cost.totalCost.toFixed(4);
-              })()}
-            </span>
-            <span className="text-xs text-purple-600">
-              ({getTotalTextLength().toLocaleString()}文字のテキスト)
-            </span>
-          </div>
-          <p className="text-xs text-purple-600 mt-1">
-            実際の料金はテキストの長さとモデルによって変動します
+        <div className="text-right">
+          <p className="text-xs text-gray-500">
+            予想コスト: ${(() => {
+              const textLength = getTotalTextLength();
+              const cost = calculateSummaryCost(textLength, selectedModel);
+              return cost.totalCost.toFixed(4);
+            })()} ({getTotalTextLength().toLocaleString()}文字)
           </p>
         </div>
       )}
@@ -609,20 +599,10 @@ ${summarySettings.backgroundInfo}
           
           {/* Actual Summary Cost Display */}
           {actualSummaryCost !== null && (
-            <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
-              <div className="flex items-center gap-2 text-sm">
-                <DollarSign className="w-4 h-4 text-purple-600" />
-                <span className="font-medium text-purple-800">実際のコスト</span>
-                <span className="text-purple-700 font-semibold">
-                  ${actualSummaryCost.toFixed(4)}
-                </span>
-                <span className="text-xs text-purple-600">
-                  (モデル: {selectedModel === 'gemini-2.0-flash-lite' ? 'Flash-Lite' : 
-                            selectedModel === 'gemini-2.5-flash' ? '2.5 Flash' : '2.5 Pro'})
-                </span>
-              </div>
-              <p className="text-xs text-purple-600 mt-1">
-                処理されたテキスト: {getTotalTextLength().toLocaleString()}文字
+            <div className="text-right">
+              <p className="text-xs text-gray-500">
+                コスト: ${actualSummaryCost.toFixed(4)} ({selectedModel === 'gemini-2.0-flash-lite' ? 'Flash-Lite' : 
+                          selectedModel === 'gemini-2.5-flash' ? '2.5 Flash' : '2.5 Pro'})
               </p>
             </div>
           )}
