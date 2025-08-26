@@ -284,19 +284,6 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
           </div>
         )}
         
-        {/* Status Messages */}
-        {isProcessing && (
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-            <div className="flex items-center">
-              <Loader2 className="w-5 h-5 mr-3 text-blue-600 animate-spin" />
-              <p className="text-blue-800">
-                {selectedFile && selectedFile.size > 200 * 1024 * 1024
-                  ? '大きなファイルを分割中...'
-                  : 'ファイルを処理中...'}
-              </p>
-            </div>
-          </div>
-        )}
 
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
@@ -316,143 +303,282 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
             <h2 className="text-2xl font-bold text-gray-900">音声ファイルを準備</h2>
           </div>
           
-          {!apiKey ? (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 mb-6">
-              <p className="text-amber-800 mb-4">🔑 まずAPIキーを設定してください</p>
-              <div className="flex items-center gap-4">
-                <a 
-                  href="https://aistudio.google.com/app/apikey" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
-                >
-                  <MessageSquare className="w-4 h-4" />
-                  APIキーを取得
-                </a>
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => handleApiKeyChange(e.target.value)}
-                  placeholder="AIzaSy... で始まるAPIキー"
-                  className="flex-1 px-4 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500"
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
-              <p className="text-green-800">✅ APIキー設定済み</p>
-            </div>
-          )}
-
-          {apiKey && (
-            <div id="record">
-              <h3 className="text-lg font-semibold text-gray-700 mb-4">録音または選択してください</h3>
+          <div id="record">
+            <h3 className="text-lg font-semibold text-gray-700 mb-4">録音または選択してください</h3>
               
-              <RecordingPanel 
-                onRecorded={handleFileSelect} 
-                onRecordingStateChange={handleRecordingStateChange}
-              />
-
-              {!selectedFile && !isRecordingActive && (
-                <div className="mt-6">
-                  <FileUpload
-                    onFileSelect={handleFileSelect}
-                    disabled={isProcessing || isPending}
+              {!selectedFile && (
+                <>
+                  <RecordingPanel 
+                    onRecorded={handleFileSelect} 
+                    onRecordingStateChange={handleRecordingStateChange}
                   />
-                  {!isProcessing && !isPending && (
-                    <p className="text-sm text-gray-500 mt-3 text-center">
-                      💡 200MB以上のファイルは自動分割されます
+                  
+                  {!isRecordingActive && (
+                    <div className="mt-6">
+                      <div className="relative">
+                        <div className="absolute inset-0 flex items-center">
+                          <div className="w-full border-t border-gray-300" />
+                        </div>
+                        <div className="relative flex justify-center text-sm">
+                          <span className="px-2 bg-white text-gray-500">または</span>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-6">
+                        <FileUpload
+                          onFileSelect={handleFileSelect}
+                          disabled={isProcessing || isPending}
+                        />
+                        {!isProcessing && !isPending && (
+                          <p className="text-sm text-gray-500 mt-3 text-center">
+                            💡 200MB以上のファイルは自動分割されます
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+              
+              {/* Selected File Display */}
+              {selectedFile && (
+                <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-xl">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-5 h-5 text-green-600" />
+                      <span className="font-medium text-green-800">
+                        {selectedFile.name} ({(selectedFile.size / (1024 * 1024)).toFixed(2)} MB)
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedFile(null);
+                        setSplitFiles([]);
+                        setTranscriptionResults([]);
+                        setTranscriptionBackgroundInfo('');
+                        setSummaryBackgroundInfo('');
+                      }}
+                      className="text-green-700 hover:text-green-800 underline text-sm"
+                    >
+                      変更
+                    </button>
+                  </div>
+                  {selectedFile.size > 200 * 1024 * 1024 && (
+                    <p className="text-sm text-green-700 mt-2">
+                      💡 ファイルサイズが大きいため、自動的に分割されます
                     </p>
                   )}
                 </div>
               )}
-            </div>
-          )}
+          </div>
         </div>
 
-        {/* Step 2: Background Info & Settings */}
-        {selectedFile && (
+        {/* Processing Status - Between Step 2 and 3 */}
+        {selectedFile && isProcessing && (
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <Loader2 className="w-5 h-5 mr-3 text-blue-600 animate-spin" />
+                <div>
+                  <p className="text-blue-800 font-medium">
+                    {selectedFile.size > 200 * 1024 * 1024
+                      ? '大きなファイルを分割中...'
+                      : 'ファイルを処理中...'}
+                  </p>
+                  <p className="text-sm text-blue-600 mt-1">
+                    {selectedFile.size > 200 * 1024 * 1024
+                      ? `${selectedFile.name} (${(selectedFile.size / (1024 * 1024)).toFixed(1)}MB) を190MB以下に分割しています`
+                      : 'しばらくお待ちください...'}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-blue-600">処理中...</p>
+                <p className="text-xs text-blue-500 mt-1">ブラウザを閉じないでください</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: API Key Setup */}
+        {selectedFile && !isProcessing && (
           <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
             <div className="flex items-center mb-6">
               <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold mr-3">
                 2
               </div>
-              <h2 className="text-2xl font-bold text-gray-900">背景情報を入力</h2>
-            </div>
-            
-            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-green-600" />
-                  <span className="font-medium text-green-800">
-                    {selectedFile.name} ({(selectedFile.size / (1024 * 1024)).toFixed(2)} MB)
-                  </span>
-                </div>
-                <button
-                  onClick={() => {
-                    setSelectedFile(null);
-                    setSplitFiles([]);
-                  }}
-                  className="text-green-700 hover:text-green-800 underline"
-                >
-                  変更
-                </button>
-              </div>
+              <h2 className="text-2xl font-bold text-gray-900">AI設定</h2>
+              <span className="ml-3 text-sm text-gray-500">(文字起こし・要約を使う場合)</span>
             </div>
 
+            {/* API Key Section */}
             <div className="mb-6">
-              <label className="block text-lg font-semibold text-gray-900 mb-3">
-                背景情報 <span className="text-sm text-amber-600">(推奨)</span>
-              </label>
-              <p className="text-sm text-gray-600 mb-4">
-                参加者名、企業名、専門用語などを入力すると文字起こしの精度が向上します
-              </p>
-              <textarea
-                value={transcriptionBackgroundInfo}
-                onChange={(e) => setTranscriptionBackgroundInfo(e.target.value)}
-                placeholder="例：田中部長、佐藤さん、鈴木さんの定例会議。新商品「スマートウォッチX1」のマーケティング戦略について討議。"
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-y"
-                rows={3}
-              />
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Gemini API キー</h3>
+              {!apiKey ? (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
+                  <p className="text-amber-800 mb-4">
+                    🔑 文字起こし・要約機能を使用するにはAPIキーが必要です
+                  </p>
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <a 
+                      href="https://aistudio.google.com/app/apikey" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      APIキーを取得
+                    </a>
+                    <input
+                      type="password"
+                      value={apiKey}
+                      onChange={(e) => handleApiKeyChange(e.target.value)}
+                      placeholder="AIzaSy... で始まるAPIキー"
+                      className="flex-1 px-4 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+                  <p className="text-sm text-amber-700 mt-3">
+                    💡 APIキーなしでも音声ファイルの分割は可能です
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-green-800 flex items-center gap-2">
+                      <CheckCircle className="w-5 h-5" />
+                      APIキー設定済み
+                    </p>
+                    <button
+                      onClick={() => handleApiKeyChange('')}
+                      className="text-green-700 hover:text-green-800 underline text-sm"
+                    >
+                      削除
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="text-center">
-              <p className="text-gray-600 font-medium">設定完了！</p>
-              <p className="text-sm text-gray-500 mt-1">下のステップ3で文字起こしを開始できます</p>
+              {apiKey ? (
+                <>
+                  <p className="text-gray-600 font-medium">APIキー設定完了！</p>
+                  <p className="text-sm text-gray-500 mt-1">下のステップ3で文字起こしを開始できます</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-gray-600 font-medium">音声分割のみ利用可能</p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    APIキーを設定すると文字起こし・要約機能も使えます
+                  </p>
+                </>
+              )}
             </div>
           </div>
         )}
 
-        {/* Step 3: Transcription */}
+        {/* Step 3: Transcription or Split Results */}
         {splitFiles.length > 0 && (
           <>
-            <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
-              <div className="flex items-center mb-6">
-                <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold mr-3">
-                  3
+            {apiKey ? (
+              /* With API Key - Show Transcription */
+              <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
+                <div className="flex items-center mb-6">
+                  <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold mr-3">
+                    3
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900">文字起こし</h2>
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900">文字起こし</h2>
+                
+                <TranscriptionStep
+                  splitFiles={splitFiles}
+                  transcriptionResults={transcriptionResults}
+                  onNext={() => {}}
+                  onDownloadSplit={handleDownload}
+                  onDownloadAllSplits={handleDownloadAll}
+                  onTranscriptionComplete={handleTranscriptionComplete}
+                  onBackgroundInfoChange={setTranscriptionBackgroundInfo}
+                  hideBackgroundInfo={false}
+                  showNext={false}
+                  presetApiKey={apiKey}
+                  presetBackgroundInfo={transcriptionBackgroundInfo}
+                  presetConcurrencySettings={transcriptionSettings.concurrencySettings}
+                  presetCustomPrompt={transcriptionSettings.customPrompt}
+                />
               </div>
-              
-              <TranscriptionStep
-                splitFiles={splitFiles}
-                transcriptionResults={transcriptionResults}
-                onNext={() => {}}
-                onDownloadSplit={handleDownload}
-                onDownloadAllSplits={handleDownloadAll}
-                onTranscriptionComplete={handleTranscriptionComplete}
-                onBackgroundInfoChange={() => {}}
-                hideBackgroundInfo={true}
-                showNext={false}
-                presetApiKey={apiKey}
-                presetBackgroundInfo={transcriptionBackgroundInfo}
-                presetConcurrencySettings={transcriptionSettings.concurrencySettings}
-                presetCustomPrompt={transcriptionSettings.customPrompt}
-              />
-            </div>
+            ) : (
+              /* Without API Key - Show Split Results Only */
+              <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
+                <div className="flex items-center mb-6">
+                  <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold mr-3">
+                    3
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900">音声分割完了</h2>
+                </div>
+                
+                <div className="bg-green-50 border border-green-200 rounded-xl p-6 mb-6">
+                  <div className="flex items-center mb-4">
+                    <CheckCircle className="w-6 h-6 text-green-600 mr-3" />
+                    <div>
+                      <p className="text-green-800 font-medium">
+                        音声ファイルの分割が完了しました
+                      </p>
+                      <p className="text-sm text-green-700 mt-1">
+                        {splitFiles.length}個のファイルに分割されました
+                      </p>
+                    </div>
+                  </div>
+                </div>
 
-            {/* Step 4: Summary */}
-            {transcriptionResults.length > 0 && (
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-900">分割されたファイル</h3>
+                  <div className="space-y-3">
+                    {splitFiles.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <span className="text-sm font-semibold text-blue-600">{index + 1}</span>
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">{file.name}</p>
+                            <p className="text-sm text-gray-600">
+                              {(file.size / (1024 * 1024)).toFixed(1)} MB
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleDownload(file)}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                        >
+                          ダウンロード
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {splitFiles.length > 1 && (
+                    <div className="pt-4 border-t border-gray-200">
+                      <button
+                        onClick={handleDownloadAll}
+                        className="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all duration-200"
+                      >
+                        すべてをZIPでダウンロード
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                  <p className="text-blue-800 text-sm">
+                    💡 <strong>文字起こし・要約機能を使用するには：</strong><br />
+                    上のステップ2でGemini APIキーを設定してください。文字起こしと議事録の自動生成が利用できるようになります。
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Step 4: Summary - Only show if we have transcription results */}
+            {apiKey && transcriptionResults.length > 0 && (
               <div className="bg-white rounded-2xl shadow-lg p-8">
                 <div className="flex items-center mb-6">
                   <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold mr-3">
@@ -468,7 +594,7 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
                   onDownloadSplit={handleDownload}
                   onDownloadAllSplits={handleDownloadAll}
                   onDownloadTranscription={() => {
-                    const transcriber = new GeminiTranscriber();
+                    const transcriber = new GeminiTranscriber(apiKey);
                     const formatted = transcriber.formatTranscriptions(transcriptionResults);
                     downloadTranscription(formatted);
                   }}

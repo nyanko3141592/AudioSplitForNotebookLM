@@ -29,6 +29,7 @@ export function SummaryStep({
   presetApiKey = ''
 }: SummaryStepProps) {
   const [apiKey, setApiKey] = useState('');
+  const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash-lite');
   const [error, setError] = useState<string | null>(null);
   const [summarySettings, setSummarySettings] = useState({
     customPrompt: '',
@@ -143,6 +144,12 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
       }
     }
     
+    // モデル選択の復元
+    const savedModel = window.localStorage.getItem('summary_model');
+    if (savedModel) {
+      setSelectedModel(savedModel);
+    }
+    
     const savedPrompt = localStorage.getSummaryCustomPrompt();
     
     // デフォルトプロンプトを設定
@@ -157,6 +164,11 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
     const backgroundToUse = transcriptionBackgroundInfo || '';
     setSummarySettings(prev => ({ ...prev, backgroundInfo: backgroundToUse }));
   }, [transcriptionBackgroundInfo, presetApiKey]);
+
+  const handleModelChange = (value: string) => {
+    setSelectedModel(value);
+    window.localStorage.setItem('summary_model', value);
+  };
 
   // Auto-summarization removed - summary now requires manual trigger
 
@@ -201,7 +213,7 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
     setError(null);
 
     try {
-      const transcriber = new GeminiTranscriber(apiKey);
+      const transcriber = new GeminiTranscriber(apiKey, selectedModel);
       let formatPrompt = summarySettings.customPrompt;
       
       // プリセットが指定されている場合
@@ -349,6 +361,29 @@ ${summarySettings.backgroundInfo}
           </button>
         </div>
       ))}
+
+      {/* Gemini Model Selection */}
+      {apiKey && (
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+            <Sparkles className="w-4 h-4" />
+            まとめ用モデル
+          </label>
+          <select
+            value={selectedModel}
+            onChange={(e) => handleModelChange(e.target.value)}
+            disabled={summarySettings.isProcessing}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite (推奨 - 費用対効果)</option>
+            <option value="gemini-2.5-flash">Gemini 2.5 Flash (高性能 - 適応思考)</option>
+            <option value="gemini-2.5-pro">Gemini 2.5 Pro (最高性能 - 思考と推論)</option>
+          </select>
+          <p className="text-xs text-gray-500">
+            選択したモデルが次回も自動選択されます
+          </p>
+        </div>
+      )}
 
 
       {/* まとめ形式選択 - 常時表示 */}

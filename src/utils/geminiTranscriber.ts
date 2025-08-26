@@ -19,8 +19,12 @@ export class GeminiTranscriber {
   private genAI: GoogleGenerativeAI | null = null;
   private model: any = null;
   private abortController: AbortController | null = null;
+  private modelName: string = 'gemini-2.0-flash-lite';
 
-  constructor(apiKey?: string) {
+  constructor(apiKey?: string, modelName?: string) {
+    if (modelName) {
+      this.modelName = modelName;
+    }
     if (apiKey) {
       this.initialize(apiKey);
     }
@@ -32,7 +36,7 @@ export class GeminiTranscriber {
     }
     this.genAI = new GoogleGenerativeAI(apiKey);
     this.model = this.genAI.getGenerativeModel({ 
-      model: 'gemini-1.5-flash' 
+      model: this.modelName
     });
   }
 

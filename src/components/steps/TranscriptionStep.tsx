@@ -46,6 +46,7 @@ export function TranscriptionStep({
   presetCustomPrompt = ''
 }: TranscriptionStepProps) {
   const [apiKey, setApiKey] = useState('');
+  const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash-lite');
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcriptionResults, setTranscriptionResults] = useState<TranscriptionResult[]>(parentTranscriptionResults || []);
   const [currentProgress, setCurrentProgress] = useState<TranscriptionProgress>({ 
@@ -79,6 +80,12 @@ export function TranscriptionStep({
       } else {
         setShowApiKeyInput(true);
       }
+    }
+    
+    // モデル選択をローカルストレージから復元
+    const savedModel = window.localStorage.getItem('transcription_model');
+    if (savedModel) {
+      setSelectedModel(savedModel);
     }
     
     if (presetBackgroundInfo) {
@@ -115,6 +122,11 @@ export function TranscriptionStep({
     apiKeyStorage.save(value);
   };
 
+  const handleModelChange = (value: string) => {
+    setSelectedModel(value);
+    window.localStorage.setItem('transcription_model', value);
+  };
+
 
   const handleTranscribe = async () => {
     if (!apiKey) {
@@ -132,7 +144,7 @@ export function TranscriptionStep({
     setTranscriptionResults([]);
 
     try {
-      const transcriber = new GeminiTranscriber(apiKey);
+      const transcriber = new GeminiTranscriber(apiKey, selectedModel);
       transcriberRef.current = transcriber;
       
       const concurrency = concurrencySettings.enabled ? concurrencySettings.count : 1;
@@ -295,7 +307,31 @@ export function TranscriptionStep({
         </div>
       ))}
 
-      {/* 背景情報 - シンプル版 */}
+      {/* Model Selection */}
+      {!isTranscribing && !hasResults && (
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-medium text-gray-700 flex items-center gap-1 mb-2">
+              <Sparkles className="w-4 h-4" />
+              文字起こしモデル選択
+            </label>
+            <select
+              value={selectedModel}
+              onChange={(e) => handleModelChange(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent text-sm"
+            >
+              <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite (推奨 - 費用対効果)</option>
+              <option value="gemini-2.5-flash">Gemini 2.5 Flash (高性能 - 適応思考)</option>
+              <option value="gemini-2.5-pro">Gemini 2.5 Pro (最高性能 - 思考と推論)</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Flash-Lite &lt; Flash &lt; Pro の順にコストが上がります
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* 背景情報 */}
       {!hideBackgroundInfo && !isTranscribing && !hasResults && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
