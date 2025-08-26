@@ -405,8 +405,7 @@ export function TranscriptionStep({
           
           <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
             <p className="text-sm text-green-800">
-              💡 ここで停止して文字起こし結果のみ使用することも可能です。
-              まとめ機能を使いたい場合は「{nextButtonText}」をクリックしてください。
+              💡 文字起こしが完了しました。下の要約セクションでまとめを作成できます。
             </p>
           </div>
         </div>

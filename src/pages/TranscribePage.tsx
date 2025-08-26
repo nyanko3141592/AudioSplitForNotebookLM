@@ -198,8 +198,6 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
         }
         
         event.preventDefault();
-        // Modern browsers show a generic message regardless of returnValue
-        event.returnValue = '';
         return message;
       }
     };
@@ -445,6 +443,7 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
                 onTranscriptionComplete={handleTranscriptionComplete}
                 onBackgroundInfoChange={() => {}}
                 hideBackgroundInfo={true}
+                showNext={false}
                 presetApiKey={apiKey}
                 presetBackgroundInfo={transcriptionBackgroundInfo}
                 presetConcurrencySettings={transcriptionSettings.concurrencySettings}
