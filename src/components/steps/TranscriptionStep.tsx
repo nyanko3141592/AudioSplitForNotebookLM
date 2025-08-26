@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Download, Loader2, Key, AlertCircle, StopCircle, CheckCircle, XCircle, Clock, Copy, Info, RefreshCw, Sparkles, ArrowRight, DollarSign } from 'lucide-react';
+import { Download, Loader2, Key, AlertCircle, StopCircle, CheckCircle, XCircle, Clock, Copy, Info, RefreshCw, Sparkles, ArrowRight } from 'lucide-react';
 import { GeminiTranscriber, downloadTranscription } from '../../utils/geminiTranscriber';
 import type { TranscriptionResult, TranscriptionProgress } from '../../utils/geminiTranscriber';
 import type { SplitFile } from '../DownloadList';
-import { apiKeyStorage, localStorage } from '../../utils/storage';
+import { apiKeyStorage, localStorage, apiEndpointStorage } from '../../utils/storage';
 import { ResultsSummary } from '../ResultsSummary';
 
 interface TranscriptionStepProps {
@@ -19,6 +19,7 @@ interface TranscriptionStepProps {
   onBackgroundInfoChange?: (backgroundInfo: string) => void;
   hideBackgroundInfo?: boolean;
   presetApiKey?: string;
+  presetApiEndpoint?: string;
   presetBackgroundInfo?: string;
   presetConcurrencySettings?: {
     enabled: boolean;
@@ -41,12 +42,14 @@ export function TranscriptionStep({
   onBackgroundInfoChange,
   hideBackgroundInfo = false,
   presetApiKey = '',
+  presetApiEndpoint = '',
   presetBackgroundInfo = '',
   presetConcurrencySettings,
   presetCustomPrompt = ''
 }: TranscriptionStepProps) {
   const [apiKey, setApiKey] = useState('');
   const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash-lite');
+  const [apiEndpoint, setApiEndpoint] = useState('https://generativelanguage.googleapis.com');
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcriptionResults, setTranscriptionResults] = useState<TranscriptionResult[]>(parentTranscriptionResults || []);
   const [currentProgress, setCurrentProgress] = useState<TranscriptionProgress>({ 
@@ -88,6 +91,14 @@ export function TranscriptionStep({
     if (savedModel) {
       setSelectedModel(savedModel);
     }
+
+    // APIエンドポイント設定を読み込み（presetがある場合はそれを優先）
+    if (presetApiEndpoint) {
+      setApiEndpoint(presetApiEndpoint);
+    } else {
+      const savedEndpoint = apiEndpointStorage.get();
+      setApiEndpoint(savedEndpoint);
+    }
     
     if (presetBackgroundInfo) {
       setBackgroundInfo(presetBackgroundInfo);
@@ -127,6 +138,7 @@ export function TranscriptionStep({
     setSelectedModel(value);
     window.localStorage.setItem('transcription_model', value);
   };
+
 
   // コスト計算関数
   const calculateCost = (durationInSeconds: number, model: string) => {
@@ -178,7 +190,7 @@ export function TranscriptionStep({
     setTranscriptionResults([]);
 
     try {
-      const transcriber = new GeminiTranscriber(apiKey, selectedModel);
+      const transcriber = new GeminiTranscriber(apiKey, selectedModel, apiEndpoint);
       transcriberRef.current = transcriber;
       
       const concurrency = concurrencySettings.enabled ? concurrencySettings.count : 1;
@@ -367,6 +379,7 @@ export function TranscriptionStep({
               Flash-Lite &lt; Flash &lt; Pro の順にコストが上がります
             </p>
           </div>
+
         </div>
       )}
 

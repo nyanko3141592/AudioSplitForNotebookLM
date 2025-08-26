@@ -5,6 +5,7 @@ const STORAGE_KEYS = {
   SUMMARY_CUSTOM_PROMPT: 'audioSplit_summaryCustomPrompt',
   SUMMARY_BACKGROUND_INFO: 'audioSplit_summaryBackgroundInfo',
   API_KEY_HASH: 'audioSplit_apiKeyHash',
+  API_ENDPOINT: 'audioSplit_apiEndpoint',
   SETTINGS: 'audioSplit_settings'
 } as const;
 
@@ -99,6 +100,25 @@ export const apiKeyStorage = {
   clear: (): void => {
     window.sessionStorage.removeItem(STORAGE_KEYS.API_KEY_HASH);
     window.localStorage.removeItem(API_KEY_PERSISTENT);
+  }
+};
+
+// APIエンドポイントストレージ
+export const apiEndpointStorage = {
+  save: (endpoint: string): void => {
+    if (!endpoint || endpoint === 'https://generativelanguage.googleapis.com') {
+      window.localStorage.removeItem(STORAGE_KEYS.API_ENDPOINT);
+      return;
+    }
+    window.localStorage.setItem(STORAGE_KEYS.API_ENDPOINT, endpoint);
+  },
+  
+  get: (): string => {
+    return window.localStorage.getItem(STORAGE_KEYS.API_ENDPOINT) || 'https://generativelanguage.googleapis.com';
+  },
+  
+  clear: (): void => {
+    window.localStorage.removeItem(STORAGE_KEYS.API_ENDPOINT);
   }
 };
 

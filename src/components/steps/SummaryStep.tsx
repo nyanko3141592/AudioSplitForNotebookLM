@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, Download, Loader2, AlertCircle, CheckCircle, Info, RefreshCw, Copy, Key, DollarSign } from 'lucide-react';
+import { Sparkles, Download, Loader2, AlertCircle, CheckCircle, Info, RefreshCw, Copy, Key } from 'lucide-react';
 import { GeminiTranscriber, downloadTranscription } from '../../utils/geminiTranscriber';
 import type { TranscriptionResult } from '../../utils/geminiTranscriber';
-import { apiKeyStorage, localStorage } from '../../utils/storage';
+import { apiKeyStorage, localStorage, apiEndpointStorage } from '../../utils/storage';
 import { StepContent } from '../StepContent';
 import { ResultsSummary } from '../ResultsSummary';
 import type { SplitFile } from '../DownloadList';
@@ -16,6 +16,7 @@ interface SummaryStepProps {
   onDownloadTranscription?: () => void;
   onBackgroundInfoChange?: (backgroundInfo: string) => void;
   presetApiKey?: string;
+  presetApiEndpoint?: string;
 }
 
 export function SummaryStep({ 
@@ -26,10 +27,12 @@ export function SummaryStep({
   onDownloadAllSplits,
   onDownloadTranscription,
   onBackgroundInfoChange,
-  presetApiKey = ''
+  presetApiKey = '',
+  presetApiEndpoint = ''
 }: SummaryStepProps) {
   const [apiKey, setApiKey] = useState('');
   const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash-lite');
+  const [apiEndpoint, setApiEndpoint] = useState('https://generativelanguage.googleapis.com');
   const [error, setError] = useState<string | null>(null);
   const [summarySettings, setSummarySettings] = useState({
     customPrompt: '',
@@ -150,6 +153,14 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
     if (savedModel) {
       setSelectedModel(savedModel);
     }
+
+    // APIエンドポイント設定を読み込み（presetがある場合はそれを優先）
+    if (presetApiEndpoint) {
+      setApiEndpoint(presetApiEndpoint);
+    } else {
+      const savedEndpoint = apiEndpointStorage.get();
+      setApiEndpoint(savedEndpoint);
+    }
     
     const savedPrompt = localStorage.getSummaryCustomPrompt();
     
@@ -170,6 +181,7 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
     setSelectedModel(value);
     window.localStorage.setItem('summary_model', value);
   };
+
 
   // コスト計算関数（要約用）
   const calculateSummaryCost = (textLength: number, model: string) => {
@@ -244,7 +256,7 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
     setError(null);
 
     try {
-      const transcriber = new GeminiTranscriber(apiKey, selectedModel);
+      const transcriber = new GeminiTranscriber(apiKey, selectedModel, apiEndpoint);
       let formatPrompt = summarySettings.customPrompt;
       
       // プリセットが指定されている場合
@@ -400,24 +412,27 @@ ${summarySettings.backgroundInfo}
 
       {/* Gemini Model Selection */}
       {apiKey && (
-        <div className="space-y-2">
-          <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-            <Sparkles className="w-4 h-4" />
-            まとめ用モデル
-          </label>
-          <select
-            value={selectedModel}
-            onChange={(e) => handleModelChange(e.target.value)}
-            disabled={summarySettings.isProcessing}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite (推奨 - 費用対効果)</option>
-            <option value="gemini-2.5-flash">Gemini 2.5 Flash (高性能 - 適応思考)</option>
-            <option value="gemini-2.5-pro">Gemini 2.5 Pro (最高性能 - 思考と推論)</option>
-          </select>
-          <p className="text-xs text-gray-500">
-            選択したモデルが次回も自動選択されます
-          </p>
+        <div className="space-y-4">
+          <div>
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+              <Sparkles className="w-4 h-4" />
+              まとめ用モデル
+            </label>
+            <select
+              value={selectedModel}
+              onChange={(e) => handleModelChange(e.target.value)}
+              disabled={summarySettings.isProcessing}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite (推奨 - 費用対効果)</option>
+              <option value="gemini-2.5-flash">Gemini 2.5 Flash (高性能 - 適応思考)</option>
+              <option value="gemini-2.5-pro">Gemini 2.5 Pro (最高性能 - 思考と推論)</option>
+            </select>
+            <p className="text-xs text-gray-500">
+              選択したモデルが次回も自動選択されます
+            </p>
+          </div>
+
         </div>
       )}
 

@@ -20,21 +20,36 @@ export class GeminiTranscriber {
   private model: any = null;
   private abortController: AbortController | null = null;
   private modelName: string = 'gemini-2.0-flash-lite';
+  private apiEndpoint: string = 'https://generativelanguage.googleapis.com';
 
-  constructor(apiKey?: string, modelName?: string) {
+  constructor(apiKey?: string, modelName?: string, apiEndpoint?: string) {
     if (modelName) {
       this.modelName = modelName;
+    }
+    if (apiEndpoint) {
+      this.apiEndpoint = apiEndpoint;
     }
     if (apiKey) {
       this.initialize(apiKey);
     }
   }
 
-  initialize(apiKey: string) {
+  initialize(apiKey: string, apiEndpoint?: string) {
     if (!apiKey) {
       throw new Error('Gemini API キーが設定されていません');
     }
-    this.genAI = new GoogleGenerativeAI(apiKey);
+    
+    if (apiEndpoint) {
+      this.apiEndpoint = apiEndpoint;
+    }
+
+    // カスタムエンドポイントを設定
+    const config: any = { apiKey };
+    if (this.apiEndpoint !== 'https://generativelanguage.googleapis.com') {
+      config.baseUrl = this.apiEndpoint;
+    }
+    
+    this.genAI = new GoogleGenerativeAI(config);
     this.model = this.genAI.getGenerativeModel({ 
       model: this.modelName
     });

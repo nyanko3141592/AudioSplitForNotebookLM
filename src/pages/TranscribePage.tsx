@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import type { TranscriptionResult } from '../utils/geminiTranscriber';
 import { GeminiTranscriber, downloadTranscription } from '../utils/geminiTranscriber';
+import { apiEndpointStorage } from '../utils/storage';
 import { RecordingPanel } from '../components/RecordingPanel';
 
 type Props = {
@@ -29,6 +30,7 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
   const [summaryBackgroundInfo, setSummaryBackgroundInfo] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState<string>('');
+  const [apiEndpoint, setApiEndpoint] = useState<string>('https://generativelanguage.googleapis.com');
   const [isRecordingActive, setIsRecordingActive] = useState<boolean>(false);
   
   const handleRecordingStateChange = (isActive: boolean) => {
@@ -57,7 +59,7 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
     console.log('Cleaned up previous split files');
   }, [splitFiles]);
 
-  // APIキーの初期化
+  // APIキーとエンドポイントの初期化
   useEffect(() => {
     const savedApiKey = localStorage.getItem('gemini_api_key');
     if (savedApiKey) {
@@ -69,6 +71,10 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
         localStorage.removeItem('gemini_api_key');
       }
     }
+    
+    // APIエンドポイント設定を読み込み
+    const savedEndpoint = apiEndpointStorage.get();
+    setApiEndpoint(savedEndpoint);
   }, []);
 
   const handleApiKeyChange = (key: string) => {
@@ -80,6 +86,11 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
     } else {
       localStorage.removeItem('gemini_api_key');
     }
+  };
+
+  const handleEndpointChange = (endpoint: string) => {
+    setApiEndpoint(endpoint);
+    apiEndpointStorage.save(endpoint);
   };
 
 
@@ -459,6 +470,50 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
               )}
             </div>
 
+            {/* API Endpoint Section */}
+            {apiKey && (
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">APIエンドポイント</h3>
+                <div className="space-y-3">
+                  <select
+                    value={apiEndpoint === 'https://generativelanguage.googleapis.com' ? 'default' : 'custom'}
+                    onChange={(e) => {
+                      if (e.target.value === 'default') {
+                        handleEndpointChange('https://generativelanguage.googleapis.com');
+                      } else if (e.target.value === 'custom' && apiEndpoint === 'https://generativelanguage.googleapis.com') {
+                        // カスタムが選択され、現在がデフォルトの場合のみカスタムURLを空にセット
+                        handleEndpointChange('');
+                      }
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent text-sm"
+                  >
+                    <option value="default">🔗 Google公式エンドポイント (デフォルト)</option>
+                    <option value="custom">🌐 カスタムエンドポイント (Cloudflare Gateway等)</option>
+                  </select>
+                  
+                  {apiEndpoint !== 'https://generativelanguage.googleapis.com' && (
+                    <>
+                      <input
+                        type="url"
+                        value={apiEndpoint}
+                        onChange={(e) => handleEndpointChange(e.target.value)}
+                        placeholder="https://your-gateway.example.com"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent text-sm"
+                      />
+                      <p className="text-xs text-gray-500">
+                        💡 Cloudflare API Gateway、プロキシサーバーなどのカスタムエンドポイントURL
+                      </p>
+                    </>
+                  )}
+                  {apiEndpoint === 'https://generativelanguage.googleapis.com' && (
+                    <p className="text-xs text-gray-500">
+                      Google公式のAPIエンドポイントを使用します
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="text-center">
               {apiKey ? (
                 <>
@@ -501,6 +556,7 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
                   hideBackgroundInfo={false}
                   showNext={false}
                   presetApiKey={apiKey}
+                  presetApiEndpoint={apiEndpoint}
                   presetBackgroundInfo={transcriptionBackgroundInfo}
                   presetConcurrencySettings={transcriptionSettings.concurrencySettings}
                   presetCustomPrompt={transcriptionSettings.customPrompt}
@@ -594,12 +650,13 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
                   onDownloadSplit={handleDownload}
                   onDownloadAllSplits={handleDownloadAll}
                   onDownloadTranscription={() => {
-                    const transcriber = new GeminiTranscriber(apiKey);
+                    const transcriber = new GeminiTranscriber(apiKey, undefined, apiEndpoint);
                     const formatted = transcriber.formatTranscriptions(transcriptionResults);
                     downloadTranscription(formatted);
                   }}
                   onBackgroundInfoChange={setSummaryBackgroundInfo}
                   presetApiKey={apiKey}
+                  presetApiEndpoint={apiEndpoint}
                 />
               </div>
             )}
