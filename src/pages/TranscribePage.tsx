@@ -155,7 +155,6 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
   const handleTranscriptionComplete = (results: TranscriptionResult[]) => {
     setTranscriptionResults(results);
     if (results.length > 0 && results.some(r => !r.error)) {
-      setCurrentStep(3);
       // 文字起こしの背景情報を要約に引き継ぐ
       setSummaryBackgroundInfo(transcriptionBackgroundInfo);
     }
