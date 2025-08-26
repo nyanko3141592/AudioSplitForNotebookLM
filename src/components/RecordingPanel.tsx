@@ -27,15 +27,22 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
   const [error, setError] = useState<string | null>(null);
   const [levelMic, setLevelMic] = useState(0);
   const [levelTab, setLevelTab] = useState(0);
+  const [isMonitoringMic, setIsMonitoringMic] = useState(false);
+  const [isMonitoringTab, setIsMonitoringTab] = useState(false);
   const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedMicId, setSelectedMicId] = useState<string>('');
   const [recordingCompleted, setRecordingCompleted] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const previewCtxRef = useRef<AudioContext | null>(null);
   const analyserMicRef = useRef<AnalyserNode | null>(null);
   const analyserTabRef = useRef<AnalyserNode | null>(null);
+  const previewAnalyserMicRef = useRef<AnalyserNode | null>(null);
+  const previewAnalyserTabRef = useRef<AnalyserNode | null>(null);
   const rafRef = useRef<number | null>(null);
+  const micRafRef = useRef<number | null>(null);
+  const tabRafRef = useRef<number | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
   const timerRef = useRef<number | null>(null);
 
@@ -75,17 +82,114 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
     if (audioCtxRef.current) {
       try { audioCtxRef.current.close(); } catch {}
     }
+    if (previewCtxRef.current) {
+      try { previewCtxRef.current.close(); } catch {}
+    }
     audioCtxRef.current = null;
+    previewCtxRef.current = null;
     analyserMicRef.current = null;
     analyserTabRef.current = null;
+    previewAnalyserMicRef.current = null;
+    previewAnalyserTabRef.current = null;
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    if (micRafRef.current) cancelAnimationFrame(micRafRef.current);
+    if (tabRafRef.current) cancelAnimationFrame(tabRafRef.current);
     if (timerRef.current) window.clearInterval(timerRef.current);
     setElapsedSec(0);
+    setIsMonitoringMic(false);
+    setIsMonitoringTab(false);
+    setLevelMic(0);
+    setLevelTab(0);
     onRecordingStateChange?.(false);
+  };
+
+  const startMicMonitoring = (stream: MediaStream) => {
+    if (isMonitoringMic || !stream || stream.getAudioTracks().length === 0) return;
+    
+    try {
+      if (!previewCtxRef.current) {
+        previewCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      
+      const ctx = previewCtxRef.current;
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      previewAnalyserMicRef.current = analyser;
+      source.connect(analyser);
+
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const loop = () => {
+        if (!isMonitoringMic || !previewAnalyserMicRef.current) return;
+        analyser.getByteFrequencyData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) sum += data[i];
+        setLevelMic(Math.min(100, Math.round((sum / data.length) / 2)));
+        micRafRef.current = requestAnimationFrame(loop);
+      };
+      
+      setIsMonitoringMic(true);
+      loop();
+    } catch (e) {
+      console.error('Failed to start mic monitoring:', e);
+    }
+  };
+
+  const startTabMonitoring = (stream: MediaStream) => {
+    if (isMonitoringTab || !stream || stream.getAudioTracks().length === 0) return;
+    
+    try {
+      if (!previewCtxRef.current) {
+        previewCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      
+      const ctx = previewCtxRef.current;
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      previewAnalyserTabRef.current = analyser;
+      source.connect(analyser);
+
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const loop = () => {
+        if (!isMonitoringTab || !previewAnalyserTabRef.current) return;
+        analyser.getByteFrequencyData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) sum += data[i];
+        setLevelTab(Math.min(100, Math.round((sum / data.length) / 2)));
+        tabRafRef.current = requestAnimationFrame(loop);
+      };
+      
+      setIsMonitoringTab(true);
+      loop();
+    } catch (e) {
+      console.error('Failed to start tab monitoring:', e);
+    }
+  };
+
+  const stopMicMonitoring = () => {
+    setIsMonitoringMic(false);
+    setLevelMic(0);
+    if (micRafRef.current) {
+      cancelAnimationFrame(micRafRef.current);
+      micRafRef.current = null;
+    }
+    previewAnalyserMicRef.current = null;
+  };
+
+  const stopTabMonitoring = () => {
+    setIsMonitoringTab(false);
+    setLevelTab(0);
+    if (tabRafRef.current) {
+      cancelAnimationFrame(tabRafRef.current);
+      tabRafRef.current = null;
+    }
+    previewAnalyserTabRef.current = null;
   };
 
   const pickTabAudio = async () => {
     setError(null);
+    stopTabMonitoring(); // Stop any existing monitoring
     try {
       // Using video: true improves likelihood of getting tab/system audio with picker
       const s = await navigator.mediaDevices.getDisplayMedia({
@@ -96,8 +200,20 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
       s.getVideoTracks().forEach(t => s.removeTrack(t));
       if (s.getAudioTracks().length === 0) {
         setError('選択したソースに音声トラックがありません。共有ダイアログで「タブの音声を共有」をオンにしてください。');
+        return;
       }
       setTabStream(s);
+      
+      // Start monitoring audio levels immediately
+      startTabMonitoring(s);
+      
+      // Clean up when tracks end
+      s.getAudioTracks().forEach(track => {
+        track.addEventListener('ended', () => {
+          setTabStream(null);
+          stopTabMonitoring();
+        });
+      });
     } catch (e: any) {
       if (e?.name !== 'NotAllowedError') {
         setError('タブ/システム音声の取得に失敗しました。共有ダイアログで該当タブを選択し、「タブの音声を共有」にチェックしてください。');
@@ -107,6 +223,7 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
 
   const enableMic = async () => {
     setError(null);
+    stopMicMonitoring(); // Stop any existing monitoring
     try {
       // First, try selected device if any
       let constraints: MediaStreamConstraints = { audio: true };
@@ -119,6 +236,18 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
         s = await navigator.mediaDevices.getUserMedia({ audio: true });
       }
       setMicStream(s);
+      
+      // Start monitoring audio levels immediately
+      startMicMonitoring(s);
+      
+      // Clean up when tracks end
+      s.getAudioTracks().forEach(track => {
+        track.addEventListener('ended', () => {
+          setMicStream(null);
+          stopMicMonitoring();
+        });
+      });
+      
       // After permission granted, refresh device labels
       await refreshDevices();
     } catch (e: any) {
@@ -204,14 +333,14 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
         setRecordingCompleted(true);
         
         // Auto-terminate all streams when recording stops
+        stopMicMonitoring();
+        stopTabMonitoring();
         stopStream(micStream);
         stopStream(tabStream);
         setMicStream(null);
         setTabStream(null);
-        setLevelMic(0);
-        setLevelTab(0);
         
-        // Clean up audio context
+        // Clean up recording audio context (keep preview context for monitoring)
         if (audioCtxRef.current) {
           try { audioCtxRef.current.close(); } catch {}
         }
@@ -240,146 +369,245 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
   };
 
   const resetSources = () => {
+    stopMicMonitoring();
+    stopTabMonitoring();
     stopStream(micStream);
     stopStream(tabStream);
     setMicStream(null);
     setTabStream(null);
-    setLevelMic(0);
-    setLevelTab(0);
   };
 
   return (
     <div className="mb-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-6">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="flex items-center justify-center p-2 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl shadow-lg">
+          <span className="text-white font-bold">🎙️</span>
+        </div>
+        <div className="flex-1">
+          <h3 className="text-xl font-bold text-gray-800">録音機能</h3>
+          <p className="text-sm text-gray-600 mt-1">マイクとシステム音声を組み合わせて録音できます</p>
+        </div>
+        
+        {/* 録音制御ボタン */}
+        <div className="flex items-center gap-3">
+          {!isRecording ? (
+            <button
+              onClick={startRecording}
+              disabled={!micStream && !tabStream}
+              className={`px-6 py-3 rounded-xl text-white font-semibold transition-all shadow-lg ${
+                !micStream && !tabStream 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 hover:shadow-xl'
+              }`}
+            >
+              🎙️ 録音開始
+            </button>
+          ) : (
+            <button
+              onClick={stopRecording}
+              className="px-6 py-3 rounded-xl text-white font-semibold bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 transition-all shadow-lg hover:shadow-xl"
+            >
+              ⏹️ 録音停止
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 録音状態表示 */}
       {isRecording && (
-        <div className="mb-4 p-3 rounded-lg border border-red-300 bg-red-50 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="inline-block w-2.5 h-2.5 bg-red-600 rounded-full animate-pulse" />
-            <span className="font-semibold text-red-800">録音中</span>
+        <div className="mb-6 p-4 rounded-xl border-2 border-red-300 bg-red-50 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="inline-block w-3 h-3 bg-red-600 rounded-full animate-pulse" />
+            <div>
+              <span className="font-bold text-red-800 text-lg">録音中</span>
+              <p className="text-xs text-red-700 mt-1">
+                {micStream && tabStream ? 'マイク + システム音声' : micStream ? 'マイクのみ' : 'システム音声のみ'}
+              </p>
+            </div>
           </div>
-          <div className="text-red-700 font-mono tabular-nums">
-            {String(Math.floor(elapsedSec / 60)).padStart(2, '0')}:{String(elapsedSec % 60).padStart(2, '0')}
+          <div className="text-right">
+            <div className="text-2xl font-mono tabular-nums text-red-700 font-bold">
+              {String(Math.floor(elapsedSec / 60)).padStart(2, '0')}:{String(elapsedSec % 60).padStart(2, '0')}
+            </div>
+            <p className="text-xs text-red-600 mt-1">経過時間</p>
           </div>
         </div>
       )}
       
       {recordingCompleted && (
-        <div className="mb-4 p-3 rounded-lg border border-green-300 bg-green-50 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="inline-block w-2.5 h-2.5 bg-green-600 rounded-full" />
-            <span className="font-semibold text-green-800">録音完了 - 画面共有を自動終了しました</span>
+        <div className="mb-6 p-4 rounded-xl border-2 border-green-300 bg-green-50 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="inline-block w-3 h-3 bg-green-600 rounded-full" />
+            <div>
+              <span className="font-bold text-green-800 text-lg">録音完了</span>
+              <p className="text-xs text-green-700 mt-1">画面共有を自動終了しました</p>
+            </div>
           </div>
           <button 
             onClick={() => setRecordingCompleted(false)}
-            className="text-green-600 hover:text-green-800 text-sm"
+            className="text-green-600 hover:text-green-800 text-xl font-bold"
           >
             ×
           </button>
         </div>
       )}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="flex items-center justify-center p-2 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl shadow-lg">
-          <span className="text-white font-bold">REC</span>
-        </div>
-        <div>
-          <h3 className="text-xl font-bold text-gray-800">録音して取り込む（マイク＋他タブ音声）</h3>
-          <p className="text-xs text-gray-600 mt-1">Google Meet などのタブを選択して音声を共有し、同時にマイクを録音できます。</p>
-        </div>
-      </div>
 
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">{error}</div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-        <button
-          onClick={pickTabAudio}
-          className="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
-        >
-          他タブ/システム音声を選ぶ
-        </button>
-        <button
-          onClick={enableMic}
-          className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-        >
-          マイクを有効化
-        </button>
-        <button
-          onClick={resetSources}
-          className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-        >
-          入力をリセット
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-        <div className="p-3 border rounded-lg bg-gray-50">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-700">マイク</span>
-            <span className={`text-xs ${micStream ? 'text-green-700' : 'text-gray-500'}`}>{micStream ? '接続済み' : '未接続'}</span>
-          </div>
-          <div className="w-full h-2 bg-gray-200 rounded">
-            <div className="h-2 bg-green-500 rounded transition-all" style={{ width: `${levelMic}%` }} />
-          </div>
-          <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 items-center">
-            <select
-              value={selectedMicId}
-              onChange={(e) => setSelectedMicId(e.target.value)}
-              className="px-2 py-2 border border-gray-300 rounded"
-              title="マイクデバイスを選択"
-            >
-              {micDevices.length === 0 ? (
-                <option value="">マイクが見つかりません</option>
-              ) : (
-                micDevices.map(d => (
-                  <option key={d.deviceId} value={d.deviceId}>{d.label || 'マイク'}</option>
-                ))
-              )}
-            </select>
-            <button
-              onClick={refreshDevices}
-              className="px-3 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-            >
-              端末更新
-            </button>
-            <div className="text-xs text-gray-500">
-              ラベルが空の場合は一度「マイクを有効化」してください
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* マイクセクション */}
+        <div className="p-4 border-2 border-blue-200 rounded-xl bg-blue-50/30">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <span className="text-white text-sm font-bold">🎤</span>
+            </div>
+            <div>
+              <h4 className="text-lg font-semibold text-gray-800">マイク</h4>
+              <p className="text-xs text-gray-600">あなたの声を録音します</p>
+            </div>
+            <div className="ml-auto">
+              <span className={`text-xs flex items-center gap-1 px-2 py-1 rounded-full ${micStream ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                {micStream && isMonitoringMic && (
+                  <span className="inline-block w-1.5 h-1.5 bg-green-600 rounded-full animate-pulse" />
+                )}
+                {micStream ? '接続済み' : '未接続'}
+              </span>
             </div>
           </div>
+          
+          {/* 音声レベルメーター */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-gray-600">音声レベル</span>
+              <span className="text-xs text-gray-500">{levelMic}%</span>
+            </div>
+            <div className="w-full h-3 bg-gray-200 rounded-full">
+              <div 
+                className={`h-3 rounded-full transition-all ${isMonitoringMic ? 'bg-gradient-to-r from-green-400 to-green-600' : 'bg-gray-400'}`} 
+                style={{ width: `${levelMic}%` }} 
+              />
+            </div>
+          </div>
+
+          {/* マイク選択 */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">デバイス選択</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <select
+                value={selectedMicId}
+                onChange={(e) => setSelectedMicId(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                title="マイクデバイスを選択"
+              >
+                {micDevices.length === 0 ? (
+                  <option value="">マイクが見つかりません</option>
+                ) : (
+                  micDevices.map(d => (
+                    <option key={d.deviceId} value={d.deviceId}>{d.label || 'マイク'}</option>
+                  ))
+                )}
+              </select>
+              <button
+                onClick={refreshDevices}
+                className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+              >
+                デバイス更新
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              ラベルが空の場合は一度「有効化」してください
+            </p>
+          </div>
+
+          {/* マイク制御ボタン */}
+          <button
+            onClick={enableMic}
+            className="w-full px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors font-medium"
+          >
+            マイクを有効化
+          </button>
         </div>
-        <div className="p-3 border rounded-lg bg-gray-50">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-700">他タブ/システム音声</span>
-            <span className={`text-xs ${tabStream ? 'text-green-700' : 'text-gray-500'}`}>{tabStream ? '接続済み' : '未接続'}</span>
+
+        {/* システム音声セクション */}
+        <div className="p-4 border-2 border-emerald-200 rounded-xl bg-emerald-50/30">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
+              <span className="text-white text-sm font-bold">🖥️</span>
+            </div>
+            <div>
+              <h4 className="text-lg font-semibold text-gray-800">システム音声</h4>
+              <p className="text-xs text-gray-600">他のタブやアプリの音声を録音</p>
+            </div>
+            <div className="ml-auto">
+              <span className={`text-xs flex items-center gap-1 px-2 py-1 rounded-full ${tabStream ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                {tabStream && isMonitoringTab && (
+                  <span className="inline-block w-1.5 h-1.5 bg-green-600 rounded-full animate-pulse" />
+                )}
+                {tabStream ? '接続済み' : '未接続'}
+              </span>
+            </div>
           </div>
-          <div className="w-full h-2 bg-gray-200 rounded">
-            <div className="h-2 bg-blue-500 rounded transition-all" style={{ width: `${levelTab}%` }} />
+          
+          {/* 音声レベルメーター */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-gray-600">音声レベル</span>
+              <span className="text-xs text-gray-500">{levelTab}%</span>
+            </div>
+            <div className="w-full h-3 bg-gray-200 rounded-full">
+              <div 
+                className={`h-3 rounded-full transition-all ${isMonitoringTab ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 'bg-gray-400'}`} 
+                style={{ width: `${levelTab}%` }} 
+              />
+            </div>
           </div>
+
+          {/* 説明とヒント */}
+          <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <p className="text-sm text-amber-800 font-medium mb-1">💡 使用方法</p>
+            <ul className="text-xs text-amber-700 space-y-1">
+              <li>• Google Meet などのタブを選択</li>
+              <li>• 「タブの音声を共有」をチェック</li>
+              <li>• 会議音声を録音可能になります</li>
+            </ul>
+          </div>
+
+          {/* システム音声制御ボタン */}
+          <button
+            onClick={pickTabAudio}
+            className="w-full px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors font-medium"
+          >
+            タブ音声を選択
+          </button>
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        {!isRecording ? (
+      {/* 現在の入力状態表示 */}
+      {(micStream || tabStream) && !isRecording && (
+        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-green-700">✅ 録音準備完了</span>
+            <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded-full">
+              {micStream && tabStream ? 'マイク + システム音声' : micStream ? 'マイクのみ' : 'システム音声のみ'}
+            </span>
+          </div>
           <button
-            onClick={startRecording}
-            disabled={!micStream && !tabStream}
-            className={`px-5 py-2 rounded-lg text-white transition-colors ${
-              !micStream && !tabStream ? 'bg-gray-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'
-            }`}
+            onClick={resetSources}
+            className="px-3 py-2 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition-colors text-sm"
           >
-            録音開始
+            入力をリセット
           </button>
-        ) : (
-          <button
-            onClick={stopRecording}
-            className="px-5 py-2 rounded-lg text-white bg-red-700 hover:bg-red-800 transition-colors"
-          >
-            録音停止
-          </button>
-        )}
-        <p className="text-xs text-gray-600">
-          タブ選択時にGoogle Meetのタブを選び、「タブの音声を共有」にチェックしてください。
-        </p>
-      </div>
+        </div>
+      )}
+
+      {!micStream && !tabStream && !isRecording && (
+        <div className="p-4 bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl text-center">
+          <p className="text-gray-600 mb-2">⬇️ まずは音声入力を設定してください ⬇️</p>
+          <p className="text-xs text-gray-500">マイクまたはシステム音声（または両方）を有効化すると録音できます</p>
+        </div>
+      )}
     </div>
   );
 };
