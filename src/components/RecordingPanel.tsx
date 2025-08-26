@@ -29,6 +29,7 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
   const [levelTab, setLevelTab] = useState(0);
   const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedMicId, setSelectedMicId] = useState<string>('');
+  const [recordingCompleted, setRecordingCompleted] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -200,7 +201,24 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
         if (timerRef.current) window.clearInterval(timerRef.current);
         setElapsedSec(0);
         onRecordingStateChange?.(false);
-        // Keep streams for additional recordings unless user resets
+        setRecordingCompleted(true);
+        
+        // Auto-terminate all streams when recording stops
+        stopStream(micStream);
+        stopStream(tabStream);
+        setMicStream(null);
+        setTabStream(null);
+        setLevelMic(0);
+        setLevelTab(0);
+        
+        // Clean up audio context
+        if (audioCtxRef.current) {
+          try { audioCtxRef.current.close(); } catch {}
+        }
+        audioCtxRef.current = null;
+        analyserMicRef.current = null;
+        analyserTabRef.current = null;
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
       };
       mr.start(1000);
       setIsRecording(true);
@@ -241,6 +259,21 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
           <div className="text-red-700 font-mono tabular-nums">
             {String(Math.floor(elapsedSec / 60)).padStart(2, '0')}:{String(elapsedSec % 60).padStart(2, '0')}
           </div>
+        </div>
+      )}
+      
+      {recordingCompleted && (
+        <div className="mb-4 p-3 rounded-lg border border-green-300 bg-green-50 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="inline-block w-2.5 h-2.5 bg-green-600 rounded-full" />
+            <span className="font-semibold text-green-800">録音完了 - 画面共有を自動終了しました</span>
+          </div>
+          <button 
+            onClick={() => setRecordingCompleted(false)}
+            className="text-green-600 hover:text-green-800 text-sm"
+          >
+            ×
+          </button>
         </div>
       )}
       <div className="flex items-center gap-3 mb-4">
