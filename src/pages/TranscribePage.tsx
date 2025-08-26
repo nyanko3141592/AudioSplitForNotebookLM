@@ -32,6 +32,8 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
   const [apiKey, setApiKey] = useState<string>('');
   const [apiEndpoint, setApiEndpoint] = useState<string>('https://generativelanguage.googleapis.com');
   const [isRecordingActive, setIsRecordingActive] = useState<boolean>(false);
+  const [isTestingConnection, setIsTestingConnection] = useState<boolean>(false);
+  const [connectionTestResult, setConnectionTestResult] = useState<'success' | 'error' | null>(null);
   
   const handleRecordingStateChange = (isActive: boolean) => {
     setIsRecordingActive(isActive);
@@ -93,6 +95,121 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
     apiEndpointStorage.save(endpoint);
   };
 
+  const testApiConnection = async () => {
+    if (!apiKey) return;
+    
+    setIsTestingConnection(true);
+    setConnectionTestResult(null);
+    
+    try {
+      console.log('🧪 APIキー疎通テスト開始');
+      console.log('🔍 テスト設定:', { endpoint: apiEndpoint, isDefault: apiEndpoint === 'https://generativelanguage.googleapis.com' });
+      
+      // まずはシンプルなテキストリクエストでSDKをテスト
+      if (apiEndpoint === 'https://generativelanguage.googleapis.com') {
+        console.log('🧪 デフォルトエンドポイント: まずテキストリクエストでテスト');
+        
+        try {
+          const { GoogleGenerativeAI } = await import('@google/generative-ai');
+          const genAI = new GoogleGenerativeAI(apiKey);
+          const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
+          
+          console.log('🔍 テキストリクエスト送信...');
+          const result = await model.generateContent('こんにちは、テストです。');
+          const response = await result.response;
+          const text = response.text();
+          console.log('✅ テキストリクエスト成功:', text.substring(0, 50) + '...');
+        } catch (textError) {
+          console.error('❌ テキストリクエストで失敗:', textError);
+          throw new Error(`テキストAPIテストで失敗: ${textError instanceof Error ? textError.message : '不明なエラー'}`);
+        }
+      }
+      
+      // 音声テストを実行
+      const transcriber = new GeminiTranscriber(apiKey, undefined, apiEndpoint);
+      
+      // テスト用の小さな音声データ（無音1秒）を作成
+      const audioContext = new AudioContext();
+      const sampleRate = 16000;
+      const duration = 1; // 1秒
+      const frameCount = sampleRate * duration;
+      const audioBuffer = audioContext.createBuffer(1, frameCount, sampleRate);
+      
+      // 無音データを作成
+      const channelData = audioBuffer.getChannelData(0);
+      for (let i = 0; i < frameCount; i++) {
+        channelData[i] = 0;
+      }
+      
+      // AudioBufferをWAVファイルに変換
+      const wav = audioBufferToWav(audioBuffer);
+      const blob = new Blob([wav], { type: 'audio/wav' });
+      
+      console.log('🧪 音声APIテスト開始');
+      await transcriber.transcribeAudioBlob(blob, 'connection-test.wav');
+      
+      setConnectionTestResult('success');
+      console.log('✅ APIキー疎通テスト成功');
+    } catch (error) {
+      console.error('❌ APIキー疎通テスト失敗:', error);
+      setConnectionTestResult('error');
+    } finally {
+      setIsTestingConnection(false);
+    }
+  };
+
+  // AudioBufferをWAVに変換するユーティリティ関数
+  const audioBufferToWav = (buffer: AudioBuffer): ArrayBuffer => {
+    const numChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const format = 1; // PCM
+    const bitDepth = 16;
+    
+    const bytesPerSample = bitDepth / 8;
+    const blockAlign = numChannels * bytesPerSample;
+    
+    const data = new Float32Array(buffer.length * numChannels);
+    let dataOffset = 0;
+    for (let i = 0; i < buffer.length; i++) {
+      for (let channel = 0; channel < numChannels; channel++) {
+        data[dataOffset++] = buffer.getChannelData(channel)[i];
+      }
+    }
+    
+    const arrayBuffer = new ArrayBuffer(44 + data.length * bytesPerSample);
+    const view = new DataView(arrayBuffer);
+    
+    // WAVヘッダー
+    const writeString = (offset: number, string: string) => {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+      }
+    };
+    
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + data.length * bytesPerSample, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, format, true);
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * blockAlign, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, bitDepth, true);
+    writeString(36, 'data');
+    view.setUint32(40, data.length * bytesPerSample, true);
+    
+    // PCMデータ
+    let writeOffset = 44;
+    for (let i = 0; i < data.length; i++) {
+      const sample = Math.max(-1, Math.min(1, data[i]));
+      view.setInt16(writeOffset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+      writeOffset += 2;
+    }
+    
+    return arrayBuffer;
+  };
 
   const handleFileSelect = useCallback(async (file: File) => {
     cleanupSplitFiles();
@@ -454,7 +571,7 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
                 </div>
               ) : (
                 <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between mb-3">
                     <p className="text-green-800 flex items-center gap-2">
                       <CheckCircle className="w-5 h-5" />
                       APIキー設定済み
@@ -465,6 +582,40 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
                     >
                       削除
                     </button>
+                  </div>
+                  
+                  {/* 疎通確認セクション */}
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={testApiConnection}
+                      disabled={isTestingConnection}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm"
+                    >
+                      {isTestingConnection ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          テスト中...
+                        </>
+                      ) : (
+                        <>
+                          🧪 APIキー疎通確認
+                        </>
+                      )}
+                    </button>
+                    
+                    {connectionTestResult === 'success' && (
+                      <p className="text-green-700 flex items-center gap-1 text-sm">
+                        <CheckCircle className="w-4 h-4" />
+                        疎通成功
+                      </p>
+                    )}
+                    
+                    {connectionTestResult === 'error' && (
+                      <p className="text-red-700 flex items-center gap-1 text-sm">
+                        <AlertCircle className="w-4 h-4" />
+                        疎通失敗
+                      </p>
+                    )}
                   </div>
                 </div>
               )}

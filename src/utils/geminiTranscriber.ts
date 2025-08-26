@@ -17,7 +17,7 @@ export interface TranscriptionProgress {
 
 export class GeminiTranscriber {
   private genAI: GoogleGenerativeAI | null = null;
-  private model: any = null;
+  private model: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
   private abortController: AbortController | null = null;
   private modelName: string = 'gemini-2.0-flash-lite';
   private apiEndpoint: string = 'https://generativelanguage.googleapis.com';
@@ -47,15 +47,33 @@ export class GeminiTranscriber {
       this.apiEndpoint = apiEndpoint;
     }
 
-    // カスタムエンドポイントを設定
-    const config: any = { apiKey };
-    if (this.apiEndpoint !== 'https://generativelanguage.googleapis.com') {
-      config.baseUrl = this.apiEndpoint;
-    }
+    // Google SDK初期化方法を修正
+    console.log('🔧 SDK初期化設定:', {
+      apiKeyPrefix: apiKey ? `${apiKey.substring(0, 10)}...` : 'なし',
+      endpoint: this.apiEndpoint,
+      isDefault: this.apiEndpoint === 'https://generativelanguage.googleapis.com'
+    });
     
-    this.genAI = new GoogleGenerativeAI(config);
+    if (this.apiEndpoint !== 'https://generativelanguage.googleapis.com') {
+      // カスタムエンドポイントの場合はオブジェクトで設定
+      console.log('🔧 カスタムエンドポイント設定:', { baseUrl: this.apiEndpoint });
+      this.genAI = new GoogleGenerativeAI({
+        apiKey,
+        baseUrl: this.apiEndpoint
+      } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
+    } else {
+      // デフォルトエンドポイントの場合は文字列で直接渡す
+      console.log('🔧 デフォルトエンドポイント: APIキーを文字列で直接渡す');
+      this.genAI = new GoogleGenerativeAI(apiKey);
+    }
     this.model = this.genAI.getGenerativeModel({ 
       model: this.modelName
+    });
+    
+    console.log('✅ SDK初期化完了:', { 
+      genAI: !!this.genAI, 
+      model: !!this.model,
+      modelName: this.modelName 
     });
   }
 
@@ -93,9 +111,12 @@ export class GeminiTranscriber {
 
       const prompt = customPrompt || defaultPrompt;
 
-      // デバッグ用：現在のエンドポイント確認
+      // デバッグ用：現在のエンドポイントとAPIキー確認
       console.log('🔍 現在のエンドポイント:', this.apiEndpoint);
       console.log('🔍 デフォルトかどうか:', this.apiEndpoint === 'https://generativelanguage.googleapis.com');
+      console.log('🔍 APIキー確認:', this.apiKey ? `${this.apiKey.substring(0, 10)}...` : 'APIキーなし');
+      console.log('🔍 ファイル名:', fileName);
+      console.log('🔍 Blobサイズ:', blob.size);
       
       // カスタムエンドポイント使用時は直接HTTPリクエスト
       if (this.apiEndpoint !== 'https://generativelanguage.googleapis.com') {
@@ -104,6 +125,12 @@ export class GeminiTranscriber {
       }
       
       console.log('✅ Google SDK使用');
+      console.log('🔍 SDKでリクエスト送信前:', {
+        modelName: this.modelName,
+        blobSize: blob.size,
+        base64Length: base64Audio.length,
+        hasModel: !!this.model
+      });
 
       // デフォルトエンドポイント使用時はSDKを使用
       const result = await this.model.generateContent([
@@ -115,6 +142,8 @@ export class GeminiTranscriber {
         },
         prompt
       ]);
+      
+      console.log('✅ SDKリクエスト成功');
 
       const response = await result.response;
       const transcription = response.text();
@@ -295,7 +324,7 @@ export class GeminiTranscriber {
   ): Promise<TranscriptionResult[]> {
     const results: TranscriptionResult[] = new Array(blobs.length);
     let completed = 0;
-    let inProgress = new Set<string>();
+    const inProgress = new Set<string>();
 
     const updateProgress = (fileName: string, partNumber: number, status: 'start' | 'complete' | 'error', result?: TranscriptionResult) => {
       if (status === 'start') {
@@ -426,11 +455,11 @@ export class GeminiTranscriber {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  // カスタムエンドポイント用の直接HTTPリクエスト
+  // カスタムエンドポイント用の直接HTTPリクエスト（リトライ機能付き）
   private async transcribeWithCustomEndpoint(
     base64Audio: string,
     prompt: string,
-    _fileName: string
+    fileName: string
   ): Promise<string> {
     // 開発環境ではプロキシ経由でアクセス
     const isDev = import.meta.env.DEV;
@@ -459,28 +488,103 @@ export class GeminiTranscriber {
 
     console.log('🌐 送信先URL:', endpoint);
     
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': this.getApiKey()
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ HTTPエラー:', response.status, errorText);
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
-    }
-
-    const result = await response.json();
+    // リトライ機能付きでリクエスト実行
+    const maxRetries = 3;
+    let lastError: Error | null = null;
     
-    if (!result.candidates || !result.candidates[0] || !result.candidates[0].content) {
-      throw new Error('レスポンス形式が不正です');
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`🔄 Cloudflare AI Gateway リクエスト試行 ${attempt}/${maxRetries}`);
+        
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': this.getApiKey()
+          },
+          body: JSON.stringify(requestBody)
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log(`✅ Cloudflare AI Gateway 成功 (試行 ${attempt})`);
+          
+          if (!result.candidates || !result.candidates[0] || !result.candidates[0].content) {
+            throw new Error('レスポンス形式が不正です');
+          }
+
+          return result.candidates[0].content.parts[0].text;
+        }
+        
+        const errorText = await response.text();
+        console.error(`❌ Cloudflare AI Gateway HTTPエラー (試行 ${attempt}):`, response.status, errorText);
+        
+        // 502エラーの場合のみリトライ、それ以外は即座に失敗
+        if (response.status === 502) {
+          lastError = new Error(`HTTP ${response.status}: ${errorText}`);
+          if (attempt < maxRetries) {
+            const waitTime = attempt * 2000; // 2秒、4秒、6秒...
+            console.log(`⏰ ${waitTime}ms待機してリトライします...`);
+            await this.delay(waitTime);
+            continue;
+          }
+        } else {
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        console.error(`❌ Cloudflare AI Gateway エラー (試行 ${attempt}):`, lastError.message);
+        
+        if (attempt < maxRetries && (lastError.message.includes('502') || lastError.message.includes('fetch'))) {
+          const waitTime = attempt * 2000;
+          console.log(`⏰ ${waitTime}ms待機してリトライします...`);
+          await this.delay(waitTime);
+          continue;
+        } else {
+          break;
+        }
+      }
     }
 
-    return result.candidates[0].content.parts[0].text;
+    // 全試行が失敗した場合、デフォルトエンドポイントにフォールバック
+    console.log('🔄 Cloudflare AI Gateway が全試行で失敗。デフォルトエンドポイントにフォールバック...');
+    return await this.fallbackToDefaultEndpoint(base64Audio, prompt, fileName);
+  }
+
+  // Cloudflare AI Gateway失敗時のフォールバック機能
+  private async fallbackToDefaultEndpoint(
+    base64Audio: string,
+    prompt: string,
+    fileName: string
+  ): Promise<string> {
+    try {
+      console.log('🔄 フォールバック: デフォルトエンドポイントのSDKを使用');
+      
+      // 一時的にデフォルトエンドポイント用のSDKを作成
+      const tempGenAI = new GoogleGenerativeAI(this.apiKey);
+      const tempModel = tempGenAI.getGenerativeModel({ 
+        model: this.modelName
+      });
+
+      const result = await tempModel.generateContent([
+        {
+          inlineData: {
+            mimeType: 'audio/wav',
+            data: base64Audio
+          }
+        },
+        prompt
+      ]);
+
+      const response = await result.response;
+      const transcription = response.text();
+      
+      console.log(`✅ フォールバック成功: ${fileName}`);
+      return transcription;
+    } catch (error) {
+      console.error(`❌ フォールバックも失敗: ${fileName}`, error);
+      throw new Error(`Cloudflareエンドポイントとデフォルトエンドポイント両方で失敗: ${error instanceof Error ? error.message : '不明なエラー'}`);
+    }
   }
 
   // カスタムエンドポイント用の要約メソッド
