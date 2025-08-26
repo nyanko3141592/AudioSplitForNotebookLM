@@ -107,31 +107,54 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
     if (isMonitoringMic || !stream || stream.getAudioTracks().length === 0) return;
     
     try {
-      if (!previewCtxRef.current) {
+      // Create new AudioContext if needed
+      if (!previewCtxRef.current || previewCtxRef.current.state === 'closed') {
         previewCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
       
       const ctx = previewCtxRef.current;
+      
+      // Resume AudioContext if suspended
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(console.error);
+      }
+      
+      // Verify the stream track is live before creating source
+      const audioTrack = stream.getAudioTracks()[0];
+      if (!audioTrack || audioTrack.readyState !== 'live') {
+        console.warn('Audio track not live, skipping monitoring');
+        return;
+      }
+      
       const source = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.8; // Smoother level changes
       previewAnalyserMicRef.current = analyser;
       source.connect(analyser);
 
       const data = new Uint8Array(analyser.frequencyBinCount);
       const loop = () => {
         if (!isMonitoringMic || !previewAnalyserMicRef.current) return;
-        analyser.getByteFrequencyData(data);
-        let sum = 0;
-        for (let i = 0; i < data.length; i++) sum += data[i];
-        setLevelMic(Math.min(100, Math.round((sum / data.length) / 2)));
-        micRafRef.current = requestAnimationFrame(loop);
+        
+        try {
+          analyser.getByteFrequencyData(data);
+          let sum = 0;
+          for (let i = 0; i < data.length; i++) sum += data[i];
+          const level = Math.min(100, Math.round((sum / data.length) / 2));
+          setLevelMic(level);
+          micRafRef.current = requestAnimationFrame(loop);
+        } catch (e) {
+          console.error('Error in mic monitoring loop:', e);
+          setIsMonitoringMic(false);
+        }
       };
       
       setIsMonitoringMic(true);
       loop();
     } catch (e) {
       console.error('Failed to start mic monitoring:', e);
+      setIsMonitoringMic(false);
     }
   };
 
@@ -223,26 +246,91 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
 
   const enableMic = async () => {
     setError(null);
-    stopMicMonitoring(); // Stop any existing monitoring
+    
+    // Complete cleanup of existing mic stream
+    stopMicMonitoring();
+    if (micStream) {
+      stopStream(micStream);
+      setMicStream(null);
+    }
+    
+    // Clean up preview audio context to force fresh start
+    if (previewCtxRef.current) {
+      try { previewCtxRef.current.close(); } catch {}
+      previewCtxRef.current = null;
+    }
+    
     try {
-      // First, try selected device if any
-      let constraints: MediaStreamConstraints = { audio: true };
+      let s: MediaStream | null = null;
+      
+      // Try with selected device first
       if (selectedMicId) {
-        constraints = { audio: { deviceId: { exact: selectedMicId } as any } };
+        try {
+          const exactConstraints: MediaStreamConstraints = { 
+            audio: { 
+              deviceId: { exact: selectedMicId },
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
+            } 
+          };
+          s = await navigator.mediaDevices.getUserMedia(exactConstraints);
+          
+          // Verify the stream has audio tracks and they're working
+          if (s.getAudioTracks().length === 0) {
+            throw new Error('No audio tracks in selected device stream');
+          }
+          
+          // Test if the audio track is actually active
+          const track = s.getAudioTracks()[0];
+          if (!track || track.readyState !== 'live' || track.muted) {
+            throw new Error('Selected audio track is not active or muted');
+          }
+          
+        } catch (selectedDeviceError) {
+          console.warn('Selected device failed:', selectedDeviceError);
+          // Clean up failed stream
+          if (s) {
+            stopStream(s);
+            s = null;
+          }
+        }
       }
-      let s = await navigator.mediaDevices.getUserMedia(constraints);
-      // Fallback if exact device failed to provide audio tracks
-      if (s.getAudioTracks().length === 0 && !selectedMicId) {
-        s = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // Fallback to default device if selected device failed or not specified
+      if (!s) {
+        const defaultConstraints: MediaStreamConstraints = { 
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        };
+        s = await navigator.mediaDevices.getUserMedia(defaultConstraints);
+        
+        if (s.getAudioTracks().length === 0) {
+          throw new Error('No audio tracks available from default device');
+        }
       }
+      
+      // Verify we have a valid stream before proceeding
+      if (!s || s.getAudioTracks().length === 0) {
+        throw new Error('Failed to obtain valid audio stream');
+      }
+      
       setMicStream(s);
       
-      // Start monitoring audio levels immediately
-      startMicMonitoring(s);
+      // Wait a bit for the stream to stabilize before starting monitoring
+      setTimeout(() => {
+        if (s && s.getAudioTracks().length > 0) {
+          startMicMonitoring(s);
+        }
+      }, 100);
       
       // Clean up when tracks end
       s.getAudioTracks().forEach(track => {
         track.addEventListener('ended', () => {
+          console.log('Mic track ended');
           setMicStream(null);
           stopMicMonitoring();
         });
@@ -250,8 +338,22 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
       
       // After permission granted, refresh device labels
       await refreshDevices();
+      
     } catch (e: any) {
-      setError('マイクのアクセスが許可されませんでした。ブラウザの権限設定を確認してください。');
+      console.error('enableMic error:', e);
+      let errorMessage = 'マイクのアクセスに失敗しました。';
+      
+      if (e.name === 'NotAllowedError') {
+        errorMessage = 'マイクのアクセスが許可されませんでした。ブラウザの権限設定を確認してください。';
+      } else if (e.name === 'NotFoundError') {
+        errorMessage = '指定されたマイクデバイスが見つかりません。デバイスを更新してください。';
+      } else if (e.name === 'NotReadableError') {
+        errorMessage = 'マイクデバイスが他のアプリケーションで使用中の可能性があります。';
+      } else if (e.message.includes('audio track')) {
+        errorMessage = '選択したデバイスから音声を取得できません。別のデバイスを試してください。';
+      }
+      
+      setError(errorMessage);
     }
   };
 
@@ -489,6 +591,26 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
                 style={{ width: `${levelMic}%` }} 
               />
             </div>
+            
+            {/* 診断情報 */}
+            {micStream && (
+              <div className="mt-2 text-xs text-gray-500">
+                <div className="grid grid-cols-2 gap-2">
+                  <span>
+                    トラック状態: {micStream.getAudioTracks()[0]?.readyState || 'unknown'}
+                  </span>
+                  <span>
+                    ミュート: {micStream.getAudioTracks()[0]?.muted ? 'Yes' : 'No'}
+                  </span>
+                  <span>
+                    AudioContext: {previewCtxRef.current?.state || 'none'}
+                  </span>
+                  <span>
+                    監視中: {isMonitoringMic ? 'Yes' : 'No'}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* マイク選択 */}
@@ -497,7 +619,13 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <select
                 value={selectedMicId}
-                onChange={(e) => setSelectedMicId(e.target.value)}
+                onChange={async (e) => {
+                  setSelectedMicId(e.target.value);
+                  // Auto-refresh mic stream when device selection changes and already enabled
+                  if (micStream && e.target.value) {
+                    await enableMic();
+                  }
+                }}
                 className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
                 title="マイクデバイスを選択"
               >
