@@ -20,7 +20,6 @@ type Props = {
 };
 
 export function TranscribePage({ onRecordingStateChange }: Props) {
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -302,9 +301,8 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
 
                 <button
                   onClick={() => {
-                    if (splitFiles.length > 0) {
-                      setCurrentStep(2);
-                    }
+                    // 文字起こしと要約を自動で実行する簡単なフローに変更
+                    console.log('Start transcription for files:', splitFiles.length);
                   }}
                   disabled={!selectedFile || splitFiles.length === 0}
                   className="w-full px-6 py-4 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -314,42 +312,46 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
               </div>
             )}
 
-            {/* Transcription Results */}
-            {currentStep >= 2 && splitFiles.length > 0 && (
-              <TranscriptionStep
-                splitFiles={splitFiles}
-                transcriptionResults={transcriptionResults}
-                onNext={() => setCurrentStep(3)}
-                onBack={() => setCurrentStep(1)}
-                onDownloadSplit={handleDownload}
-                onDownloadAllSplits={handleDownloadAll}
-                onTranscriptionComplete={handleTranscriptionComplete}
-                onBackgroundInfoChange={() => {}}
-                hideBackgroundInfo={true}
-                presetApiKey={apiKey}
-                presetBackgroundInfo={transcriptionBackgroundInfo}
-                presetConcurrencySettings={transcriptionSettings.concurrencySettings}
-                presetCustomPrompt={transcriptionSettings.customPrompt}
-              />
+            {/* Transcription & Summary - Unified Flow */}
+            {splitFiles.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-lg p-8">
+                <TranscriptionStep
+                  splitFiles={splitFiles}
+                  transcriptionResults={transcriptionResults}
+                  onNext={() => {}} // No navigation needed
+                  onBack={() => {}} // No navigation needed  
+                  onDownloadSplit={handleDownload}
+                  onDownloadAllSplits={handleDownloadAll}
+                  onTranscriptionComplete={handleTranscriptionComplete}
+                  onBackgroundInfoChange={() => {}}
+                  hideBackgroundInfo={true}
+                  presetApiKey={apiKey}
+                  presetBackgroundInfo={transcriptionBackgroundInfo}
+                  presetConcurrencySettings={transcriptionSettings.concurrencySettings}
+                  presetCustomPrompt={transcriptionSettings.customPrompt}
+                />
+              </div>
             )}
 
-            {/* Summary Results */}
-            {currentStep >= 3 && transcriptionResults.length > 0 && (
-              <SummaryStep
-                transcriptionResults={transcriptionResults}
-                splitFiles={splitFiles}
-                transcriptionBackgroundInfo={summaryBackgroundInfo}
-                onDownloadSplit={handleDownload}
-                onDownloadAllSplits={handleDownloadAll}
-                onDownloadTranscription={() => {
-                  const transcriber = new GeminiTranscriber();
-                  const formatted = transcriber.formatTranscriptions(transcriptionResults);
-                  downloadTranscription(formatted);
-                }}
-                onBackgroundInfoChange={setSummaryBackgroundInfo}
-                onBack={() => setCurrentStep(2)}
-                presetApiKey={apiKey}
-              />
+            {/* Summary Section */}
+            {transcriptionResults.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-lg p-8">
+                <SummaryStep
+                  transcriptionResults={transcriptionResults}
+                  splitFiles={splitFiles}
+                  transcriptionBackgroundInfo={summaryBackgroundInfo}
+                  onDownloadSplit={handleDownload}
+                  onDownloadAllSplits={handleDownloadAll}
+                  onDownloadTranscription={() => {
+                    const transcriber = new GeminiTranscriber();
+                    const formatted = transcriber.formatTranscriptions(transcriptionResults);
+                    downloadTranscription(formatted);
+                  }}
+                  onBackgroundInfoChange={setSummaryBackgroundInfo}
+                  onBack={() => {}} // No navigation needed
+                  presetApiKey={apiKey}
+                />
+              </div>
             )}
           </div>
         )}
