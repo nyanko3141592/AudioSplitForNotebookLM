@@ -14,10 +14,11 @@ export const markdownToHtml = (md: string): string => {
   const out: string[] = [];
   let inUl = false;
   let inOl = false;
+  let olIndex = 1;
 
   const closeLists = () => {
     if (inUl) { out.push('</ul>'); inUl = false; }
-    if (inOl) { out.push('</ol>'); inOl = false; }
+    if (inOl) { out.push('</ol>'); inOl = false; olIndex = 1; }
   };
 
   const renderInline = (s: string): string => {
