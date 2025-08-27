@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { FileText, Download, Loader2, Key, AlertCircle, Shield, Trash2, StopCircle, CheckCircle, XCircle, Clock, Sparkles } from 'lucide-react';
+import { FileText, Download, Loader2, Key, AlertCircle, Shield, Trash2, StopCircle, CheckCircle, XCircle, Clock, Sparkles, Copy } from 'lucide-react';
 import { GeminiTranscriber, downloadTranscription } from '../utils/geminiTranscriber';
+import { markdownToHtml, plainToHtml, buildHtmlDocument, copyHtmlToClipboard } from '../utils/format';
 import type { TranscriptionResult, TranscriptionProgress } from '../utils/geminiTranscriber';
 import type { SplitFile } from './DownloadList';
 import { apiKeyStorage, localStorage, storage, storageMode } from '../utils/storage';
@@ -41,6 +42,10 @@ export function TranscriptionPanel({ splitFiles, isProcessing }: TranscriptionPa
     progress: '',
     currentStep: 0,
     totalSteps: 3
+  });
+  const [useMarkdown, setUseMarkdown] = useState<boolean>(() => {
+    const saved = window.localStorage.getItem('summary_use_markdown');
+    return saved === '1';
   });
   
   const defaultPrompt = `この音声ファイルの内容を正確に文字起こししてください。
@@ -260,9 +265,14 @@ export function TranscriptionPanel({ splitFiles, isProcessing }: TranscriptionPa
         currentStep: 2 
       }));
 
+      // 出力形式の明示（デフォルト: プレーンテキスト）
+      const outputDirectivePlain = `\n\n出力形式: プレーンテキスト。Markdown記法（#, *, -, 1., \`\`\`, _ など）は使用しない。\n箇条書きは「・」や「▼」などのテキスト記号で表現し、見出しはテキストのみで装飾（例: 【見出し】）とする。\n余分な説明や前置きは出力しない。`;
+      const outputDirectiveMarkdown = `\n\n出力形式: Markdown。適切な見出し（#）、リスト（- / 1.）、強調（**）等を用いて整形し、余分な説明は出力しない。`;
+      const promptWithFormat = (formatPrompt || '') + (useMarkdown ? outputDirectiveMarkdown : outputDirectivePlain);
+
       const summary = await transcriber.summarizeTranscriptions(
         transcriptionResults,
-        formatPrompt || undefined,
+        promptWithFormat || undefined,
         (status: string) => {
           setSummarySettings(prev => ({ 
             ...prev, 
@@ -288,8 +298,29 @@ export function TranscriptionPanel({ splitFiles, isProcessing }: TranscriptionPa
 
   const handleDownloadSummary = () => {
     if (summarySettings.result) {
-      downloadTranscription(summarySettings.result, 'summary.md');
+      if (useMarkdown) {
+        downloadTranscription(summarySettings.result, 'summary.md', 'text/markdown;charset=utf-8');
+      } else {
+        downloadTranscription(summarySettings.result, 'summary.txt', 'text/plain;charset=utf-8');
+      }
     }
+  };
+
+  const handleCopySummary = async () => {
+    if (!summarySettings.result) return;
+    const htmlBody = useMarkdown
+      ? markdownToHtml(summarySettings.result)
+      : plainToHtml(summarySettings.result);
+    await copyHtmlToClipboard(`<div>${htmlBody}</div>`, summarySettings.result);
+  };
+
+  const handleDownloadAsHtml = () => {
+    if (!summarySettings.result) return;
+    const htmlBody = useMarkdown
+      ? markdownToHtml(summarySettings.result)
+      : plainToHtml(summarySettings.result);
+    const fullHtml = buildHtmlDocument(htmlBody, 'Summary');
+    downloadTranscription(fullHtml, 'summary.html', 'text/html;charset=utf-8');
   };
 
   const handleDownloadTranscription = () => {
@@ -655,7 +686,7 @@ export function TranscriptionPanel({ splitFiles, isProcessing }: TranscriptionPa
               </div>
             )}
             
-            {/* Preset Buttons */}
+            {/* Preset Buttons & Markdown Toggle */}
             {!summarySettings.isProcessing && (
               <>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -670,6 +701,20 @@ export function TranscriptionPanel({ splitFiles, isProcessing }: TranscriptionPa
                     </button>
                   ))}
                 </div>
+
+                <label className="mt-1 flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                    checked={useMarkdown}
+                    onChange={(e) => {
+                      setUseMarkdown(e.target.checked);
+                      window.localStorage.setItem('summary_use_markdown', e.target.checked ? '1' : '0');
+                    }}
+                    disabled={summarySettings.isProcessing}
+                  />
+                  Markdown形式にする
+                </label>
 
                 <div className="space-y-3">
                   <button
@@ -709,13 +754,29 @@ export function TranscriptionPanel({ splitFiles, isProcessing }: TranscriptionPa
                     <CheckCircle className="w-5 h-5 text-green-500" />
                     まとめ結果
                   </h4>
-                  <button
-                    onClick={handleDownloadSummary}
-                    className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-medium rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all flex items-center gap-2 shadow-md hover:shadow-lg"
-                  >
-                    <Download className="w-4 h-4" />
-                    ダウンロード
-                  </button>
+                  <div className="flex gap-2 flex-wrap justify-end">
+                    <button
+                      onClick={handleCopySummary}
+                      className="px-4 py-2 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 transition-all flex items-center gap-2 shadow-md hover:shadow-lg"
+                    >
+                      <Copy className="w-4 h-4" />
+                      コピー
+                    </button>
+                    <button
+                      onClick={handleDownloadSummary}
+                      className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-medium rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all flex items-center gap-2 shadow-md hover:shadow-lg"
+                    >
+                      <Download className="w-4 h-4" />
+                      ダウンロード
+                    </button>
+                    <button
+                      onClick={handleDownloadAsHtml}
+                      className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-medium rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all flex items-center gap-2 shadow-md hover:shadow-lg"
+                    >
+                      <Download className="w-4 h-4" />
+                      HTMLでダウンロード
+                    </button>
+                  </div>
                 </div>
                 <div className="max-h-64 overflow-y-auto border border-purple-200 rounded-lg p-4 bg-gray-50">
                   <pre className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{summarySettings.result}</pre>
