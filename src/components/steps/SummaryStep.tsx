@@ -366,91 +366,36 @@ ${summarySettings.backgroundInfo}
   return (
     <div className="space-y-8">
 
-      {/* セクション1: 基本設定 */}
-      <div className="bg-gray-50 rounded-xl p-6 border">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-          <Key className="w-5 h-5" />
-          基本設定
-        </h3>
-        
-        <div className="space-y-4">
-          {/* API Key */}
-          {!presetApiKey && (showApiKeyInput ? (
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">
-                Gemini API キー
-              </label>
-              <input
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="AIzaSy..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              />
-              <p className="text-xs text-gray-500">
-                <a 
-                  href="https://aistudio.google.com/app/apikey" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-purple-600 hover:underline"
-                >
-                  Google AI Studio
-                </a>
-                でAPIキーを取得してください
-              </p>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-green-600" />
-                <span className="text-sm font-medium text-green-800">APIキー設定済み</span>
-              </div>
-              <button
-                onClick={() => setShowApiKeyInput(true)}
-                className="text-xs text-green-700 hover:text-green-800 underline"
-              >
-                変更
-              </button>
-            </div>
-          ))}
-
-          {/* Model Selection */}
-          {apiKey && (
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">
-                AIモデル
+      {/* まとめ設定 */}
+      {apiKey && (
+        <div className="bg-purple-50 rounded-xl p-6 border border-purple-200">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+            <Sparkles className="w-5 h-5" />
+            まとめ設定
+          </h3>
+          
+          <div className="space-y-5">
+            {/* Compact Model Selection */}
+            <div className="flex items-center gap-4">
+              <label className="text-sm font-medium text-gray-700 min-w-0">
+                モデル:
               </label>
               <select
                 value={selectedModel}
                 onChange={(e) => handleModelChange(e.target.value)}
                 disabled={summarySettings.isProcessing}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50"
+                className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50 text-sm"
               >
-                <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite (推奨)</option>
-                <option value="gemini-2.5-flash">Gemini 2.5 Flash (高性能)</option>
-                <option value="gemini-2.5-pro">Gemini 2.5 Pro (最高性能)</option>
+                <option value="gemini-2.0-flash-lite">Flash-Lite (推奨)</option>
+                <option value="gemini-2.5-flash">2.5 Flash (高性能)</option>
+                <option value="gemini-2.5-pro">2.5 Pro (最高性能)</option>
               </select>
-              <p className="text-xs text-gray-500 mt-1">
-                選択したモデルが次回も自動選択されます
-              </p>
             </div>
-          )}
-        </div>
-      </div>
 
-      {/* セクション2: まとめ形式の設定 */}
-      {apiKey && (
-        <div className="bg-purple-50 rounded-xl p-6 border border-purple-200">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-            <Sparkles className="w-5 h-5" />
-            まとめ形式の設定
-          </h3>
-          
-          <div className="space-y-4">
             {/* Format Presets */}
             <div>
               <label className="text-sm font-medium text-gray-700 mb-3 block">
-                プリセット選択（テキストエリアに自動入力）
+                形式プリセット（下のテキストエリアに自動入力）
               </label>
               <div className="grid grid-cols-2 gap-3">
                 {Object.entries(formatPresets).map(([key, preset]) => (
@@ -466,10 +411,10 @@ ${summarySettings.backgroundInfo}
               </div>
             </div>
 
-            {/* Custom Prompt Text Area - Always visible */}
+            {/* Custom Prompt Text Area */}
             <div>
               <label className="text-sm font-medium text-gray-700 mb-2 block">
-                プロンプト（カスタマイズ可能）
+                プロンプト（編集可能）
               </label>
               <textarea
                 value={summarySettings.customPrompt}
@@ -479,14 +424,14 @@ ${summarySettings.backgroundInfo}
                 disabled={summarySettings.isProcessing}
               />
               <p className="text-xs text-gray-500 mt-1">
-                プリセットボタンで定型文を挿入、または直接編集してカスタマイズできます
+                プリセットで定型文を挿入後、自由に編集できます
               </p>
             </div>
 
             {/* Output Format */}
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">
-                出力形式
+            <div className="flex items-center gap-4">
+              <label className="text-sm font-medium text-gray-700">
+                出力形式:
               </label>
               <label className="flex items-center gap-2 text-sm text-gray-700">
                 <input
@@ -499,14 +444,64 @@ ${summarySettings.backgroundInfo}
                   }}
                   disabled={summarySettings.isProcessing}
                 />
-                Markdown形式で出力する
+                Markdown形式
               </label>
             </div>
           </div>
         </div>
       )}
 
-      {/* セクション3: 詳細設定 */}
+      {/* API Key - Show separately if needed */}
+      {!presetApiKey && !apiKey && (
+        <div className="bg-gray-50 rounded-xl p-6 border">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+            <Key className="w-5 h-5" />
+            API設定が必要です
+          </h3>
+          
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">
+              Gemini API キー
+            </label>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="AIzaSy..."
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            />
+            <p className="text-xs text-gray-500">
+              <a 
+                href="https://aistudio.google.com/app/apikey" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-purple-600 hover:underline"
+              >
+                Google AI Studio
+              </a>
+              でAPIキーを取得してください
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* API Key Status - Show when configured */}
+      {!presetApiKey && apiKey && (
+        <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-green-600" />
+            <span className="text-sm font-medium text-green-800">APIキー設定済み</span>
+          </div>
+          <button
+            onClick={() => setShowApiKeyInput(true)}
+            className="text-xs text-green-700 hover:text-green-800 underline"
+          >
+            変更
+          </button>
+        </div>
+      )}
+
+      {/* 詳細設定 */}
       {apiKey && (
         <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
           <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
