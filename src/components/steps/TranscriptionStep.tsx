@@ -4,7 +4,6 @@ import { GeminiTranscriber, downloadTranscription } from '../../utils/geminiTran
 import type { TranscriptionResult, TranscriptionProgress } from '../../utils/geminiTranscriber';
 import type { SplitFile } from '../DownloadList';
 import { apiKeyStorage, localStorage, apiEndpointStorage } from '../../utils/storage';
-import { ResultsSummary } from '../ResultsSummary';
 
 interface TranscriptionStepProps {
   splitFiles: SplitFile[];
@@ -306,15 +305,6 @@ export function TranscriptionStep({
 
   return (
     <div className="space-y-6">
-      {/* Previous Results Summary */}
-      {splitFiles.length > 0 && (
-        <ResultsSummary
-          splitFiles={splitFiles}
-          onDownloadSplit={onDownloadSplit}
-          onDownloadAllSplits={onDownloadAllSplits}
-          compact
-        />
-      )}
 
       {/* API Key Status/Input */}
       {!presetApiKey && (showApiKeyInput ? (
@@ -524,18 +514,76 @@ export function TranscriptionStep({
             ))}
           </div>
           
-          <div className="space-y-3">
-            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-sm text-green-800">
-                💡 文字起こしが完了しました。次のステップで要約を作成できます。
-              </p>
+          <div className="space-y-4">
+            {/* Completion Status */}
+            <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-6 h-6 bg-green-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                  ✓
+                </div>
+                <h4 className="text-lg font-semibold text-green-800">文字起こし完了！</h4>
+              </div>
+              
+              {/* Results Summary */}
+              <div className="bg-white/60 rounded-lg p-4 mb-3 border border-green-300">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                  <div>
+                    <div className="text-2xl font-bold text-green-600">{splitFiles.length}</div>
+                    <div className="text-xs text-green-700">分割ファイル</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-green-600">{successCount}/{transcriptionResults.length}</div>
+                    <div className="text-xs text-green-700">文字起こし成功</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-green-600">
+                      {transcriptionResults.reduce((total, result) => total + (result.transcription?.length || 0), 0).toLocaleString()}
+                    </div>
+                    <div className="text-xs text-green-700">総文字数</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Download Options */}
+              <div className="flex flex-wrap gap-2 justify-center mb-3">
+                {onDownloadSplit && splitFiles.map(file => (
+                  <button
+                    key={file.name}
+                    onClick={() => onDownloadSplit(file)}
+                    className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-xs font-medium"
+                  >
+                    📁 {file.name}
+                  </button>
+                ))}
+                {onDownloadAllSplits && splitFiles.length > 1 && (
+                  <button
+                    onClick={onDownloadAllSplits}
+                    className="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-xs font-medium"
+                  >
+                    📦 一括DL
+                  </button>
+                )}
+                <button
+                  onClick={handleDownloadTranscription}
+                  className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-xs font-medium"
+                >
+                  📄 文字起こし結果
+                </button>
+              </div>
+
+              {/* Next Step Guide */}
+              <div className="p-3 bg-white/80 rounded-lg border border-green-300">
+                <p className="text-sm text-green-800">
+                  <strong>📋 次のステップ:</strong> 下の要約作成セクションでAIによる自動まとめを作成できます。
+                </p>
+              </div>
             </div>
             
             {/* Actual Cost Display */}
             {actualCost !== null && (
               <div className="text-right">
                 <p className="text-xs text-gray-500">
-                  コスト: ${actualCost.toFixed(4)} ({selectedModel === 'gemini-2.0-flash-lite' ? 'Flash-Lite' : 
+                  実際のコスト: ${actualCost.toFixed(4)} ({selectedModel === 'gemini-2.0-flash-lite' ? 'Flash-Lite' : 
                             selectedModel === 'gemini-2.5-flash' ? '2.5 Flash' : '2.5 Pro'})
                 </p>
               </div>
