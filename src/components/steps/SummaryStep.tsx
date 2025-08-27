@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Sparkles, Download, Loader2, AlertCircle, CheckCircle, Info, RefreshCw, Copy, Key } from 'lucide-react';
 import { GeminiTranscriber, downloadTranscription } from '../../utils/geminiTranscriber';
+import { markdownToHtml, plainToHtml, buildHtmlDocument, copyHtmlToClipboard } from '../../utils/format';
 import type { TranscriptionResult } from '../../utils/geminiTranscriber';
 import { apiKeyStorage, localStorage, apiEndpointStorage } from '../../utils/storage';
 import { StepContent } from '../StepContent';
@@ -42,6 +43,10 @@ export function SummaryStep({
     progress: '',
     currentStep: 0,
     totalSteps: 3
+  });
+  const [useMarkdown, setUseMarkdown] = useState<boolean>(() => {
+    const saved = window.localStorage.getItem('summary_use_markdown');
+    return saved === '1';
   });
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
   const [actualSummaryCost, setActualSummaryCost] = useState<number | null>(null);
@@ -233,11 +238,13 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
   };
 
 
-  const handleCopySummary = () => {
-    if (summarySettings.result) {
-      navigator.clipboard.writeText(summarySettings.result);
-      // TODO: Add toast notification for copy success
-    }
+  const handleCopySummary = async () => {
+    if (!summarySettings.result) return;
+    const htmlBody = useMarkdown
+      ? markdownToHtml(summarySettings.result)
+      : plainToHtml(summarySettings.result);
+    await copyHtmlToClipboard(`<div>${htmlBody}</div>`, summarySettings.result);
+    // TODO: Add toast notification for copy success
   };
 
   const handleSummarize = async (preset?: keyof typeof formatPresets) => {
@@ -295,6 +302,11 @@ ${summarySettings.backgroundInfo}
         }
       }
 
+      // 出力形式の明示（デフォルト: プレーンテキスト）
+      const outputDirectivePlain = `\n\n出力形式: プレーンテキスト。Markdown記法（#, *, -, 1., \`\`\`, _ など）は使用しない。\n箇条書きは「・」や「▼」などのテキスト記号で表現し、見出しはテキストのみで装飾（例: 【見出し】）とする。\n余分な説明や前置きは出力しない。`;
+      const outputDirectiveMarkdown = `\n\n出力形式: Markdown。適切な見出し（#）、リスト（- / 1.）、強調（**）等を用いて整形し、余分な説明は出力しない。`;
+      formatPrompt = (formatPrompt || '') + (useMarkdown ? outputDirectiveMarkdown : outputDirectivePlain);
+
       // Step 2: 文字起こし結果を統合
       setSummarySettings(prev => ({ 
         ...prev, 
@@ -335,8 +347,21 @@ ${summarySettings.backgroundInfo}
 
   const handleDownloadSummary = () => {
     if (summarySettings.result) {
-      downloadTranscription(summarySettings.result, 'summary.md');
+      if (useMarkdown) {
+        downloadTranscription(summarySettings.result, 'summary.md', 'text/markdown;charset=utf-8');
+      } else {
+        downloadTranscription(summarySettings.result, 'summary.txt', 'text/plain;charset=utf-8');
+      }
     }
+  };
+
+  const handleDownloadAsHtml = () => {
+    if (!summarySettings.result) return;
+    const htmlBody = useMarkdown
+      ? markdownToHtml(summarySettings.result)
+      : plainToHtml(summarySettings.result);
+    const fullHtml = buildHtmlDocument(htmlBody, 'Summary');
+    downloadTranscription(fullHtml, 'summary.html', 'text/html;charset=utf-8');
   };
 
   if (transcriptionResults.length === 0) {
@@ -458,6 +483,20 @@ ${summarySettings.backgroundInfo}
             </button>
           ))}
         </div>
+        {/* Markdown トグル */}
+        <label className="mt-2 flex items-center gap-2 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+            checked={useMarkdown}
+            onChange={(e) => {
+              setUseMarkdown(e.target.checked);
+              window.localStorage.setItem('summary_use_markdown', e.target.checked ? '1' : '0');
+            }}
+            disabled={summarySettings.isProcessing}
+          />
+          Markdown形式にする
+        </label>
       </div>
 
       {/* カスタムプロンプト - 常時表示 */}
@@ -591,7 +630,7 @@ ${summarySettings.backgroundInfo}
               <CheckCircle className="w-5 h-5 text-green-500" />
               まとめ結果
             </h4>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap justify-end">
               <button
                 onClick={handleCopySummary}
                 className="px-4 py-2 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 transition-all flex items-center gap-2 shadow-md hover:shadow-lg"
@@ -605,6 +644,13 @@ ${summarySettings.backgroundInfo}
               >
                 <Download className="w-4 h-4" />
                 ダウンロード
+              </button>
+              <button
+                onClick={handleDownloadAsHtml}
+                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-medium rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all flex items-center gap-2 shadow-md hover:shadow-lg"
+              >
+                <Download className="w-4 h-4" />
+                HTMLでダウンロード
               </button>
             </div>
           </div>

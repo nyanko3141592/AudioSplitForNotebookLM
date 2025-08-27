@@ -711,8 +711,12 @@ ${combinedText}
 }
 
 // ユーティリティ関数
-export const downloadTranscription = (content: string, fileName: string = 'transcription.md') => {
-  const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+export const downloadTranscription = (
+  content: string,
+  fileName: string = 'transcription.md',
+  contentType: string = 'text/markdown;charset=utf-8'
+) => {
+  const blob = new Blob([content], { type: contentType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
