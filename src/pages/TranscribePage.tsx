@@ -211,12 +211,36 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
     return arrayBuffer;
   };
 
-  const handleFileSelect = useCallback(async (file: File) => {
+  const handleFileSelect = useCallback(async (file: File | File[]) => {
     cleanupSplitFiles();
-    setSelectedFile(file);
     setSplitFiles([]);
     setTranscriptionResults([]);
     setError(null);
+    
+    if (Array.isArray(file)) {
+      // Multiple segments: create SplitFiles from all segments
+      console.log(`📁 ${file.length}個のセグメントを受信。個別に文字起こしします。`);
+      
+      const splitFiles: SplitFile[] = file.map((segment, index) => {
+        const fileAsBlob = new Blob([segment], { type: segment.type });
+        return {
+          name: segment.name || `segment_${index + 1}.webm`,
+          size: segment.size,
+          blob: fileAsBlob
+        };
+      });
+      
+      // Use the first segment as the selected file for UI purposes
+      setSelectedFile(file[0]);
+      
+      startTransition(() => {
+        setSplitFiles(splitFiles);
+      });
+      return;
+    }
+    
+    // Single file processing (existing logic)
+    setSelectedFile(file);
     
     // Check if file needs splitting (>200MB)
     const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB in bytes

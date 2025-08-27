@@ -4,7 +4,7 @@ import { FileUpload } from './FileUpload';
 
 type Props = {
   mode: 'record' | 'upload';
-  onFileSelect: (file: File) => void;
+  onFileSelect: (file: File | File[]) => void;
   onRecordingStateChange: (active: boolean) => void;
   isProcessing: boolean;
   isPending: boolean;
@@ -51,7 +51,7 @@ export const QuickStartFlow: React.FC<Props> = ({
       </div>
       
       <FileUpload
-        onFileSelect={onFileSelect}
+        onFileSelect={(file: File) => onFileSelect(file)}
         disabled={isProcessing || isPending}
       />
       

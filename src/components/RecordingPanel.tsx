@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 type Props = {
-  onRecorded: (file: File) => void;
+  onRecorded: (file: File | File[]) => void;
   onRecordingStateChange?: (active: boolean) => void;
 };
 
@@ -639,87 +639,6 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
     }
   };
 
-  const mergeAudioSegments = async (segments: File[]): Promise<File> => {
-    console.log(`🔗 Merging ${segments.length} audio segments`);
-    
-    try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const buffers: AudioBuffer[] = [];
-      
-      // Load all segments as AudioBuffers
-      for (const segment of segments) {
-        const arrayBuffer = await segment.arrayBuffer();
-        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-        buffers.push(audioBuffer);
-      }
-      
-      // Calculate total length and create merged buffer
-      const totalLength = buffers.reduce((sum, buffer) => sum + buffer.length, 0);
-      const sampleRate = buffers[0].sampleRate;
-      const numberOfChannels = buffers[0].numberOfChannels;
-      
-      const mergedBuffer = audioContext.createBuffer(numberOfChannels, totalLength, sampleRate);
-      
-      // Copy all segments into the merged buffer
-      let offset = 0;
-      for (const buffer of buffers) {
-        for (let channel = 0; channel < numberOfChannels; channel++) {
-          const channelData = buffer.getChannelData(channel);
-          mergedBuffer.getChannelData(channel).set(channelData, offset);
-        }
-        offset += buffer.length;
-      }
-      
-      // Create a MediaRecorder to encode the merged buffer
-      const destination = audioContext.createMediaStreamDestination();
-      const source = audioContext.createBufferSource();
-      source.buffer = mergedBuffer;
-      source.connect(destination);
-      
-      // Record the merged audio
-      const mediaRecorder = new MediaRecorder(destination.stream, {
-        mimeType: mimeType || 'audio/webm'
-      });
-      
-      const chunks: BlobPart[] = [];
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) {
-          chunks.push(e.data);
-        }
-      };
-      
-      // Return Promise that resolves when recording is done
-      return new Promise((resolve, reject) => {
-        mediaRecorder.onstop = () => {
-          const blob = new Blob(chunks, { type: mimeType || 'audio/webm' });
-          const now = new Date();
-          const pad = (n: number) => n.toString().padStart(2, '0');
-          const fileName = `recording_merged_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.webm`;
-          const file = new File([blob], fileName, { type: blob.type });
-          audioContext.close();
-          resolve(file);
-        };
-        
-        mediaRecorder.onerror = (e) => {
-          audioContext.close();
-          reject(e);
-        };
-        
-        mediaRecorder.start();
-        source.start();
-        
-        // Stop recording after the audio finishes playing
-        source.onended = () => {
-          mediaRecorder.stop();
-        };
-      });
-      
-    } catch (error) {
-      console.error('Error merging audio segments:', error);
-      // Fallback: return the first segment if merging fails
-      return segments[0];
-    }
-  };
 
   const finalizeRecording = async () => {
     console.log('✅ Finalizing recording with all segments');
@@ -730,22 +649,15 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
     // Wait a bit for the current segment to be saved
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    // Merge all segments and pass to parent
+    // Pass all segments to parent for individual transcription
     if (recordedSegments.length > 0) {
-      try {
-        // If there's only one segment, just use it
-        if (recordedSegments.length === 1) {
-          onRecorded(recordedSegments[0]);
-        } else {
-          // Merge multiple segments
-          console.log('🔄 Merging multiple segments...');
-          const mergedFile = await mergeAudioSegments(recordedSegments);
-          onRecorded(mergedFile);
-        }
-      } catch (error) {
-        console.error('Error processing segments:', error);
-        // Fallback: use the first segment
+      if (recordedSegments.length === 1) {
+        // Single segment: pass as single file
         onRecorded(recordedSegments[0]);
+      } else {
+        // Multiple segments: pass as array for individual transcription
+        console.log(`📁 ${recordedSegments.length}個のセグメントを個別に文字起こし処理します`);
+        onRecorded(recordedSegments);
       }
     }
     
