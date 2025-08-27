@@ -632,22 +632,6 @@ ${summarySettings.backgroundInfo}
         </div>
       )}
 
-      {/* Completion Message */}
-      {!summarySettings.isProcessing && !error && (
-        <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200 text-center">
-          <div className="space-y-2">
-            <p className="text-lg font-semibold text-green-800">
-              🎉 お疲れさまでした！
-            </p>
-            <p className="text-sm text-green-700">
-              {summarySettings.result 
-                ? 'まとめが完了しました。結果をダウンロードしてNotebookLMなどでご活用ください。'
-                : 'すべての準備が整いました。上のボタンからまとめを作成してください。'
-              }
-            </p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
