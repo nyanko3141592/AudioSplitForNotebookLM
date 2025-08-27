@@ -14,11 +14,10 @@ export const markdownToHtml = (md: string): string => {
   const out: string[] = [];
   let inUl = false;
   let inOl = false;
-  let olIndex = 1;
 
   const closeLists = () => {
     if (inUl) { out.push('</ul>'); inUl = false; }
-    if (inOl) { out.push('</ol>'); inOl = false; olIndex = 1; }
+    if (inOl) { out.push('</ol>'); inOl = false; }
   };
 
   const renderInline = (s: string): string => {
@@ -55,7 +54,7 @@ export const markdownToHtml = (md: string): string => {
     // ordered list 1. text / 2) text
     const olMatch = line.match(/^([0-9]+)[\.)]\s+(.*)$/);
     if (olMatch) {
-      if (!inOl) { closeLists(); out.push('<ol>'); inOl = true; olIndex = parseInt(olMatch[1] || '1', 10) || 1; }
+      if (!inOl) { closeLists(); out.push('<ol>'); inOl = true; }
       out.push(`<li>${renderInline(olMatch[2])}</li>`);
       continue;
     }
