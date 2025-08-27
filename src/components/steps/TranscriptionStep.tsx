@@ -254,54 +254,6 @@ export function TranscriptionStep({
   const successCount = transcriptionResults.filter(r => !r.error).length;
   const canProceed = hasResults && successCount > 0;
 
-  if (isTranscribing) {
-    return (
-      <div className="space-y-4">
-        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-sm text-blue-700 font-medium">{currentProgress.status}</p>
-        </div>
-        
-        {currentProgress.fileStates.size > 0 && (
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-gray-700">各ファイルの状態</p>
-            <div className="grid gap-2">
-              {Array.from(currentProgress.fileStates.entries()).map(([partNumber, result]) => (
-                <div key={partNumber} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1">
-                      {result.status === 'pending' && <Clock className="w-4 h-4 text-gray-400" />}
-                      {result.status === 'processing' && <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />}
-                      {result.status === 'completed' && <CheckCircle className="w-4 h-4 text-green-500" />}
-                      {result.status === 'error' && <XCircle className="w-4 h-4 text-red-500" />}
-                      {result.status === 'cancelled' && <StopCircle className="w-4 h-4 text-orange-500" />}
-                    </div>
-                    <span className="text-sm text-gray-700">{result.fileName}</span>
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {result.status === 'pending' && '待機中'}
-                    {result.status === 'processing' && '処理中'}
-                    {result.status === 'completed' && '完了'}
-                    {result.status === 'error' && 'エラー'}
-                    {result.status === 'cancelled' && 'キャンセル'}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        
-        <div className="flex justify-center">
-          <button
-            onClick={handleCancelTranscription}
-            className="px-6 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
-          >
-            <StopCircle className="w-5 h-5" />
-            中止
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-8">
@@ -414,6 +366,60 @@ export function TranscriptionStep({
           <div className="flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
             <p className="text-sm text-red-700">{error}</p>
+          </div>
+        </div>
+      )}
+
+      {/* 処理中表示 */}
+      {isTranscribing && (
+        <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
+          <div className="space-y-4">
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-3 mb-3">
+                <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+                <span className="text-lg font-semibold text-blue-800">文字起こし実行中...</span>
+              </div>
+              <p className="text-sm text-blue-700 font-medium">{currentProgress.status}</p>
+            </div>
+            
+            {currentProgress.fileStates.size > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-700">各ファイルの状態</p>
+                <div className="grid gap-2">
+                  {Array.from(currentProgress.fileStates.entries()).map(([partNumber, result]) => (
+                    <div key={partNumber} className="flex items-center justify-between p-2 bg-white/60 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
+                          {result.status === 'pending' && <Clock className="w-4 h-4 text-gray-400" />}
+                          {result.status === 'processing' && <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />}
+                          {result.status === 'completed' && <CheckCircle className="w-4 h-4 text-green-500" />}
+                          {result.status === 'error' && <XCircle className="w-4 h-4 text-red-500" />}
+                          {result.status === 'cancelled' && <StopCircle className="w-4 h-4 text-orange-500" />}
+                        </div>
+                        <span className="text-sm text-gray-700">{result.fileName}</span>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {result.status === 'pending' && '待機中'}
+                        {result.status === 'processing' && '処理中'}
+                        {result.status === 'completed' && '完了'}
+                        {result.status === 'error' && 'エラー'}
+                        {result.status === 'cancelled' && 'キャンセル'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            <div className="flex justify-center">
+              <button
+                onClick={handleCancelTranscription}
+                className="px-6 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+              >
+                <StopCircle className="w-5 h-5" />
+                中止
+              </button>
+            </div>
           </div>
         </div>
       )}
