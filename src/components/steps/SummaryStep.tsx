@@ -522,19 +522,10 @@ ${summarySettings.backgroundInfo}
       {/* 再生成ボタン（入力・出力セクション間） */}
       {apiKey && !summarySettings.isProcessing && (
         <div className="bg-white rounded-xl p-6 border border-gray-200 text-center">
-          <div className="flex items-center justify-center gap-6">
-            <div className="text-sm text-gray-600">
-              予想コスト: <span className="font-mono font-semibold">${(() => {
-                const textLength = getTotalTextLength();
-                const cost = calculateSummaryCost(textLength, selectedModel);
-                return cost.totalCost.toFixed(4);
-              })()}</span>
-              <span className="ml-2 text-xs">({getTotalTextLength().toLocaleString()}文字)</span>
-            </div>
-            
+          <div className="space-y-3">
             <button
               onClick={() => handleSummarize()}
-              className="px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl"
+              className="px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl mx-auto"
             >
               {summarySettings.result ? (
                 <>
@@ -548,6 +539,15 @@ ${summarySettings.backgroundInfo}
                 </>
               )}
             </button>
+            
+            <div className="text-sm text-gray-600">
+              予想コスト: <span className="font-mono font-semibold">${(() => {
+                const textLength = getTotalTextLength();
+                const cost = calculateSummaryCost(textLength, selectedModel);
+                return cost.totalCost.toFixed(4);
+              })()}</span>
+              <span className="ml-2 text-xs">({getTotalTextLength().toLocaleString()}文字)</span>
+            </div>
           </div>
         </div>
       )}

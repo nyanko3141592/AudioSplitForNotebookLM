@@ -427,20 +427,11 @@ export function TranscriptionStep({
       {/* 再生成ボタン（入力・出力セクション間） */}
       {apiKey && !isTranscribing && (
         <div className="bg-white rounded-xl p-6 border border-gray-200 text-center">
-          <div className="flex items-center justify-center gap-6">
-            <div className="text-sm text-gray-600">
-              予想コスト: <span className="font-mono font-semibold">${(() => {
-                const duration = getTotalDuration();
-                const cost = calculateCost(duration, selectedModel);
-                return cost.totalCost.toFixed(4);
-              })()}</span>
-              <span className="ml-2 text-xs">({Math.round(getTotalDuration())}秒)</span>
-            </div>
-            
+          <div className="space-y-3">
             <button
               onClick={handleTranscribe}
               disabled={!apiKey || splitFiles.length === 0}
-              className="px-8 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold rounded-xl hover:from-violet-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl"
+              className="px-8 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold rounded-xl hover:from-violet-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl mx-auto"
             >
               {hasResults || error ? (
                 <>
@@ -454,6 +445,15 @@ export function TranscriptionStep({
                 </>
               )}
             </button>
+            
+            <div className="text-sm text-gray-600">
+              予想コスト: <span className="font-mono font-semibold">${(() => {
+                const duration = getTotalDuration();
+                const cost = calculateCost(duration, selectedModel);
+                return cost.totalCost.toFixed(4);
+              })()}</span>
+              <span className="ml-2 text-xs">({Math.round(getTotalDuration())}秒)</span>
+            </div>
           </div>
         </div>
       )}
