@@ -62,9 +62,93 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
     navigator.mediaDevices?.addEventListener?.('devicechange', handleDeviceChange);
     refreshDevices();
     return () => {
+      console.log('🧹 RecordingPanel cleanup started');
       navigator.mediaDevices?.removeEventListener?.('devicechange', handleDeviceChange);
+      
+      // Enhanced cleanup for screen sharing crash prevention
+      try {
+        // Stop all recording activities
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+        }
+        mediaRecorderRef.current = null;
+        
+        // Cancel any ongoing monitoring
+        stopMicMonitoring();
+        stopTabMonitoring();
+        
+        // Safely stop all media tracks
+        if (micStream) {
+          micStream.getTracks().forEach(track => {
+            try {
+              track.stop();
+            } catch (e) {
+              console.warn('Failed to stop mic track during cleanup:', e);
+            }
+          });
+        }
+        
+        if (tabStream) {
+          tabStream.getTracks().forEach(track => {
+            try {
+              track.stop();
+            } catch (e) {
+              console.warn('Failed to stop tab track during cleanup:', e);
+            }
+          });
+        }
+        
+        // Close audio contexts safely
+        if (audioCtxRef.current) {
+          try { 
+            audioCtxRef.current.close(); 
+          } catch (e) {
+            console.warn('Failed to close audio context during cleanup:', e);
+          }
+        }
+        
+        if (previewCtxRef.current) {
+          try { 
+            previewCtxRef.current.close(); 
+          } catch (e) {
+            console.warn('Failed to close preview context during cleanup:', e);
+          }
+        }
+        
+        console.log('✅ RecordingPanel cleanup completed');
+      } catch (e) {
+        console.error('Error during RecordingPanel cleanup:', e);
+      }
     };
   }, []);
+
+  // Additional cleanup on page unload to prevent browser crashes
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      console.log('🚨 Page unloading - emergency cleanup');
+      try {
+        // Emergency stop all media streams
+        if (micStream) {
+          micStream.getTracks().forEach(track => track.stop());
+        }
+        if (tabStream) {
+          tabStream.getTracks().forEach(track => track.stop());
+        }
+        
+        // Stop recording if active
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+        }
+      } catch (e) {
+        console.error('Emergency cleanup error:', e);
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [micStream, tabStream]);
 
   const stopStream = (s: MediaStream | null) => {
     s?.getTracks().forEach(t => t.stop());
@@ -238,12 +322,30 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
       // Start monitoring audio levels immediately
       startTabMonitoring(s);
       
-      // Clean up when tracks end
+      // Enhanced cleanup when tracks end or stream changes
       s.getAudioTracks().forEach(track => {
+        // 通常の終了イベント
         track.addEventListener('ended', () => {
+          console.log('🔴 Tab audio track ended');
           setTabStream(null);
           stopTabMonitoring();
         });
+        
+        // 予期せぬミュート状態への対処
+        track.addEventListener('mute', () => {
+          console.log('🔇 Tab audio track muted');
+        });
+        
+        track.addEventListener('unmute', () => {
+          console.log('🔊 Tab audio track unmuted');
+        });
+      });
+      
+      // ストリームの inactive イベントも監視
+      s.addEventListener('inactive', () => {
+        console.log('🔴 Tab stream became inactive');
+        setTabStream(null);
+        stopTabMonitoring();
       });
     } catch (e: any) {
       if (e?.name !== 'NotAllowedError') {
@@ -483,9 +585,39 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
   };
 
   const stopRecording = () => {
+    console.log('🛑 Recording stop initiated');
     try {
-      mediaRecorderRef.current?.stop();
-    } catch {}
+      // Safely stop media recorder
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        console.log('🛑 Stopping MediaRecorder');
+        mediaRecorderRef.current.stop();
+      }
+      
+      // Additional defensive cleanup for streams
+      if (tabStream) {
+        console.log('🛑 Cleaning up tab stream');
+        tabStream.getTracks().forEach(track => {
+          try {
+            track.stop();
+          } catch (e) {
+            console.warn('Failed to stop tab track:', e);
+          }
+        });
+      }
+      
+      if (micStream) {
+        console.log('🛑 Cleaning up mic stream');
+        micStream.getTracks().forEach(track => {
+          try {
+            track.stop();
+          } catch (e) {
+            console.warn('Failed to stop mic track:', e);
+          }
+        });
+      }
+    } catch (e) {
+      console.error('Error during recording stop:', e);
+    }
   };
 
   const resetSources = () => {
