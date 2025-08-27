@@ -707,144 +707,119 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
 
   return (
     <div className="mb-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-6">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="flex items-center justify-center p-2 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl shadow-lg">
-          <span className="text-white font-bold">🎙️</span>
-        </div>
-        <div className="flex-1">
-          <h3 className="text-xl font-bold text-gray-800">録音機能</h3>
-          <p className="text-sm text-gray-600 mt-1">マイクとシステム音声を組み合わせて録音できます</p>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center p-2 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl shadow-lg">
+            <span className="text-white font-bold">🎙️</span>
+          </div>
+          <div>
+            <h3 className="text-xl font-bold text-gray-800">録音機能</h3>
+            <p className="text-sm text-gray-600 mt-1">マイクとシステム音声を組み合わせて録音</p>
+          </div>
         </div>
         
-        {/* 録音制御ボタン */}
-        <div className="flex items-center gap-3">
-          {!isRecording && recordedSegments.length === 0 ? (
+        {/* メイン録音ボタン */}
+        {!isRecording && recordedSegments.length === 0 ? (
+          <button
+            onClick={startRecording}
+            disabled={!micStream && !tabStream}
+            className={`px-8 py-4 rounded-xl text-white font-bold text-lg transition-all shadow-lg ${
+              !micStream && !tabStream 
+                ? 'bg-gray-400 cursor-not-allowed opacity-60' 
+                : 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 hover:shadow-xl hover:scale-105'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              {micStream || tabStream ? (
+                <>
+                  <span className="w-3 h-3 bg-white rounded-full animate-pulse" />
+                  <span>🎙️ 録音開始</span>
+                </>
+              ) : (
+                <span>音声入力を設定してください</span>
+              )}
+            </div>
+          </button>
+        ) : isRecording ? (
+          <div className="flex gap-2">
+            <button
+              onClick={isPaused ? resumeRecording : pauseRecording}
+              className={`px-4 py-3 rounded-xl text-white font-semibold transition-all shadow-lg ${
+                isPaused 
+                  ? 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700' 
+                  : 'bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700'
+              }`}
+            >
+              {isPaused ? '▶️ 再開' : '⏸️ 一時停止'}
+            </button>
+            <button
+              onClick={stopCurrentSegment}
+              className="px-4 py-3 rounded-xl text-white font-semibold bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 transition-all shadow-lg"
+            >
+              ⏹️ 停止
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
             <button
               onClick={startRecording}
               disabled={!micStream && !tabStream}
-              className={`px-8 py-4 rounded-xl text-white font-bold text-lg transition-all shadow-lg ${
+              className={`px-4 py-3 rounded-xl text-white font-semibold transition-all shadow-lg ${
                 !micStream && !tabStream 
-                  ? 'bg-gray-400 cursor-not-allowed opacity-60' 
-                  : 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 hover:shadow-xl hover:scale-105 border-2 border-red-300'
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700'
               }`}
             >
-              <div className="flex items-center gap-3">
-                {micStream || tabStream ? (
-                  <>
-                    <span className="w-3 h-3 bg-white rounded-full animate-pulse" />
-                    <span>🎙️ 録音開始</span>
-                  </>
-                ) : (
-                  <>
-                    <span>⚠️</span>
-                    <span>音声入力を設定してください</span>
-                  </>
-                )}
-              </div>
+              ➕ 続きを録音
             </button>
-          ) : !isRecording && recordedSegments.length > 0 ? (
-            <div className="flex gap-2">
-              <button
-                onClick={startRecording}
-                disabled={!micStream && !tabStream}
-                className={`px-4 py-3 rounded-xl text-white font-semibold transition-all shadow-lg ${
-                  !micStream && !tabStream 
-                    ? 'bg-gray-400 cursor-not-allowed' 
-                    : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 hover:shadow-xl'
-                }`}
-              >
-                ➕ 続きを録音
-              </button>
-              <button
-                onClick={finalizeRecording}
-                className="px-4 py-3 rounded-xl text-white font-semibold bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 transition-all shadow-lg hover:shadow-xl"
-              >
-                ✅ 録音を完了
-              </button>
-            </div>
-          ) : (
-            <div className="flex gap-2">
-              {!isPaused ? (
-                <button
-                  onClick={pauseRecording}
-                  className="px-4 py-3 rounded-xl text-white font-semibold bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 transition-all shadow-lg hover:shadow-xl"
-                >
-                  ⏸️ 一時停止
-                </button>
-              ) : (
-                <button
-                  onClick={resumeRecording}
-                  className="px-4 py-3 rounded-xl text-white font-semibold bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 transition-all shadow-lg hover:shadow-xl"
-                >
-                  ▶️ 再開
-                </button>
-              )}
-              <button
-                onClick={stopCurrentSegment}
-                className="px-4 py-3 rounded-xl text-white font-semibold bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 transition-all shadow-lg hover:shadow-xl"
-              >
-                ⏹️ セグメント終了
-              </button>
-            </div>
-          )}
-        </div>
+            <button
+              onClick={finalizeRecording}
+              className="px-4 py-3 rounded-xl text-white font-semibold bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 transition-all shadow-lg"
+            >
+              ✅ 完了
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 録音状態表示 */}
       {isRecording && (
-        <div className="mb-6 p-4 rounded-xl border-2 border-red-300 bg-red-50 flex items-center justify-between">
+        <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="inline-block w-3 h-3 bg-red-600 rounded-full animate-pulse" />
+            <span className="w-3 h-3 bg-red-600 rounded-full animate-pulse" />
             <div>
-              <span className="font-bold text-red-800 text-lg">録音中</span>
-              {isPaused && <span className="ml-2 text-sm text-yellow-700 font-medium">（一時停止中）</span>}
-              <p className="text-xs text-red-700 mt-1">
-                {micStream && tabStream ? 'マイク + システム音声' : micStream ? 'マイクのみ' : 'システム音声のみ'}
-                {recordedSegments.length > 0 && (
-                  <span className="ml-2 bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs">
-                    セグメント{currentSegmentIndex + 1} （計{recordedSegments.length + 1}個）
-                  </span>
-                )}
-              </p>
+              <span className="font-bold text-red-800">録音中</span>
+              {isPaused && <span className="ml-2 text-sm text-yellow-700">（一時停止中）</span>}
             </div>
           </div>
-          <div className="text-right">
-            <div className="text-2xl font-mono tabular-nums text-red-700 font-bold">
-              {String(Math.floor(elapsedSec / 60)).padStart(2, '0')}:{String(elapsedSec % 60).padStart(2, '0')}
-            </div>
-            <p className="text-xs text-red-600 mt-1">経過時間</p>
+          <div className="text-2xl font-mono text-red-700 font-bold">
+            {String(Math.floor(elapsedSec / 60)).padStart(2, '0')}:{String(elapsedSec % 60).padStart(2, '0')}
           </div>
         </div>
       )}
 
       {/* セグメント状態表示 */}
       {!isRecording && recordedSegments.length > 0 && (
-        <div className="mb-6 p-4 rounded-xl border-2 border-blue-300 bg-blue-50 flex items-center justify-between">
+        <div className="mb-6 p-4 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="inline-block w-3 h-3 bg-blue-600 rounded-full" />
-            <div>
-              <span className="font-bold text-blue-800 text-lg">{recordedSegments.length}個のセグメント録音済み</span>
-              <p className="text-xs text-blue-700 mt-1">続きを録音するか、録音を完了してください</p>
-            </div>
+            <span className="w-3 h-3 bg-blue-600 rounded-full" />
+            <span className="font-bold text-blue-800">{recordedSegments.length}個のセグメント録音済み</span>
           </div>
-          <div className="flex gap-2 text-xs text-blue-600">
+          <div className="flex gap-1 text-xs">
             {recordedSegments.map((_, index) => (
-              <span key={index} className="bg-blue-200 px-2 py-1 rounded-full">
-                #{index + 1}
+              <span key={index} className="bg-blue-200 text-blue-800 px-2 py-1 rounded-full">
+                {index + 1}
               </span>
             ))}
           </div>
         </div>
       )}
-      
+
       {recordingCompleted && (
-        <div className="mb-6 p-4 rounded-xl border-2 border-green-300 bg-green-50 flex items-center justify-between">
+        <div className="mb-6 p-4 rounded-xl bg-green-50 border border-green-200 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="inline-block w-3 h-3 bg-green-600 rounded-full" />
-            <div>
-              <span className="font-bold text-green-800 text-lg">録音完了</span>
-              <p className="text-xs text-green-700 mt-1">画面共有を自動終了しました</p>
-            </div>
+            <span className="w-3 h-3 bg-green-600 rounded-full" />
+            <span className="font-bold text-green-800">録音完了</span>
           </div>
           <button 
             onClick={() => setRecordingCompleted(false)}
@@ -855,283 +830,127 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
         </div>
       )}
 
-      {/* Recording capability notice (tab audio vs desktop apps) */}
-      <div className="mb-4 p-4 rounded-xl border-2 border-emerald-300 bg-emerald-50/70">
-        <p className="text-sm text-emerald-900 leading-relaxed">
-          ✅ <span className="font-semibold">ブラウザのタブで Google Meet / Teams / Zoom を利用</span>する場合、
-          共有ダイアログで「<span className="font-semibold">タブの音声を共有</span>」を有効にすると
-          <span className="font-semibold">相手の声も含めて会議音声を丸ごと録音</span>できます。<br />
-          ⚠️ <span className="font-semibold">デスクトップアプリ版の Zoom / Teams</span>は仕様上、
-          <span className="underline">相手の声は録音できません（自分の声＝マイクのみ録音可能）</span>。
-        </p>
-      </div>
-
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">{error}</div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* マイクセクション */}
-        <div className="p-4 border-2 border-blue-200 rounded-xl bg-blue-50/30">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white text-sm font-bold">🎤</span>
+      {/* シンプルな音声設定 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        {/* マイク設定 */}
+        <div className="p-4 border rounded-xl bg-blue-50/50 flex flex-col">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🎤</span>
+              <span className="font-semibold text-gray-800">マイク</span>
             </div>
-            <div>
-              <h4 className="text-lg font-semibold text-gray-800">マイク</h4>
-              <p className="text-xs text-gray-600">あなたの声を録音します</p>
-            </div>
-            <div className="ml-auto">
-              <span className={`text-xs flex items-center gap-1 px-2 py-1 rounded-full ${micStream ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                {micStream && isMonitoringMic && (
-                  <span className="inline-block w-1.5 h-1.5 bg-green-600 rounded-full animate-pulse" />
-                )}
-                {micStream ? '接続済み' : '未接続'}
-              </span>
-            </div>
+            <span className={`text-xs px-2 py-1 rounded-full ${micStream ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+              {micStream ? '接続済み' : '未接続'}
+            </span>
           </div>
           
-          {/* 音声レベルメーター */}
-          <div className="mb-4">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-gray-600">音声レベル</span>
-              <span className="text-xs text-gray-500">{levelMic}%</span>
-            </div>
-            <div className="w-full h-3 bg-gray-200 rounded-full">
-              <div 
-                className={`h-3 rounded-full transition-all ${isMonitoringMic ? 'bg-gradient-to-r from-green-400 to-green-600' : 'bg-gray-400'}`} 
-                style={{ width: `${levelMic}%` }} 
-              />
-            </div>
-            
-            {/* 診断情報 */}
-            {micStream && (
-              <div className="mt-2 text-xs text-gray-500">
-                <div className="grid grid-cols-2 gap-2">
-                  <span>
-                    トラック状態: {micStream.getAudioTracks()[0]?.readyState || 'unknown'}
-                  </span>
-                  <span>
-                    ミュート: {micStream.getAudioTracks()[0]?.muted ? 'Yes' : 'No'}
-                  </span>
-                  <span>
-                    AudioContext: {previewCtxRef.current?.state || 'none'}
-                  </span>
-                  <span>
-                    監視中: {isMonitoringMic ? 'Yes' : 'No'}
-                  </span>
-                </div>
+          {micStream && (
+            <div className="mb-3">
+              <div className="w-full h-2 bg-gray-200 rounded-full">
+                <div 
+                  className="h-2 bg-green-500 rounded-full transition-all" 
+                  style={{ width: `${levelMic}%` }} 
+                />
               </div>
-            )}
-          </div>
-
-          {/* マイク選択 */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">デバイス選択</label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <select
-                value={selectedMicId}
-                onChange={async (e) => {
-                  setSelectedMicId(e.target.value);
-                  // Auto-refresh mic stream when device selection changes and already enabled
-                  if (micStream && e.target.value) {
-                    await enableMic();
-                  }
-                }}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                title="マイクデバイスを選択"
-              >
-                {micDevices.length === 0 ? (
-                  <option value="">マイクが見つかりません</option>
-                ) : (
-                  micDevices.map(d => (
-                    <option key={d.deviceId} value={d.deviceId}>{d.label || 'マイク'}</option>
-                  ))
-                )}
-              </select>
-              <button
-                onClick={refreshDevices}
-                className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
-              >
-                デバイス更新
-              </button>
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              ラベルが空の場合は一度「有効化」してください
-            </p>
+          )}
+
+          {/* デバイス選択 */}
+          <div className="mb-3 flex-1">
+            <select
+              value={selectedMicId}
+              onChange={async (e) => {
+                setSelectedMicId(e.target.value);
+                if (micStream && e.target.value) {
+                  await enableMic();
+                }
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+            >
+              {micDevices.length === 0 ? (
+                <option value="">マイクが見つかりません</option>
+              ) : (
+                micDevices.map(d => (
+                  <option key={d.deviceId} value={d.deviceId}>
+                    {d.label || `マイク ${d.deviceId.slice(0, 8)}...`}
+                  </option>
+                ))
+              )}
+            </select>
+            <button
+              onClick={refreshDevices}
+              className="w-full mt-2 px-3 py-1 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-xs"
+            >
+              🔄 デバイス更新
+            </button>
           </div>
 
-          {/* マイク制御ボタン */}
           <button
             onClick={enableMic}
-            className={`w-full px-4 py-3 rounded-lg font-semibold transition-all shadow-sm ${
-              micStream && isMonitoringMic
-                ? 'bg-green-500 text-white hover:bg-green-600 shadow-green-200 border-2 border-green-300'
-                : 'bg-gray-500 text-white hover:bg-gray-600 border-2 border-transparent'
+            className={`w-full px-4 py-2 rounded-lg font-medium transition-all mt-auto ${
+              micStream 
+                ? 'bg-green-500 text-white hover:bg-green-600' 
+                : 'bg-gray-500 text-white hover:bg-gray-600'
             }`}
           >
-            <div className="flex items-center justify-center gap-2">
-              {micStream && isMonitoringMic ? (
-                <>
-                  <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                  <span>✅ マイク録音可能</span>
-                </>
-              ) : (
-                <>
-                  <span>🎙️</span>
-                  <span>マイクを接続</span>
-                </>
-              )}
-            </div>
+            {micStream ? '✅ 接続済み' : '🎙️ 接続する'}
           </button>
         </div>
 
-        {/* システム音声セクション */}
-        <div className="p-4 border-2 border-emerald-200 rounded-xl bg-emerald-50/30">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
-              <span className="text-white text-sm font-bold">🖥️</span>
+        {/* システム音声設定 */}
+        <div className="p-4 border rounded-xl bg-emerald-50/50 flex flex-col">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🖥️</span>
+              <span className="font-semibold text-gray-800">システム音声</span>
             </div>
-            <div>
-              <h4 className="text-lg font-semibold text-gray-800">システム音声</h4>
-              <p className="text-xs text-gray-600">他のタブやアプリの音声を録音</p>
-            </div>
-            <div className="ml-auto">
-              <span className={`text-xs flex items-center gap-1 px-2 py-1 rounded-full ${tabStream ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                {tabStream && isMonitoringTab && (
-                  <span className="inline-block w-1.5 h-1.5 bg-green-600 rounded-full animate-pulse" />
-                )}
-                {tabStream ? '接続済み' : '未接続'}
-              </span>
-            </div>
+            <span className={`text-xs px-2 py-1 rounded-full ${tabStream ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+              {tabStream ? '接続済み' : '未接続'}
+            </span>
           </div>
           
-          {/* 音声レベルメーター */}
-          <div className="mb-4">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-gray-600">音声レベル</span>
-              <span className="text-xs text-gray-500">{levelTab}%</span>
+          {tabStream && (
+            <div className="mb-3">
+              <div className="w-full h-2 bg-gray-200 rounded-full">
+                <div 
+                  className="h-2 bg-emerald-500 rounded-full transition-all" 
+                  style={{ width: `${levelTab}%` }} 
+                />
+              </div>
             </div>
-            <div className="w-full h-3 bg-gray-200 rounded-full">
-              <div 
-                className={`h-3 rounded-full transition-all ${isMonitoringTab ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 'bg-gray-400'}`} 
-                style={{ width: `${levelTab}%` }} 
-              />
-            </div>
+          )}
+
+          {/* スペーサー - マイク側のデバイス選択分の高さを確保 */}
+          <div className="flex-1 mb-3">
+            <div className="text-xs text-gray-600 mb-2">タブを選択して音声を共有</div>
+            <div className="h-8"></div> {/* select要素の高さ分 */}
+            <div className="h-6"></div> {/* デバイス更新ボタンの高さ分 */}
           </div>
 
-          {/* 説明とヒント */}
-          <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-            <p className="text-sm text-amber-800 font-medium mb-1">💡 ヒント</p>
-            <ul className="text-xs text-amber-800 space-y-1">
-              <li>• <span className="font-semibold">ブラウザのタブで</span> Google Meet / Teams / Zoom を開き、そのタブを選択</li>
-              <li>• 共有ダイアログで <span className="font-semibold">「タブの音声を共有」</span> にチェック</li>
-              <li>• 録音中は該当タブのミュート設定に注意</li>
-            </ul>
-          </div>
-
-          {/* システム音声制御ボタン */}
           <button
             onClick={pickTabAudio}
-            className={`w-full px-4 py-3 rounded-lg font-semibold transition-all shadow-sm ${
-              tabStream && isMonitoringTab
-                ? 'bg-green-500 text-white hover:bg-green-600 shadow-green-200 border-2 border-green-300'
-                : 'bg-gray-500 text-white hover:bg-gray-600 border-2 border-transparent'
+            className={`w-full px-4 py-2 rounded-lg font-medium transition-all mt-auto ${
+              tabStream 
+                ? 'bg-green-500 text-white hover:bg-green-600' 
+                : 'bg-gray-500 text-white hover:bg-gray-600'
             }`}
           >
-            <div className="flex items-center justify-center gap-2">
-              {tabStream && isMonitoringTab ? (
-                <>
-                  <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                  <span>✅ 画面音声録音可能</span>
-                </>
-              ) : (
-                <>
-                  <span>🖥️</span>
-                  <span>画面音声を選択</span>
-                </>
-              )}
-            </div>
+            {tabStream ? '✅ 接続済み' : '🖥️ 選択する'}
           </button>
         </div>
       </div>
 
-      {/* 録音準備完了状態 - 大きく目立つ表示 */}
-      {(micStream || tabStream) && !isRecording && (
-        <div className="mb-6 p-6 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl shadow-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center justify-center w-12 h-12 bg-green-500 rounded-full shadow-lg">
-                <span className="text-white text-xl">✅</span>
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-green-800 mb-1">録音準備完了！</h3>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-green-700 bg-green-200 px-3 py-1 rounded-full font-medium">
-                    {micStream && tabStream ? '🎙️ マイク + 🖥️ 画面音声' : micStream ? '🎙️ マイクのみ' : '🖥️ 画面音声のみ'}
-                  </span>
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={resetSources}
-                className="px-4 py-2 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition-all shadow-sm border border-red-200 font-medium"
-              >
-                🔄 リセット
-              </button>
-            </div>
-          </div>
-          
-          {/* 録音可能な音声の詳細表示 */}
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-            {micStream && (
-              <div className="bg-white/60 p-3 rounded-lg border border-green-200">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                  <span className="text-sm font-semibold text-green-700">マイク音声</span>
-                </div>
-                <div className="text-xs text-green-600">
-                  レベル: {levelMic}% | 状態: {micStream.getAudioTracks()[0]?.readyState || 'unknown'}
-                </div>
-              </div>
-            )}
-            
-            {tabStream && (
-              <div className="bg-white/60 p-3 rounded-lg border border-green-200">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                  <span className="text-sm font-semibold text-green-700">画面音声</span>
-                </div>
-                <div className="text-xs text-green-600">
-                  レベル: {levelTab}% | 音声トラック: {tabStream.getAudioTracks().length}個
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {!micStream && !tabStream && !isRecording && (
-        <div className="p-6 bg-gradient-to-br from-gray-50 to-blue-50 border-2 border-dashed border-gray-300 rounded-xl text-center">
-          <div className="flex items-center justify-center w-16 h-16 bg-gray-300 rounded-full mx-auto mb-4">
-            <span className="text-gray-600 text-2xl">⚠️</span>
-          </div>
-          <h3 className="text-lg font-bold text-gray-700 mb-2">音声入力が設定されていません</h3>
-          <p className="text-sm text-gray-600 mb-4">録音を開始するには、マイクまたは画面音声を設定してください</p>
-          <div className="flex justify-center gap-4 text-xs text-gray-500">
-            <div className="flex items-center gap-1">
-              <span className="w-2 h-2 bg-gray-400 rounded-full" />
-              <span>マイクを設定</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="w-2 h-2 bg-gray-400 rounded-full" />
-              <span>または画面音声を設定</span>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ヒント */}
+      <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+        <p className="text-sm text-emerald-800">
+          <span className="font-semibold">💡 ヒント：</span>
+          Google Meet / Teams / Zoom をブラウザで開き、「システム音声」で該当タブを選択し「タブの音声を共有」をオンにすると、相手の音声も録音できます。
+        </p>
+      </div>
     </div>
   );
 };
