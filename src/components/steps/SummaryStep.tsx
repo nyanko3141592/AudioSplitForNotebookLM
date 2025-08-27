@@ -158,12 +158,14 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
     
     const savedPrompt = localStorage.getSummaryCustomPrompt();
     
-    // デフォルトプロンプトを設定
-    const defaultPrompt = formatPresets.summary.prompt;
+    // 保存されたプロンプトがある場合はそれを使用、なければ議事録プリセットをデフォルトに
+    const defaultPrompt = formatPresets.meeting.prompt;
     if (savedPrompt) {
       setSummarySettings(prev => ({ ...prev, customPrompt: savedPrompt }));
     } else {
       setSummarySettings(prev => ({ ...prev, customPrompt: defaultPrompt }));
+      // デフォルトプロンプトも保存しておく
+      localStorage.saveSummaryCustomPrompt(defaultPrompt);
     }
     
     // 文字起こしの背景情報のみ引き継ぐ（リロードで永続化しない）
@@ -448,7 +450,7 @@ ${summarySettings.backgroundInfo}
             {/* Format Presets */}
             <div>
               <label className="text-sm font-medium text-gray-700 mb-3 block">
-                プリセット選択
+                プリセット選択（テキストエリアに自動入力）
               </label>
               <div className="grid grid-cols-2 gap-3">
                 {Object.entries(formatPresets).map(([key, preset]) => (
@@ -456,16 +458,29 @@ ${summarySettings.backgroundInfo}
                     key={key}
                     onClick={() => handlePresetSelect(key as keyof typeof formatPresets)}
                     disabled={summarySettings.isProcessing}
-                    className={`px-4 py-3 rounded-lg transition-all text-sm font-medium disabled:opacity-50 ${
-                      summarySettings.customPrompt === preset.prompt
-                        ? 'bg-purple-600 text-white shadow-md'
-                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-purple-50 hover:border-purple-300'
-                    }`}
+                    className="px-4 py-3 rounded-lg transition-all text-sm font-medium disabled:opacity-50 bg-white border border-gray-300 text-gray-700 hover:bg-purple-50 hover:border-purple-300 focus:ring-2 focus:ring-purple-500"
                   >
                     {preset.name}
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Custom Prompt Text Area - Always visible */}
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">
+                プロンプト（カスタマイズ可能）
+              </label>
+              <textarea
+                value={summarySettings.customPrompt}
+                onChange={(e) => handleCustomPromptChange(e.target.value)}
+                placeholder="上のプリセットを選択するか、独自のプロンプトを入力してください..."
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent min-h-32 text-sm resize-y font-mono bg-white"
+                disabled={summarySettings.isProcessing}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                プリセットボタンで定型文を挿入、または直接編集してカスタマイズできます
+              </p>
             </div>
 
             {/* Output Format */}
@@ -516,25 +531,6 @@ ${summarySettings.backgroundInfo}
                 会議の詳細情報を入力すると、より精度の高いまとめが生成されます
               </p>
             </div>
-
-            {/* Custom Prompt - Collapsible */}
-            <details className="group">
-              <summary className="cursor-pointer text-sm font-medium text-gray-700 hover:text-purple-600 transition-colors">
-                カスタムプロンプト（上級者向け）
-              </summary>
-              <div className="mt-3">
-                <textarea
-                  value={summarySettings.customPrompt}
-                  onChange={(e) => handleCustomPromptChange(e.target.value)}
-                  placeholder="カスタムプロンプトを入力してください..."
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-h-32 text-xs resize-y font-mono bg-gray-50"
-                  disabled={summarySettings.isProcessing}
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  プリセットを選択すると自動入力されます。直接編集も可能です。
-                </p>
-              </div>
-            </details>
           </div>
         </div>
       )}
