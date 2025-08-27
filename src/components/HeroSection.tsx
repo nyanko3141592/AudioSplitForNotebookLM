@@ -10,6 +10,15 @@ export const HeroSection: React.FC<Props> = ({ currentPage: _currentPage, onPage
     <div className="bg-gradient-to-r from-violet-600 to-purple-600 py-8">
       <div className="max-w-6xl mx-auto px-6">
         <div className="text-center text-white">
+          <div className="flex items-center justify-center mb-4">
+            <img
+              src="/icon.png"
+              alt="爆速議事録 アイコン"
+              className="w-12 h-12 md:w-14 md:h-14 drop-shadow-lg"
+              loading="eager"
+              decoding="async"
+            />
+          </div>
           <h1 className="text-3xl md:text-4xl font-bold mb-6">
             爆速議事録
           </h1>
