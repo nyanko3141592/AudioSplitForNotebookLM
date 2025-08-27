@@ -9,7 +9,8 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle,
-  MessageSquare
+  MessageSquare,
+  ArrowDown
 } from 'lucide-react';
 import type { TranscriptionResult } from '../utils/geminiTranscriber';
 import { GeminiTranscriber, downloadTranscription } from '../utils/geminiTranscriber';
@@ -460,7 +461,7 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
         )}
 
         {/* Step 1: API Key & File Selection */}
-        <div className="bg-white rounded-2xl shadow-lg p-8 mb-8" id="upload">
+        <div className="bg-white rounded-2xl shadow-lg p-8 mb-16" id="upload">
           <div className="flex items-center mb-6">
             <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold mr-3">
               1
@@ -581,9 +582,19 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
           </div>
         )}
 
+        {/* Arrow between file selection and settings */}
+        {selectedFile && !isProcessing && (
+          <div className="flex justify-center mb-8">
+            <div className="flex flex-col items-center">
+              <ArrowDown className="w-8 h-8 text-violet-400 animate-bounce" />
+              <span className="text-sm text-violet-600 font-medium mt-2">次のステップ</span>
+            </div>
+          </div>
+        )}
+
         {/* Step 2: API Key Setup */}
         {selectedFile && !isProcessing && (
-          <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
+          <div className="bg-white rounded-2xl shadow-lg p-8 mb-16">
             <div className="flex items-center mb-6">
               <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold mr-3">
                 2
@@ -737,11 +748,21 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
         )}
 
         {/* Step 3: Transcription or Split Results */}
+        {/* Arrow between settings and transcription */}
+        {splitFiles.length > 0 && (
+          <div className="flex justify-center mb-8">
+            <div className="flex flex-col items-center">
+              <ArrowDown className="w-8 h-8 text-violet-400 animate-bounce" />
+              <span className="text-sm text-violet-600 font-medium mt-2">次のステップ</span>
+            </div>
+          </div>
+        )}
+
         {splitFiles.length > 0 && (
           <>
             {apiKey ? (
               /* With API Key - Show Transcription */
-              <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
+              <div className="bg-white rounded-2xl shadow-lg p-8 mb-16">
                 <div className="flex items-center mb-6">
                   <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold mr-3">
                     3
@@ -768,7 +789,7 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
               </div>
             ) : (
               /* Without API Key - Show Split Results Only */
-              <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
+              <div className="bg-white rounded-2xl shadow-lg p-8 mb-16">
                 <div className="flex items-center mb-6">
                   <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold mr-3">
                     3
@@ -838,6 +859,16 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
             )}
 
 
+            {/* Arrow between transcription and summary */}
+            {apiKey && transcriptionResults.length > 0 && (
+              <div className="flex justify-center mb-8">
+                <div className="flex flex-col items-center">
+                  <ArrowDown className="w-8 h-8 text-violet-400 animate-bounce" />
+                  <span className="text-sm text-violet-600 font-medium mt-2">次のステップ</span>
+                </div>
+              </div>
+            )}
+            
             {/* Step 4: Summary - Only show if we have transcription results */}
             {apiKey && transcriptionResults.length > 0 && (
               <div className="bg-white rounded-2xl shadow-lg p-8">
