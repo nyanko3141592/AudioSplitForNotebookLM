@@ -16,6 +16,7 @@ import { GeminiTranscriber, downloadTranscription } from '../utils/geminiTranscr
 import { apiEndpointStorage } from '../utils/storage';
 import { RecordingPanel } from '../components/RecordingPanel';
 import { RecordingIndicator } from '../utils/recordingIndicator';
+import { ResultsSummary } from '../components/ResultsSummary';
 
 type Props = {
   onRecordingStateChange?: (isActive: boolean) => void;
@@ -837,6 +838,37 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
               </div>
             )}
 
+            {/* Results Summary - Show between transcription and summary when we have results */}
+            {transcriptionResults.length > 0 && (
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl shadow-lg p-6 border-2 border-green-200">
+                <div className="flex items-center mb-4">
+                  <div className="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center font-bold mr-3">
+                    ✓
+                  </div>
+                  <h2 className="text-xl font-bold text-green-800">文字起こし完了</h2>
+                </div>
+                
+                <ResultsSummary
+                  splitFiles={splitFiles}
+                  transcriptionResults={transcriptionResults}
+                  onDownloadSplit={handleDownload}
+                  onDownloadAllSplits={handleDownloadAll}
+                  onDownloadTranscription={() => {
+                    const transcriber = new GeminiTranscriber(apiKey, undefined, apiEndpoint);
+                    const formatted = transcriber.formatTranscriptions(transcriptionResults);
+                    downloadTranscription(formatted);
+                  }}
+                  compact={false}
+                />
+                
+                <div className="mt-4 p-4 bg-white/60 rounded-lg border border-green-300">
+                  <p className="text-sm text-green-800">
+                    <strong>📋 次のステップ:</strong> 下の要約作成セクションでAIによる自動まとめを作成できます。
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Step 4: Summary - Only show if we have transcription results */}
             {apiKey && transcriptionResults.length > 0 && (
               <div className="bg-white rounded-2xl shadow-lg p-8">
@@ -849,15 +881,7 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
                 
                 <SummaryStep
                   transcriptionResults={transcriptionResults}
-                  splitFiles={splitFiles}
                   transcriptionBackgroundInfo={summaryBackgroundInfo}
-                  onDownloadSplit={handleDownload}
-                  onDownloadAllSplits={handleDownloadAll}
-                  onDownloadTranscription={() => {
-                    const transcriber = new GeminiTranscriber(apiKey, undefined, apiEndpoint);
-                    const formatted = transcriber.formatTranscriptions(transcriptionResults);
-                    downloadTranscription(formatted);
-                  }}
                   onBackgroundInfoChange={setSummaryBackgroundInfo}
                   presetApiKey={apiKey}
                   presetApiEndpoint={apiEndpoint}

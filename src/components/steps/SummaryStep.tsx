@@ -4,16 +4,10 @@ import { GeminiTranscriber, downloadTranscription } from '../../utils/geminiTran
 import { markdownToHtml, plainToHtml, buildHtmlDocument, copyHtmlToClipboard } from '../../utils/format';
 import type { TranscriptionResult } from '../../utils/geminiTranscriber';
 import { apiKeyStorage, localStorage, apiEndpointStorage } from '../../utils/storage';
-import { ResultsSummary } from '../ResultsSummary';
-import type { SplitFile } from '../DownloadList';
 
 interface SummaryStepProps {
   transcriptionResults: TranscriptionResult[];
-  splitFiles?: SplitFile[];
   transcriptionBackgroundInfo?: string;
-  onDownloadSplit?: (file: SplitFile) => void;
-  onDownloadAllSplits?: () => void;
-  onDownloadTranscription?: () => void;
   onBackgroundInfoChange?: (backgroundInfo: string) => void;
   presetApiKey?: string;
   presetApiEndpoint?: string;
@@ -21,11 +15,7 @@ interface SummaryStepProps {
 
 export function SummaryStep({ 
   transcriptionResults,
-  splitFiles = [],
   transcriptionBackgroundInfo = '',
-  onDownloadSplit,
-  onDownloadAllSplits,
-  onDownloadTranscription,
   onBackgroundInfoChange,
   presetApiKey = '',
   presetApiEndpoint = ''
@@ -373,17 +363,6 @@ ${summarySettings.backgroundInfo}
 
   return (
     <div className="space-y-8">
-      {/* 前ステップの結果サマリー */}
-      <div>
-        <ResultsSummary
-          splitFiles={splitFiles}
-          transcriptionResults={transcriptionResults}
-          onDownloadSplit={onDownloadSplit}
-          onDownloadAllSplits={onDownloadAllSplits}
-          onDownloadTranscription={onDownloadTranscription}
-          compact
-        />
-      </div>
 
       {/* セクション1: 基本設定 */}
       <div className="bg-gray-50 rounded-xl p-6 border">
