@@ -17,13 +17,18 @@ import { GeminiTranscriber } from '../utils/geminiTranscriber';
 import { apiEndpointStorage } from '../utils/storage';
 import { RecordingPanel } from '../components/RecordingPanel';
 import { RecordingIndicator } from '../utils/recordingIndicator';
-import { StepNavigator } from '../components/StepNavigator';
 
 type Props = {
   onRecordingStateChange?: (isActive: boolean) => void;
+  onStepStateChange?: (stepState: {
+    hasFile: boolean;
+    hasApiKey: boolean;
+    hasSplitFiles: boolean;
+    hasTranscriptionResults: boolean;
+  }) => void;
 };
 
-export function TranscribePage({ onRecordingStateChange }: Props) {
+export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Props) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -60,6 +65,16 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
   });
   
   const { splitAudio } = useFFmpeg();
+
+  // Notify parent of step state changes
+  useEffect(() => {
+    onStepStateChange?.({
+      hasFile: !!selectedFile,
+      hasApiKey: !!apiKey,
+      hasSplitFiles: splitFiles.length > 0,
+      hasTranscriptionResults: transcriptionResults.length > 0
+    });
+  }, [selectedFile, apiKey, splitFiles.length, transcriptionResults.length, onStepStateChange]);
 
   // Clean up function to release memory
   const cleanupSplitFiles = useCallback(() => {
@@ -892,14 +907,6 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
           </>
         )}
       </div>
-      
-      {/* Step Navigator */}
-      <StepNavigator 
-        hasFile={!!selectedFile}
-        hasApiKey={!!apiKey}
-        hasSplitFiles={splitFiles.length > 0}
-        hasTranscriptionResults={transcriptionResults.length > 0}
-      />
     </div>
   );
 }

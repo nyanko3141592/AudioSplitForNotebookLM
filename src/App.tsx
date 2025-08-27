@@ -8,6 +8,12 @@ import {
 
 function App() {
   const [currentPage, setCurrentPage] = useState<'transcribe' | 'split'>('transcribe');
+  const [stepState, setStepState] = useState({
+    hasFile: false,
+    hasApiKey: false,
+    hasSplitFiles: false,
+    hasTranscriptionResults: false
+  });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-violet-50 via-blue-50 to-cyan-50">
@@ -15,11 +21,18 @@ function App() {
       <HeroSection 
         currentPage={currentPage} 
         onPageChange={setCurrentPage}
+        hasFile={stepState.hasFile}
+        hasApiKey={stepState.hasApiKey}
+        hasSplitFiles={stepState.hasSplitFiles}
+        hasTranscriptionResults={stepState.hasTranscriptionResults}
       />
 
       {/* Main Content */}
       {currentPage === 'transcribe' ? (
-        <TranscribePage onRecordingStateChange={() => {}} />
+        <TranscribePage 
+          onRecordingStateChange={() => {}}
+          onStepStateChange={setStepState}
+        />
       ) : (
         <SplitPage />
       )}

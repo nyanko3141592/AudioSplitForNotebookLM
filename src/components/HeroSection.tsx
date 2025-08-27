@@ -1,22 +1,126 @@
 import React, { useState, useEffect } from 'react';
+import { Upload, Settings, FileAudio, Sparkles } from 'lucide-react';
 
 type Props = {
   currentPage: 'transcribe' | 'split';
   onPageChange: (page: 'transcribe' | 'split') => void;
+  // Step navigation props (optional for split page)
+  hasFile?: boolean;
+  hasApiKey?: boolean;
+  hasSplitFiles?: boolean;
+  hasTranscriptionResults?: boolean;
 };
 
-export const HeroSection: React.FC<Props> = ({ currentPage: _currentPage, onPageChange: _onPageChange }) => {
+const steps = [
+  {
+    id: 'upload',
+    label: 'ファイル選択',
+    icon: Upload,
+    shortLabel: 'アップロード',
+  },
+  {
+    id: 'settings', 
+    label: 'API設定',
+    icon: Settings,
+    shortLabel: 'API',
+  },
+  {
+    id: 'transcription',
+    label: '文字起こし', 
+    icon: FileAudio,
+    shortLabel: '文字起こし',
+  },
+  {
+    id: 'summary',
+    label: '要約作成',
+    icon: Sparkles, 
+    shortLabel: '要約',
+  },
+];
+
+export const HeroSection: React.FC<Props> = ({ 
+  currentPage: _currentPage, 
+  onPageChange: _onPageChange,
+  hasFile = false,
+  hasApiKey = false,
+  hasSplitFiles = false,
+  hasTranscriptionResults = false
+}) => {
   const [isScrolled, setIsScrolled] = useState(false);
+  const [currentStep, setCurrentStep] = useState('upload');
 
   useEffect(() => {
     const handleScroll = () => {
       const scrollTop = window.scrollY;
       setIsScrolled(scrollTop > 100);
+
+      // Detect current step only on transcribe page and when scrolled
+      if (_currentPage === 'transcribe' && scrollTop > 100) {
+        const sections = [
+          { id: 'upload', element: document.getElementById('upload') },
+          { id: 'settings', element: document.querySelector('[data-step="settings"]') },
+          { id: 'transcription', element: document.querySelector('[data-step="transcription"]') },
+          { id: 'summary', element: document.querySelector('[data-step="summary"]') },
+        ];
+
+        let current = 'upload';
+        const scrollOffset = scrollTop + 200;
+
+        sections.forEach(section => {
+          if (section.element) {
+            const rect = section.element.getBoundingClientRect();
+            const top = rect.top + window.scrollY;
+            
+            if (scrollOffset >= top) {
+              current = section.id;
+            }
+          }
+        });
+
+        setCurrentStep(current);
+      }
     };
 
     window.addEventListener('scroll', handleScroll);
+    handleScroll();
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [_currentPage]);
+
+  const scrollToSection = (stepId: string) => {
+    let element: HTMLElement | null = null;
+    
+    if (stepId === 'upload') {
+      element = document.getElementById('upload');
+    } else {
+      element = document.querySelector(`[data-step="${stepId}"]`);
+    }
+
+    if (element) {
+      const headerOffset = 100;
+      const elementPosition = element.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  const getStepStatus = (stepId: string) => {
+    switch (stepId) {
+      case 'upload':
+        return 'available';
+      case 'settings':
+        return hasFile ? 'available' : 'locked';
+      case 'transcription': 
+        return hasApiKey && hasSplitFiles ? 'available' : 'locked';
+      case 'summary':
+        return hasTranscriptionResults ? 'available' : 'locked';
+      default:
+        return 'locked';
+    }
+  };
 
   return (
     <>
@@ -25,15 +129,71 @@ export const HeroSection: React.FC<Props> = ({ currentPage: _currentPage, onPage
         isScrolled ? 'transform translate-y-0' : 'transform -translate-y-full'
       }`}>
         <div className="max-w-6xl mx-auto px-6 py-3">
-          <div className="flex items-center">
-            <img
-              src={import.meta.env.BASE_URL + 'icon.png'}
-              alt="爆速議事録 アイコン"
-              className="w-8 h-8 drop-shadow-sm mr-3"
-              loading="eager"
-              decoding="async"
-            />
-            <span className="text-lg font-bold text-gray-900">爆速議事録</span>
+          <div className="flex items-center justify-between">
+            {/* Logo */}
+            <div className="flex items-center">
+              <img
+                src={import.meta.env.BASE_URL + 'icon.png'}
+                alt="爆速議事録 アイコン"
+                className="w-8 h-8 drop-shadow-sm mr-3"
+                loading="eager"
+                decoding="async"
+              />
+              <span className="text-lg font-bold text-gray-900">爆速議事録</span>
+            </div>
+
+            {/* Step Navigation - Only show on transcribe page */}
+            {_currentPage === 'transcribe' && (
+              <div className="flex items-center space-x-1">
+                {steps.map((step, index) => {
+                  const Icon = step.icon;
+                  const status = getStepStatus(step.id);
+                  const isCurrent = currentStep === step.id;
+                  
+                  return (
+                    <div key={step.id} className="flex items-center">
+                      <button
+                        onClick={() => status === 'available' && scrollToSection(step.id)}
+                        disabled={status === 'locked'}
+                        className={`
+                          group relative flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 text-sm font-medium
+                          ${isCurrent 
+                            ? 'bg-gradient-to-r from-violet-500 to-purple-500 text-white shadow-md' 
+                            : status === 'available'
+                            ? 'text-violet-600 hover:bg-violet-50'
+                            : 'text-gray-400 cursor-not-allowed'
+                          }
+                        `}
+                        title={step.label}
+                      >
+                        <Icon className={`w-4 h-4 ${isCurrent ? 'animate-pulse' : ''}`} />
+                        <span className="hidden sm:inline">{step.shortLabel}</span>
+                        
+                        {/* Step number badge */}
+                        <div className={`
+                          w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center
+                          ${isCurrent 
+                            ? 'bg-white text-violet-600' 
+                            : status === 'available'
+                            ? 'bg-violet-100 text-violet-600'
+                            : 'bg-gray-200 text-gray-500'
+                          }
+                        `}>
+                          {index + 1}
+                        </div>
+                      </button>
+                      
+                      {/* Arrow connector */}
+                      {index < steps.length - 1 && (
+                        <div className={`w-2 h-0.5 mx-1 ${
+                          status === 'available' ? 'bg-violet-300' : 'bg-gray-300'
+                        }`} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>
