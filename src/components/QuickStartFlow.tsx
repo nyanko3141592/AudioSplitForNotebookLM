@@ -6,6 +6,7 @@ type Props = {
   mode: 'record' | 'upload';
   onFileSelect: (file: File | File[]) => void;
   onRecordingStateChange: (active: boolean) => void;
+  onSegmentsStateChange?: (hasSegments: boolean) => void;
   isProcessing: boolean;
   isPending: boolean;
 };
@@ -14,6 +15,7 @@ export const QuickStartFlow: React.FC<Props> = ({
   mode,
   onFileSelect, 
   onRecordingStateChange, 
+  onSegmentsStateChange,
   isProcessing, 
   isPending 
 }) => {
@@ -33,6 +35,7 @@ export const QuickStartFlow: React.FC<Props> = ({
         <RecordingPanel 
           onRecorded={onFileSelect} 
           onRecordingStateChange={onRecordingStateChange}
+          onSegmentsStateChange={onSegmentsStateChange}
         />
       </div>
     );

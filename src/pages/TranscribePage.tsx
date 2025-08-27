@@ -32,12 +32,17 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
   const [apiKey, setApiKey] = useState<string>('');
   const [apiEndpoint, setApiEndpoint] = useState<string>('https://generativelanguage.googleapis.com');
   const [isRecordingActive, setIsRecordingActive] = useState<boolean>(false);
+  const [hasRecordedSegments, setHasRecordedSegments] = useState<boolean>(false);
   const [isTestingConnection, setIsTestingConnection] = useState<boolean>(false);
   const [connectionTestResult, setConnectionTestResult] = useState<'success' | 'error' | null>(null);
   
   const handleRecordingStateChange = (isActive: boolean) => {
     setIsRecordingActive(isActive);
     onRecordingStateChange?.(isActive);
+  };
+  
+  const handleSegmentsStateChange = (hasSegments: boolean) => {
+    setHasRecordedSegments(hasSegments);
   };
   
   const [transcriptionSettings] = useState({
@@ -463,9 +468,10 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
                   <RecordingPanel 
                     onRecorded={handleFileSelect} 
                     onRecordingStateChange={handleRecordingStateChange}
+                    onSegmentsStateChange={handleSegmentsStateChange}
                   />
                   
-                  {!isRecordingActive && (
+                  {!isRecordingActive && !hasRecordedSegments && (
                     <div className="mt-6">
                       <div className="relative">
                         <div className="absolute inset-0 flex items-center">
@@ -487,6 +493,21 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
                           </p>
                         )}
                       </div>
+                    </div>
+                  )}
+                  
+                  {hasRecordedSegments && !isRecordingActive && (
+                    <div className="mt-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-xl text-center">
+                      <div className="flex items-center justify-center w-12 h-12 bg-blue-500 rounded-full mx-auto mb-3">
+                        <span className="text-white text-lg">🎙️</span>
+                      </div>
+                      <h3 className="text-lg font-bold text-blue-800 mb-2">録音セグメントが準備されています</h3>
+                      <p className="text-sm text-blue-600 mb-3">
+                        録音を続けるか、完了ボタンを押して文字起こしを開始してください
+                      </p>
+                      <p className="text-xs text-blue-500">
+                        💡 録音完了前は音声ファイルのアップロードはできません
+                      </p>
                     </div>
                   )}
                 </>

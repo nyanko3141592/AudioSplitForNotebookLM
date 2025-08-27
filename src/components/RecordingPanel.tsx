@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 type Props = {
   onRecorded: (file: File | File[]) => void;
   onRecordingStateChange?: (active: boolean) => void;
+  onSegmentsStateChange?: (hasSegments: boolean) => void;
 };
 
 function supportMimeTypes(): string {
@@ -20,7 +21,7 @@ function supportMimeTypes(): string {
   return '';
 }
 
-export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateChange }) => {
+export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateChange, onSegmentsStateChange }) => {
   const [micStream, setMicStream] = useState<MediaStream | null>(null);
   const [tabStream, setTabStream] = useState<MediaStream | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -571,7 +572,12 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
         const file = new File([blob], fileName, { type: blob.type });
         
         // Save segment to list
-        setRecordedSegments(prev => [...prev, file]);
+        setRecordedSegments(prev => {
+          const newSegments = [...prev, file];
+          // Notify parent about segments state change
+          onSegmentsStateChange?.(newSegments.length > 0);
+          return newSegments;
+        });
         setCurrentSegmentIndex(prev => prev + 1);
         
         // Reset chunks for next segment
@@ -666,6 +672,9 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
     setCurrentSegmentIndex(0);
     setElapsedSec(0);
     setRecordingCompleted(true);
+    
+    // Notify parent that segments are cleared
+    onSegmentsStateChange?.(false);
     
     // Clean up streams and contexts
     stopMicMonitoring();
