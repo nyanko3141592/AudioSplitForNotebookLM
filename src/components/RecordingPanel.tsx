@@ -855,6 +855,17 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
         </div>
       )}
 
+      {/* Recording capability notice (tab audio vs desktop apps) */}
+      <div className="mb-4 p-4 rounded-xl border-2 border-emerald-300 bg-emerald-50/70">
+        <p className="text-sm text-emerald-900 leading-relaxed">
+          ✅ <span className="font-semibold">ブラウザのタブで Google Meet / Teams / Zoom を利用</span>する場合、
+          共有ダイアログで「<span className="font-semibold">タブの音声を共有</span>」を有効にすると
+          <span className="font-semibold">相手の声も含めて会議音声を丸ごと録音</span>できます。<br />
+          ⚠️ <span className="font-semibold">デスクトップアプリ版の Zoom / Teams</span>は仕様上、
+          <span className="underline">相手の声は録音できません（自分の声＝マイクのみ録音可能）</span>。
+        </p>
+      </div>
+
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">{error}</div>
       )}
@@ -1014,8 +1025,8 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
             <p className="text-sm text-amber-800 font-medium mb-1">💡 ヒント</p>
             <ul className="text-xs text-amber-800 space-y-1">
               <li>• <span className="font-semibold">ブラウザのタブで</span> Google Meet / Teams / Zoom を開き、そのタブを選択</li>
-              <li>• 共有ダイアログで <span className="font-semibold">「タブの音声を共有」</span> にチェック → <span className="font-semibold">相手の声も含めて録音</span>できます</li>
-              <li>• <span className="font-semibold">注意:</span> デスクトップアプリ版の Zoom / Teams は <span className="underline">相手の声を取得できません</span>（マイク音声のみ）</li>
+              <li>• 共有ダイアログで <span className="font-semibold">「タブの音声を共有」</span> にチェック</li>
+              <li>• 録音中は該当タブのミュート設定に注意</li>
             </ul>
           </div>
 
