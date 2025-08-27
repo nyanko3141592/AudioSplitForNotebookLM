@@ -13,7 +13,7 @@ function supportMimeTypes(): string {
     'audio/ogg'
   ];
   for (const mt of preferred) {
-    if ((window as any).MediaRecorder && (window as any).MediaRecorder.isTypeSupported?.(mt)) {
+    if (window.MediaRecorder && window.MediaRecorder.isTypeSupported?.(mt)) {
       return mt;
     }
   }
@@ -24,6 +24,7 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
   const [micStream, setMicStream] = useState<MediaStream | null>(null);
   const [tabStream, setTabStream] = useState<MediaStream | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [levelMic, setLevelMic] = useState(0);
   const [levelTab, setLevelTab] = useState(0);
@@ -32,6 +33,8 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
   const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedMicId, setSelectedMicId] = useState<string>('');
   const [recordingCompleted, setRecordingCompleted] = useState(false);
+  const [recordedSegments, setRecordedSegments] = useState<File[]>([]);
+  const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -122,10 +125,26 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
     };
   }, []);
 
-  // Additional cleanup on page unload to prevent browser crashes
+  // Data protection: prevent accidental loss of recorded segments
   useEffect(() => {
-    const handleBeforeUnload = () => {
-      console.log('🚨 Page unloading - emergency cleanup');
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      console.log('🚨 Page unloading - checking for unsaved data');
+      
+      // Check if we have recorded segments or are currently recording
+      const hasUnsavedData = recordedSegments.length > 0 || isRecording;
+      
+      if (hasUnsavedData) {
+        // Show confirmation dialog to prevent accidental data loss
+        const message = isRecording 
+          ? '録音中です。ページを離れると録音データが失われます。本当に続行しますか？'
+          : `録音したセグメント（${recordedSegments.length}個）が保存されていません。ページを離れると失われます。本当に続行しますか？`;
+        
+        e.preventDefault();
+        e.returnValue = message; // Modern browsers
+        return message; // Legacy browsers
+      }
+      
+      // If no unsaved data, perform emergency cleanup
       try {
         // Emergency stop all media streams
         if (micStream) {
@@ -148,7 +167,7 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [micStream, tabStream]);
+  }, [micStream, tabStream, recordedSegments.length, isRecording]);
 
   const stopStream = (s: MediaStream | null) => {
     s?.getTracks().forEach(t => t.stop());
@@ -157,7 +176,9 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
   const stopAll = () => {
     try {
       mediaRecorderRef.current?.stop();
-    } catch {}
+    } catch {
+      // Ignore stop errors during cleanup
+    }
     mediaRecorderRef.current = null;
     stopStream(micStream);
     stopStream(tabStream);
@@ -193,7 +214,7 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
     try {
       // Create new AudioContext if needed
       if (!previewCtxRef.current || previewCtxRef.current.state === 'closed') {
-        previewCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        previewCtxRef.current = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
       }
       
       const ctx = previewCtxRef.current;
@@ -545,31 +566,21 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
         const blob = new Blob(chunksRef.current, { type: mimeType || 'audio/webm' });
         const now = new Date();
         const pad = (n: number) => n.toString().padStart(2, '0');
-        const fileName = `recording_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.webm`;
+        const segmentNum = currentSegmentIndex + 1;
+        const fileName = `recording_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}_segment${segmentNum}.webm`;
         const file = new File([blob], fileName, { type: blob.type });
-        onRecorded(file);
+        
+        // Save segment to list
+        setRecordedSegments(prev => [...prev, file]);
+        setCurrentSegmentIndex(prev => prev + 1);
+        
+        // Reset chunks for next segment
+        chunksRef.current = [];
+        
         setIsRecording(false);
+        setIsPaused(false);
         if (timerRef.current) window.clearInterval(timerRef.current);
-        setElapsedSec(0);
         onRecordingStateChange?.(false);
-        setRecordingCompleted(true);
-        
-        // Auto-terminate all streams when recording stops
-        stopMicMonitoring();
-        stopTabMonitoring();
-        stopStream(micStream);
-        stopStream(tabStream);
-        setMicStream(null);
-        setTabStream(null);
-        
-        // Clean up recording audio context (keep preview context for monitoring)
-        if (audioCtxRef.current) {
-          try { audioCtxRef.current.close(); } catch {}
-        }
-        audioCtxRef.current = null;
-        analyserMicRef.current = null;
-        analyserTabRef.current = null;
-        if (rafRef.current) cancelAnimationFrame(rafRef.current);
       };
       mr.start(1000);
       setIsRecording(true);
@@ -584,41 +595,185 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
     }
   };
 
-  const stopRecording = () => {
-    console.log('🛑 Recording stop initiated');
+  const pauseRecording = () => {
+    console.log('⏸️ Pausing recording');
     try {
-      // Safely stop media recorder
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        console.log('🛑 Stopping MediaRecorder');
-        mediaRecorderRef.current.stop();
-      }
-      
-      // Additional defensive cleanup for streams
-      if (tabStream) {
-        console.log('🛑 Cleaning up tab stream');
-        tabStream.getTracks().forEach(track => {
-          try {
-            track.stop();
-          } catch (e) {
-            console.warn('Failed to stop tab track:', e);
-          }
-        });
-      }
-      
-      if (micStream) {
-        console.log('🛑 Cleaning up mic stream');
-        micStream.getTracks().forEach(track => {
-          try {
-            track.stop();
-          } catch (e) {
-            console.warn('Failed to stop mic track:', e);
-          }
-        });
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.pause();
+        setIsPaused(true);
+        if (timerRef.current) {
+          window.clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
       }
     } catch (e) {
-      console.error('Error during recording stop:', e);
+      console.error('Error pausing recording:', e);
     }
   };
+
+  const resumeRecording = () => {
+    console.log('▶️ Resuming recording');
+    try {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'paused') {
+        mediaRecorderRef.current.resume();
+        setIsPaused(false);
+        // Restart timer
+        const started = Date.now() - (elapsedSec * 1000);
+        timerRef.current = window.setInterval(() => {
+          setElapsedSec(Math.floor((Date.now() - started) / 1000));
+        }, 100);
+      }
+    } catch (e) {
+      console.error('Error resuming recording:', e);
+    }
+  };
+
+  const stopCurrentSegment = () => {
+    console.log('🛑 Stopping current segment');
+    try {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+    } catch (e) {
+      console.error('Error stopping segment:', e);
+    }
+  };
+
+  const mergeAudioSegments = async (segments: File[]): Promise<File> => {
+    console.log(`🔗 Merging ${segments.length} audio segments`);
+    
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const buffers: AudioBuffer[] = [];
+      
+      // Load all segments as AudioBuffers
+      for (const segment of segments) {
+        const arrayBuffer = await segment.arrayBuffer();
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        buffers.push(audioBuffer);
+      }
+      
+      // Calculate total length and create merged buffer
+      const totalLength = buffers.reduce((sum, buffer) => sum + buffer.length, 0);
+      const sampleRate = buffers[0].sampleRate;
+      const numberOfChannels = buffers[0].numberOfChannels;
+      
+      const mergedBuffer = audioContext.createBuffer(numberOfChannels, totalLength, sampleRate);
+      
+      // Copy all segments into the merged buffer
+      let offset = 0;
+      for (const buffer of buffers) {
+        for (let channel = 0; channel < numberOfChannels; channel++) {
+          const channelData = buffer.getChannelData(channel);
+          mergedBuffer.getChannelData(channel).set(channelData, offset);
+        }
+        offset += buffer.length;
+      }
+      
+      // Create a MediaRecorder to encode the merged buffer
+      const destination = audioContext.createMediaStreamDestination();
+      const source = audioContext.createBufferSource();
+      source.buffer = mergedBuffer;
+      source.connect(destination);
+      
+      // Record the merged audio
+      const mediaRecorder = new MediaRecorder(destination.stream, {
+        mimeType: mimeType || 'audio/webm'
+      });
+      
+      const chunks: BlobPart[] = [];
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+      
+      // Return Promise that resolves when recording is done
+      return new Promise((resolve, reject) => {
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(chunks, { type: mimeType || 'audio/webm' });
+          const now = new Date();
+          const pad = (n: number) => n.toString().padStart(2, '0');
+          const fileName = `recording_merged_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.webm`;
+          const file = new File([blob], fileName, { type: blob.type });
+          audioContext.close();
+          resolve(file);
+        };
+        
+        mediaRecorder.onerror = (e) => {
+          audioContext.close();
+          reject(e);
+        };
+        
+        mediaRecorder.start();
+        source.start();
+        
+        // Stop recording after the audio finishes playing
+        source.onended = () => {
+          mediaRecorder.stop();
+        };
+      });
+      
+    } catch (error) {
+      console.error('Error merging audio segments:', error);
+      // Fallback: return the first segment if merging fails
+      return segments[0];
+    }
+  };
+
+  const finalizeRecording = async () => {
+    console.log('✅ Finalizing recording with all segments');
+    
+    // Stop current recording if active
+    stopCurrentSegment();
+    
+    // Wait a bit for the current segment to be saved
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Merge all segments and pass to parent
+    if (recordedSegments.length > 0) {
+      try {
+        // If there's only one segment, just use it
+        if (recordedSegments.length === 1) {
+          onRecorded(recordedSegments[0]);
+        } else {
+          // Merge multiple segments
+          console.log('🔄 Merging multiple segments...');
+          const mergedFile = await mergeAudioSegments(recordedSegments);
+          onRecorded(mergedFile);
+        }
+      } catch (error) {
+        console.error('Error processing segments:', error);
+        // Fallback: use the first segment
+        onRecorded(recordedSegments[0]);
+      }
+    }
+    
+    // Clean up everything
+    setRecordedSegments([]);
+    setCurrentSegmentIndex(0);
+    setElapsedSec(0);
+    setRecordingCompleted(true);
+    
+    // Clean up streams and contexts
+    stopMicMonitoring();
+    stopTabMonitoring();
+    stopStream(micStream);
+    stopStream(tabStream);
+    setMicStream(null);
+    setTabStream(null);
+    
+    if (audioCtxRef.current) {
+      try { audioCtxRef.current.close(); } catch {
+        // Ignore close errors during cleanup
+      }
+    }
+    audioCtxRef.current = null;
+    analyserMicRef.current = null;
+    analyserTabRef.current = null;
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+  };
+
 
   const resetSources = () => {
     stopMicMonitoring();
@@ -642,7 +797,7 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
         
         {/* 録音制御ボタン */}
         <div className="flex items-center gap-3">
-          {!isRecording ? (
+          {!isRecording && recordedSegments.length === 0 ? (
             <button
               onClick={startRecording}
               disabled={!micStream && !tabStream}
@@ -654,13 +809,50 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
             >
               🎙️ 録音開始
             </button>
+          ) : !isRecording && recordedSegments.length > 0 ? (
+            <div className="flex gap-2">
+              <button
+                onClick={startRecording}
+                disabled={!micStream && !tabStream}
+                className={`px-4 py-3 rounded-xl text-white font-semibold transition-all shadow-lg ${
+                  !micStream && !tabStream 
+                    ? 'bg-gray-400 cursor-not-allowed' 
+                    : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 hover:shadow-xl'
+                }`}
+              >
+                ➕ 続きを録音
+              </button>
+              <button
+                onClick={finalizeRecording}
+                className="px-4 py-3 rounded-xl text-white font-semibold bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 transition-all shadow-lg hover:shadow-xl"
+              >
+                ✅ 録音を完了
+              </button>
+            </div>
           ) : (
-            <button
-              onClick={stopRecording}
-              className="px-6 py-3 rounded-xl text-white font-semibold bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 transition-all shadow-lg hover:shadow-xl"
-            >
-              ⏹️ 録音停止
-            </button>
+            <div className="flex gap-2">
+              {!isPaused ? (
+                <button
+                  onClick={pauseRecording}
+                  className="px-4 py-3 rounded-xl text-white font-semibold bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 transition-all shadow-lg hover:shadow-xl"
+                >
+                  ⏸️ 一時停止
+                </button>
+              ) : (
+                <button
+                  onClick={resumeRecording}
+                  className="px-4 py-3 rounded-xl text-white font-semibold bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 transition-all shadow-lg hover:shadow-xl"
+                >
+                  ▶️ 再開
+                </button>
+              )}
+              <button
+                onClick={stopCurrentSegment}
+                className="px-4 py-3 rounded-xl text-white font-semibold bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 transition-all shadow-lg hover:shadow-xl"
+              >
+                ⏹️ セグメント終了
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -672,8 +864,14 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
             <span className="inline-block w-3 h-3 bg-red-600 rounded-full animate-pulse" />
             <div>
               <span className="font-bold text-red-800 text-lg">録音中</span>
+              {isPaused && <span className="ml-2 text-sm text-yellow-700 font-medium">（一時停止中）</span>}
               <p className="text-xs text-red-700 mt-1">
                 {micStream && tabStream ? 'マイク + システム音声' : micStream ? 'マイクのみ' : 'システム音声のみ'}
+                {recordedSegments.length > 0 && (
+                  <span className="ml-2 bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs">
+                    セグメント{currentSegmentIndex + 1} （計{recordedSegments.length + 1}個）
+                  </span>
+                )}
               </p>
             </div>
           </div>
@@ -682,6 +880,26 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
               {String(Math.floor(elapsedSec / 60)).padStart(2, '0')}:{String(elapsedSec % 60).padStart(2, '0')}
             </div>
             <p className="text-xs text-red-600 mt-1">経過時間</p>
+          </div>
+        </div>
+      )}
+
+      {/* セグメント状態表示 */}
+      {!isRecording && recordedSegments.length > 0 && (
+        <div className="mb-6 p-4 rounded-xl border-2 border-blue-300 bg-blue-50 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="inline-block w-3 h-3 bg-blue-600 rounded-full" />
+            <div>
+              <span className="font-bold text-blue-800 text-lg">{recordedSegments.length}個のセグメント録音済み</span>
+              <p className="text-xs text-blue-700 mt-1">続きを録音するか、録音を完了してください</p>
+            </div>
+          </div>
+          <div className="flex gap-2 text-xs text-blue-600">
+            {recordedSegments.map((_, index) => (
+              <span key={index} className="bg-blue-200 px-2 py-1 rounded-full">
+                #{index + 1}
+              </span>
+            ))}
           </div>
         </div>
       )}
