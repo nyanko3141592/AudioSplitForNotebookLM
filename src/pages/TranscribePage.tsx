@@ -15,6 +15,7 @@ import type { TranscriptionResult } from '../utils/geminiTranscriber';
 import { GeminiTranscriber, downloadTranscription } from '../utils/geminiTranscriber';
 import { apiEndpointStorage } from '../utils/storage';
 import { RecordingPanel } from '../components/RecordingPanel';
+import { RecordingIndicator } from '../utils/recordingIndicator';
 
 type Props = {
   onRecordingStateChange?: (isActive: boolean) => void;
@@ -39,6 +40,8 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
   const handleRecordingStateChange = (isActive: boolean) => {
     setIsRecordingActive(isActive);
     onRecordingStateChange?.(isActive);
+    // Update recording indicator (favicon and title)
+    RecordingIndicator.setRecording(isActive);
   };
   
   const handleSegmentsStateChange = (hasSegments: boolean) => {
@@ -82,6 +85,11 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
     // APIエンドポイント設定を読み込み
     const savedEndpoint = apiEndpointStorage.get();
     setApiEndpoint(savedEndpoint);
+    
+    // Cleanup recording indicator when component unmounts
+    return () => {
+      RecordingIndicator.reset();
+    };
   }, []);
 
   const handleApiKeyChange = (key: string) => {
