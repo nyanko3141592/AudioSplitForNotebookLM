@@ -4,7 +4,6 @@ import { GeminiTranscriber, downloadTranscription } from '../../utils/geminiTran
 import { markdownToHtml, plainToHtml, buildHtmlDocument, copyHtmlToClipboard } from '../../utils/format';
 import type { TranscriptionResult } from '../../utils/geminiTranscriber';
 import { apiKeyStorage, localStorage, apiEndpointStorage } from '../../utils/storage';
-import { StepContent } from '../StepContent';
 import { ResultsSummary } from '../ResultsSummary';
 import type { SplitFile } from '../DownloadList';
 
@@ -366,24 +365,14 @@ ${summarySettings.backgroundInfo}
 
   if (transcriptionResults.length === 0) {
     return (
-      <StepContent
-        title="✨ まとめ"
-        description="文字起こし結果がありません"
-        showNext={false}
-      >
-        <div className="text-center py-8 text-gray-500">
-          前のステップで文字起こしを完了してください
-        </div>
-      </StepContent>
+      <div className="text-center py-8 text-gray-500">
+        前のステップで文字起こしを完了してください
+      </div>
     );
   }
 
   return (
-    <StepContent
-      title="✨ まとめ"
-      description={apiKey ? "文字起こし結果を自動的にまとめます" : "APIキーを設定してまとめを開始"}
-      showNext={false}
-    >
+    <div className="space-y-6">
       {/* Previous Results Summary */}
       <ResultsSummary
         splitFiles={splitFiles}
@@ -676,7 +665,6 @@ ${summarySettings.backgroundInfo}
           結果をダウンロードしてNotebookLMなどでご活用ください。
         </p>
       </div>
-
-    </StepContent>
+    </div>
   );
 }
