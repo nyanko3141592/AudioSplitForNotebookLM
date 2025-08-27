@@ -12,7 +12,7 @@ const steps = [
   { id: 2, title: '分割設定', description: 'サイズや分割数を設定' },
   { id: 3, title: '分割実行', description: '音声ファイルを分割' },
   { id: 4, title: '文字起こし', description: 'Gemini APIで文字起こし' },
-  { id: 5, title: 'まとめ', description: 'AI で内容をまとめる' }
+  { id: 5, title: '要約作成', description: 'AI で内容をまとめる' }
 ];
 
 export function WorkflowStepper({ currentStep, onStepClick, completedSteps, availableSteps }: WorkflowStepperProps) {

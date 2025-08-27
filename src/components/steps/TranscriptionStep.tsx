@@ -35,7 +35,7 @@ export function TranscriptionStep({
   onNext, 
   onBack: _onBack,
   showNext = true, 
-  nextButtonText = "まとめへ",
+  nextButtonText = "要約作成へ",
   onDownloadSplit,
   onDownloadAllSplits,
   onTranscriptionComplete,
@@ -486,20 +486,40 @@ export function TranscriptionStep({
           </div>
 
           {/* Results Preview */}
-          <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-4 space-y-4">
+          <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
             {transcriptionResults.map((result) => (
-              <div key={result.partNumber} className="space-y-2">
-                <h3 className="font-semibold text-gray-800">
-                  パート {result.partNumber}: {result.fileName}
-                </h3>
-                {result.error ? (
-                  <p className="text-sm text-red-600">エラー: {result.error}</p>
-                ) : (
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                    {result.transcription.slice(0, 150)}
-                    {result.transcription.length > 150 && '...'}
-                  </p>
-                )}
+              <div key={result.partNumber} className="border-b border-gray-100 last:border-b-0">
+                <div className="p-4 space-y-2">
+                  <h3 className="font-semibold text-gray-800 flex items-center justify-between">
+                    <span>パート {result.partNumber}: {result.fileName}</span>
+                    <span className="text-xs text-gray-500">
+                      {result.error ? 'エラー' : `${result.transcription.length}文字`}
+                    </span>
+                  </h3>
+                  {result.error ? (
+                    <p className="text-sm text-red-600">エラー: {result.error}</p>
+                  ) : (
+                    <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                      {(() => {
+                        const lines = result.transcription.split('\n');
+                        const displayLines = lines.slice(0, 100); // 最初の100行まで表示
+                        const truncated = lines.length > 100;
+                        return (
+                          <>
+                            {displayLines.join('\n')}
+                            {truncated && (
+                              <div className="mt-2 pt-2 border-t border-gray-200">
+                                <span className="text-xs text-gray-500 italic">
+                                  ...残り{lines.length - 100}行（全{lines.length}行）
+                                </span>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -507,7 +527,7 @@ export function TranscriptionStep({
           <div className="space-y-3">
             <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
               <p className="text-sm text-green-800">
-                💡 文字起こしが完了しました。下の要約セクションでまとめを作成できます。
+                💡 文字起こしが完了しました。次のステップで要約を作成できます。
               </p>
             </div>
             
