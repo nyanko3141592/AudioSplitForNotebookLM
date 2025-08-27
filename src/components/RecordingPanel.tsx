@@ -696,14 +696,6 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
   };
 
 
-  const resetSources = () => {
-    stopMicMonitoring();
-    stopTabMonitoring();
-    stopStream(micStream);
-    stopStream(tabStream);
-    setMicStream(null);
-    setTabStream(null);
-  };
 
   return (
     <div className="mb-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-6">
