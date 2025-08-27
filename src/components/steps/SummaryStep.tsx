@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, Download, Loader2, AlertCircle, CheckCircle, Info, RefreshCw, Copy, Key } from 'lucide-react';
+import { Sparkles, Download, Loader2, AlertCircle, CheckCircle, RefreshCw, Copy, Key } from 'lucide-react';
 import { GeminiTranscriber, downloadTranscription } from '../../utils/geminiTranscriber';
 import { markdownToHtml, plainToHtml, buildHtmlDocument, copyHtmlToClipboard } from '../../utils/format';
 import type { TranscriptionResult } from '../../utils/geminiTranscriber';
@@ -37,7 +37,6 @@ export function SummaryStep({
     const saved = window.localStorage.getItem('summary_use_markdown');
     return saved === '1';
   });
-  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
   const [actualSummaryCost, setActualSummaryCost] = useState<number | null>(null);
 
   // フォーマットプリセット
@@ -131,14 +130,10 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
     // preset APIキーがある場合はそれを使用、なければストレージから読み込み
     if (presetApiKey) {
       setApiKey(presetApiKey);
-      setShowApiKeyInput(false);
     } else {
       const savedApiKey = apiKeyStorage.get();
       if (savedApiKey) {
         setApiKey(savedApiKey);
-        setShowApiKeyInput(false);
-      } else {
-        setShowApiKeyInput(true);
       }
     }
     
@@ -510,7 +505,7 @@ ${summarySettings.backgroundInfo}
             <span className="text-sm font-medium text-green-800">APIキー設定済み</span>
           </div>
           <button
-            onClick={() => setShowApiKeyInput(true)}
+            onClick={() => {}}
             className="text-xs text-green-700 hover:text-green-800 underline"
           >
             変更

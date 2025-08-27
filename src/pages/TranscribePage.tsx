@@ -13,10 +13,11 @@ import {
   ArrowDown
 } from 'lucide-react';
 import type { TranscriptionResult } from '../utils/geminiTranscriber';
-import { GeminiTranscriber, downloadTranscription } from '../utils/geminiTranscriber';
+import { GeminiTranscriber } from '../utils/geminiTranscriber';
 import { apiEndpointStorage } from '../utils/storage';
 import { RecordingPanel } from '../components/RecordingPanel';
 import { RecordingIndicator } from '../utils/recordingIndicator';
+import { StepNavigator } from '../components/StepNavigator';
 
 type Props = {
   onRecordingStateChange?: (isActive: boolean) => void;
@@ -594,7 +595,7 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
 
         {/* Step 2: API Key Setup */}
         {selectedFile && !isProcessing && (
-          <div className="bg-white rounded-2xl shadow-lg p-8 mb-16">
+          <div className="bg-white rounded-2xl shadow-lg p-8 mb-16" data-step="settings">
             <div className="flex items-center mb-6">
               <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold mr-3">
                 2
@@ -762,7 +763,7 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
           <>
             {apiKey ? (
               /* With API Key - Show Transcription */
-              <div className="bg-white rounded-2xl shadow-lg p-8 mb-16">
+              <div className="bg-white rounded-2xl shadow-lg p-8 mb-16" data-step="transcription">
                 <div className="flex items-center mb-6">
                   <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold mr-3">
                     3
@@ -789,7 +790,7 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
               </div>
             ) : (
               /* Without API Key - Show Split Results Only */
-              <div className="bg-white rounded-2xl shadow-lg p-8 mb-16">
+              <div className="bg-white rounded-2xl shadow-lg p-8 mb-16" data-step="transcription">
                 <div className="flex items-center mb-6">
                   <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold mr-3">
                     3
@@ -871,7 +872,7 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
             
             {/* Step 4: Summary - Only show if we have transcription results */}
             {apiKey && transcriptionResults.length > 0 && (
-              <div className="bg-white rounded-2xl shadow-lg p-8">
+              <div className="bg-white rounded-2xl shadow-lg p-8" data-step="summary">
                 <div className="flex items-center mb-6">
                   <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold mr-3">
                     4
@@ -891,6 +892,14 @@ export function TranscribePage({ onRecordingStateChange }: Props) {
           </>
         )}
       </div>
+      
+      {/* Step Navigator */}
+      <StepNavigator 
+        hasFile={!!selectedFile}
+        hasApiKey={!!apiKey}
+        hasSplitFiles={splitFiles.length > 0}
+        hasTranscriptionResults={transcriptionResults.length > 0}
+      />
     </div>
   );
 }
