@@ -12,7 +12,7 @@ export const HeroSection: React.FC<Props> = ({ currentPage: _currentPage, onPage
         <div className="text-center text-white">
           <div className="flex items-center justify-center mb-4">
             <img
-              src="/icon.png"
+              src={import.meta.env.BASE_URL + 'icon.png'}
               alt="爆速議事録 アイコン"
               className="w-12 h-12 md:w-14 md:h-14 drop-shadow-lg"
               loading="eager"
