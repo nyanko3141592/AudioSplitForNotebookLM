@@ -366,7 +366,7 @@ ${summarySettings.backgroundInfo}
   return (
     <div className="space-y-8">
 
-      {/* まとめ設定 */}
+      {/* まとめ設定（統合） */}
       {apiKey && (
         <div className="bg-purple-50 rounded-xl p-6 border border-purple-200">
           <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
@@ -425,6 +425,23 @@ ${summarySettings.backgroundInfo}
               />
               <p className="text-xs text-gray-500 mt-1">
                 プリセットで定型文を挿入後、自由に編集できます
+              </p>
+            </div>
+
+            {/* Background Info - moved from detailed settings */}
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">
+                背景情報（オプション）
+              </label>
+              <textarea
+                value={summarySettings.backgroundInfo}
+                onChange={(e) => handleBackgroundInfoChange(e.target.value)}
+                placeholder="例: 2024年1月26日の定例会議。参加者：田中、佐藤、鈴木。議題：新商品の戦略"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent min-h-20 text-sm resize-y"
+                disabled={summarySettings.isProcessing}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                会議の詳細情報を入力すると、より精度の高いまとめが生成されます
               </p>
             </div>
 
@@ -501,39 +518,11 @@ ${summarySettings.backgroundInfo}
         </div>
       )}
 
-      {/* 詳細設定 */}
-      {apiKey && (
-        <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-            <Info className="w-5 h-5" />
-            詳細設定
-          </h3>
-          
-          <div className="space-y-4">
-            {/* Background Info */}
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">
-                背景情報（オプション）
-              </label>
-              <textarea
-                value={summarySettings.backgroundInfo}
-                onChange={(e) => handleBackgroundInfoChange(e.target.value)}
-                placeholder="例: 2024年1月26日の定例会議。参加者：田中、佐藤、鈴木。議題：新商品の戦略"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-h-20 text-sm resize-y"
-                disabled={summarySettings.isProcessing}
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                会議の詳細情報を入力すると、より精度の高いまとめが生成されます
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* Cost and Action */}
-      {apiKey && !summarySettings.isProcessing && !summarySettings.result && (
+      {/* 再生成ボタン（入力・出力セクション間） */}
+      {apiKey && !summarySettings.isProcessing && (
         <div className="bg-white rounded-xl p-6 border border-gray-200 text-center">
-          <div className="space-y-4">
+          <div className="flex items-center justify-center gap-6">
             <div className="text-sm text-gray-600">
               予想コスト: <span className="font-mono font-semibold">${(() => {
                 const textLength = getTotalTextLength();
@@ -545,10 +534,19 @@ ${summarySettings.backgroundInfo}
             
             <button
               onClick={() => handleSummarize()}
-              className="px-12 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all duration-200 flex items-center gap-3 shadow-lg hover:shadow-xl mx-auto"
+              className="px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl"
             >
-              <Sparkles className="w-6 h-6" />
-              まとめを作成
+              {summarySettings.result ? (
+                <>
+                  <RefreshCw className="w-5 h-5" />
+                  再生成
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-5 h-5" />
+                  まとめ作成
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -594,22 +592,10 @@ ${summarySettings.backgroundInfo}
       {summarySettings.result && (
         <div className="bg-green-50 rounded-xl p-6 border border-green-200">
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-green-800 flex items-center gap-2">
-                <CheckCircle className="w-5 h-5" />
-                まとめ結果
-              </h3>
-              <button
-                onClick={() => {
-                  setSummarySettings(prev => ({ ...prev, result: '' }));
-                  setTimeout(() => handleSummarize(), 100);
-                }}
-                className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-all flex items-center gap-2"
-              >
-                <RefreshCw className="w-4 h-4" />
-                再作成
-              </button>
-            </div>
+            <h3 className="text-lg font-semibold text-green-800 flex items-center gap-2 justify-center mb-2">
+              <CheckCircle className="w-5 h-5" />
+              まとめ結果
+            </h3>
 
             <div className="bg-white rounded-lg border border-green-200 p-4 max-h-80 overflow-y-auto">
               <pre className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{summarySettings.result}</pre>

@@ -304,288 +304,293 @@ export function TranscriptionStep({
   }
 
   return (
-    <div className="space-y-6">
-
-      {/* API Key Status/Input */}
-      {!presetApiKey && (showApiKeyInput ? (
-        <div className="space-y-2">
-          <label htmlFor="api-key" className="flex items-center gap-2 text-sm font-medium text-gray-700">
-            <Key className="w-4 h-4" />
-            Gemini API キー
-          </label>
-          <input
-            id="api-key"
-            type="password"
-            value={apiKey}
-            onChange={(e) => handleApiKeyChange(e.target.value)}
-            placeholder="AIzaSy..."
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-          />
-          <p className="text-xs text-gray-500">
-            <a 
-              href="https://aistudio.google.com/app/apikey" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-violet-600 hover:underline"
-            >
-              Google AI Studio
-            </a>
-            でAPIキーを取得してください
-          </p>
-        </div>
-      ) : (
-        <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
-          <div className="flex items-center gap-2">
-            <CheckCircle className="w-5 h-5 text-green-600" />
-            <span className="text-sm font-medium text-green-800">APIキー設定済み</span>
-          </div>
-          <button
-            onClick={() => setShowApiKeyInput(true)}
-            className="text-xs text-green-700 hover:text-green-800 underline"
-          >
-            変更
-          </button>
-        </div>
-      ))}
-
-      {/* Model Selection */}
-      {!isTranscribing && !hasResults && (
-        <div className="space-y-4">
-          <div>
-            <label className="text-sm font-medium text-gray-700 flex items-center gap-1 mb-2">
-              <Sparkles className="w-4 h-4" />
-              文字起こしモデル選択
-            </label>
-            <select
-              value={selectedModel}
-              onChange={(e) => handleModelChange(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent text-sm"
-            >
-              <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite (推奨 - 費用対効果)</option>
-              <option value="gemini-2.5-flash">Gemini 2.5 Flash (高性能 - 適応思考)</option>
-              <option value="gemini-2.5-pro">Gemini 2.5 Pro (最高性能 - 思考と推論)</option>
-            </select>
-            <p className="text-xs text-gray-500 mt-1">
-              Flash-Lite &lt; Flash &lt; Pro の順にコストが上がります
-            </p>
-          </div>
-
-        </div>
-      )}
-
-      {/* 背景情報 */}
-      {!hideBackgroundInfo && !isTranscribing && !hasResults && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <label className="text-sm font-medium text-gray-700 flex items-center gap-1">
-              <Info className="w-4 h-4" />
-              背景情報（文字起こし精度向上・オプション）
-            </label>
-          </div>
-          <textarea
-            value={backgroundInfo}
-            onChange={(e) => {
-              setBackgroundInfo(e.target.value);
-              onBackgroundInfoChange?.(e.target.value);
-            }}
-            placeholder="例: 2024年1月26日の定例会議。参加者：田中、佐藤、鈴木。議題：新商品の戦略"
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent min-h-16 text-sm resize-y"
-          />
-          <p className="text-xs text-gray-500">
-            会議の日時、参加者、議題などを入力すると精度が向上します
-          </p>
-        </div>
-      )}
-      
-      {/* 背景情報表示（hideBackgroundInfo=trueの場合） */}
-      {hideBackgroundInfo && presetBackgroundInfo && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex items-center gap-2 mb-2">
-            <Info className="w-4 h-4 text-blue-600" />
-            <span className="text-sm font-medium text-blue-800">背景情報を使用中</span>
-          </div>
-          <p className="text-xs text-blue-700">{presetBackgroundInfo}</p>
-        </div>
-      )}
-
-      {/* Error Message */}
-      {error && (
-        <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-          <p className="text-sm text-red-700">{error}</p>
-        </div>
-      )}
-
-      {/* Cost Estimate */}
-      {!isTranscribing && apiKey && splitFiles.length > 0 && (
-        <div className="text-right">
-          <p className="text-xs text-gray-500">
-            予想コスト: ${(() => {
-              const duration = getTotalDuration();
-              const cost = calculateCost(duration, selectedModel);
-              return cost.totalCost.toFixed(4);
-            })()} ({Math.round(getTotalDuration())}秒)
-          </p>
-        </div>
-      )}
-
-      {/* Transcribe Button - 初回実行と再実行 */}
-      {!isTranscribing && (
-        <button
-          onClick={handleTranscribe}
-          disabled={!apiKey || splitFiles.length === 0}
-          className="w-full px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold rounded-xl hover:from-violet-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
-        >
-          {hasResults || error ? (
-            <>
-              <RefreshCw className="w-5 h-5" />
-              文字起こしを再実行 ({splitFiles.length}ファイル)
-            </>
-          ) : (
-            <>
-              <Sparkles className="w-5 h-5" />
-              🚀 文字起こしを開始 ({splitFiles.length}ファイル)
-            </>
-          )}
-        </button>
-      )}
-
-      {/* Results */}
-      {hasResults && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-600">
-              完了: {successCount}/{transcriptionResults.length} ファイル
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={handleCopyTranscription}
-                className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-              >
-                <Copy className="w-4 h-4" />
-                コピー
-              </button>
-              <button
-                onClick={handleDownloadTranscription}
-                className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
-              >
-                <Download className="w-4 h-4" />
-                ダウンロード
-              </button>
-            </div>
-          </div>
-
-          {/* Results Preview */}
-          <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
-            {transcriptionResults.map((result) => (
-              <div key={result.partNumber} className="border-b border-gray-100 last:border-b-0">
-                <div className="p-4 space-y-2">
-                  <h3 className="font-semibold text-gray-800 flex items-center justify-between">
-                    <span>パート {result.partNumber}: {result.fileName}</span>
-                    <span className="text-xs text-gray-500">
-                      {result.error ? 'エラー' : `${result.transcription.length}文字`}
-                    </span>
-                  </h3>
-                  {result.error ? (
-                    <p className="text-sm text-red-600">エラー: {result.error}</p>
-                  ) : (
-                    <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                      {(() => {
-                        const lines = result.transcription.split('\n');
-                        const displayLines = lines.slice(0, 100); // 最初の100行まで表示
-                        const truncated = lines.length > 100;
-                        return (
-                          <>
-                            {displayLines.join('\n')}
-                            {truncated && (
-                              <div className="mt-2 pt-2 border-t border-gray-200">
-                                <span className="text-xs text-gray-500 italic">
-                                  ...残り{lines.length - 100}行（全{lines.length}行）
-                                </span>
-                              </div>
-                            )}
-                          </>
-                        );
-                      })()}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-          
-          <div className="space-y-4">
-            {/* Completion Status */}
-            <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-6 h-6 bg-green-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
-                  ✓
-                </div>
-                <h4 className="text-lg font-semibold text-green-800">文字起こし完了！</h4>
-              </div>
-              
-              {/* Results Summary */}
-              <div className="bg-white/60 rounded-lg p-4 mb-3 border border-green-300">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                  <div>
-                    <div className="text-2xl font-bold text-green-600">{splitFiles.length}</div>
-                    <div className="text-xs text-green-700">分割ファイル</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-green-600">{successCount}/{transcriptionResults.length}</div>
-                    <div className="text-xs text-green-700">文字起こし成功</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-green-600">
-                      {transcriptionResults.reduce((total, result) => total + (result.transcription?.length || 0), 0).toLocaleString()}
-                    </div>
-                    <div className="text-xs text-green-700">総文字数</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Download Options */}
-              <div className="flex flex-wrap gap-2 justify-center mb-3">
-                {onDownloadSplit && splitFiles.map(file => (
-                  <button
-                    key={file.name}
-                    onClick={() => onDownloadSplit(file)}
-                    className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-xs font-medium"
-                  >
-                    📁 {file.name}
-                  </button>
-                ))}
-                {onDownloadAllSplits && splitFiles.length > 1 && (
-                  <button
-                    onClick={onDownloadAllSplits}
-                    className="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-xs font-medium"
-                  >
-                    📦 一括DL
-                  </button>
-                )}
-                <button
-                  onClick={handleDownloadTranscription}
-                  className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-xs font-medium"
+    <div className="space-y-8">
+      {/* 入力設定セクション */}
+      <div className="bg-violet-50 rounded-xl p-6 border border-violet-200">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+          <Sparkles className="w-5 h-5" />
+          文字起こし設定
+        </h3>
+        
+        <div className="space-y-5">
+          {/* API Key */}
+          {!presetApiKey && (showApiKeyInput ? (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">
+                Gemini API キー
+              </label>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(e) => handleApiKeyChange(e.target.value)}
+                placeholder="AIzaSy..."
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+              />
+              <p className="text-xs text-gray-500">
+                <a 
+                  href="https://aistudio.google.com/app/apikey" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-violet-600 hover:underline"
                 >
-                  📄 文字起こし結果
-                </button>
+                  Google AI Studio
+                </a>
+                でAPIキーを取得してください
+              </p>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+                <span className="text-sm font-medium text-green-800">APIキー設定済み</span>
               </div>
+              <button
+                onClick={() => setShowApiKeyInput(true)}
+                className="text-xs text-green-700 hover:text-green-800 underline"
+              >
+                変更
+              </button>
+            </div>
+          ))}
 
-              {/* Next Step Guide */}
-              <div className="p-3 bg-white/80 rounded-lg border border-green-300">
-                <p className="text-sm text-green-800">
-                  <strong>📋 次のステップ:</strong> 下の要約作成セクションでAIによる自動まとめを作成できます。
-                </p>
+          {/* Compact Model Selection */}
+          {apiKey && (
+            <div className="flex items-center gap-4">
+              <label className="text-sm font-medium text-gray-700 min-w-0">
+                モデル:
+              </label>
+              <select
+                value={selectedModel}
+                onChange={(e) => handleModelChange(e.target.value)}
+                disabled={isTranscribing}
+                className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent disabled:opacity-50 text-sm"
+              >
+                <option value="gemini-2.0-flash-lite">Flash-Lite (推奨)</option>
+                <option value="gemini-2.5-flash">2.5 Flash (高性能)</option>
+                <option value="gemini-2.5-pro">2.5 Pro (最高性能)</option>
+              </select>
+            </div>
+          )}
+
+          {/* 背景情報 - 常時表示 */}
+          {!hideBackgroundInfo && (
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2 block flex items-center gap-1">
+                <Info className="w-4 h-4" />
+                背景情報（精度向上・オプション）
+              </label>
+              <textarea
+                value={backgroundInfo}
+                onChange={(e) => {
+                  setBackgroundInfo(e.target.value);
+                  onBackgroundInfoChange?.(e.target.value);
+                }}
+                placeholder="例: 2024年1月26日の定例会議。参加者：田中、佐藤、鈴木。議題：新商品の戦略"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent min-h-20 text-sm resize-y"
+                disabled={isTranscribing}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                会議の詳細情報を入力すると精度が向上します
+              </p>
+            </div>
+          )}
+          
+          {/* 背景情報表示（hideBackgroundInfo=trueの場合） */}
+          {hideBackgroundInfo && presetBackgroundInfo && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Info className="w-4 h-4 text-blue-600" />
+                <span className="text-sm font-medium text-blue-800">背景情報を使用中</span>
               </div>
+              <p className="text-xs text-blue-700">{presetBackgroundInfo}</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* エラー表示 */}
+      {error && (
+        <div className="bg-red-50 rounded-xl p-4 border border-red-200">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+            <p className="text-sm text-red-700">{error}</p>
+          </div>
+        </div>
+      )}
+
+      {/* 再生成ボタン（入力・出力セクション間） */}
+      {apiKey && !isTranscribing && (
+        <div className="bg-white rounded-xl p-6 border border-gray-200 text-center">
+          <div className="flex items-center justify-center gap-6">
+            <div className="text-sm text-gray-600">
+              予想コスト: <span className="font-mono font-semibold">${(() => {
+                const duration = getTotalDuration();
+                const cost = calculateCost(duration, selectedModel);
+                return cost.totalCost.toFixed(4);
+              })()}</span>
+              <span className="ml-2 text-xs">({Math.round(getTotalDuration())}秒)</span>
             </div>
             
-            {/* Actual Cost Display */}
+            <button
+              onClick={handleTranscribe}
+              disabled={!apiKey || splitFiles.length === 0}
+              className="px-8 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold rounded-xl hover:from-violet-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl"
+            >
+              {hasResults || error ? (
+                <>
+                  <RefreshCw className="w-5 h-5" />
+                  再生成
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-5 h-5" />
+                  文字起こし開始
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 出力結果セクション */}
+      {hasResults && (
+        <div className="bg-green-50 rounded-xl p-6 border border-green-200">
+          <div className="space-y-4">
+            {/* Completion Header */}
+            <h3 className="text-lg font-semibold text-green-800 flex items-center gap-2 mb-2">
+              <CheckCircle className="w-5 h-5" />
+              文字起こし完了
+            </h3>
+            <div className="text-sm text-green-700 text-center">
+              成功: {successCount}/{transcriptionResults.length} ファイル
+            </div>
+
+            {/* Statistics */}
+            <div className="bg-white/80 rounded-lg p-4 border border-green-300">
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <div className="text-xl font-bold text-green-600">{splitFiles.length}</div>
+                  <div className="text-xs text-green-700">音声ファイル</div>
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-green-600">{successCount}</div>
+                  <div className="text-xs text-green-700">成功</div>
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-green-600">
+                    {transcriptionResults.reduce((total, result) => total + (result.transcription?.length || 0), 0).toLocaleString()}
+                  </div>
+                  <div className="text-xs text-green-700">総文字数</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Download Section */}
+            <div className="bg-white/60 rounded-lg p-4 border border-green-200">
+              <h4 className="text-sm font-semibold text-green-800 mb-3">ダウンロード</h4>
+              <div className="space-y-3">
+                <div>
+                  <div className="text-xs text-gray-600 mb-2">音声ファイル</div>
+                  <div className="flex flex-wrap gap-2">
+                    {onDownloadSplit && splitFiles.map(file => (
+                      <button
+                        key={file.name}
+                        onClick={() => onDownloadSplit(file)}
+                        className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-xs font-medium"
+                      >
+                        🎵 {file.name}
+                      </button>
+                    ))}
+                    {onDownloadAllSplits && splitFiles.length > 1 && (
+                      <button
+                        onClick={onDownloadAllSplits}
+                        className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-medium"
+                      >
+                        📦 全音声ファイル一括
+                      </button>
+                    )}
+                  </div>
+                </div>
+                
+                <div>
+                  <div className="text-xs text-gray-600 mb-2">文字起こし結果</div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleCopyTranscription}
+                      className="px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors flex items-center gap-2 text-sm font-medium"
+                    >
+                      <Copy className="w-4 h-4" />
+                      コピー
+                    </button>
+                    <button
+                      onClick={handleDownloadTranscription}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 text-sm font-medium"
+                    >
+                      <Download className="w-4 h-4" />
+                      テキストファイル
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Transcription Results Preview */}
+            <div className="bg-white rounded-lg border border-green-200">
+              <div className="p-3 border-b border-green-200">
+                <h4 className="text-sm font-semibold text-green-800">文字起こし結果プレビュー</h4>
+              </div>
+              <div className="max-h-80 overflow-y-auto">
+                {transcriptionResults.map((result) => (
+                  <div key={result.partNumber} className="border-b border-gray-100 last:border-b-0">
+                    <div className="p-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-800">
+                          パート {result.partNumber}: {result.fileName}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {result.error ? 'エラー' : `${result.transcription.length}文字`}
+                        </span>
+                      </div>
+                      {result.error ? (
+                        <p className="text-sm text-red-600">エラー: {result.error}</p>
+                      ) : (
+                        <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                          {(() => {
+                            const lines = result.transcription.split('\n');
+                            const displayLines = lines.slice(0, 100);
+                            const truncated = lines.length > 100;
+                            return (
+                              <>
+                                {displayLines.join('\n')}
+                                {truncated && (
+                                  <div className="mt-2 pt-2 border-t border-gray-200">
+                                    <span className="text-xs text-gray-500 italic">
+                                      ...残り{lines.length - 100}行（全{lines.length}行）
+                                    </span>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Next Step Guide */}
+            <div className="p-4 bg-emerald-100 border border-emerald-300 rounded-lg">
+              <p className="text-sm text-emerald-800 text-center">
+                <strong>📋 次のステップ:</strong> 下の要約作成セクションでAIによる自動まとめを作成できます。
+              </p>
+            </div>
+
+            {/* Cost Display */}
             {actualCost !== null && (
-              <div className="text-right">
-                <p className="text-xs text-gray-500">
-                  実際のコスト: ${actualCost.toFixed(4)} ({selectedModel === 'gemini-2.0-flash-lite' ? 'Flash-Lite' : 
-                            selectedModel === 'gemini-2.5-flash' ? '2.5 Flash' : '2.5 Pro'})
-                </p>
+              <div className="text-center text-sm text-gray-600">
+                実際のコスト: <span className="font-mono font-semibold">${actualCost.toFixed(4)}</span>
               </div>
             )}
           </div>
