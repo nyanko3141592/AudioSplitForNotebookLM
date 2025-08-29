@@ -10,13 +10,17 @@ import {
   AlertCircle,
   CheckCircle,
   MessageSquare,
-  ArrowDown
+  ArrowDown,
+  Cpu,
+  Cloud
 } from 'lucide-react';
 import type { TranscriptionResult } from '../utils/geminiTranscriber';
+import type { TranscriptionMode } from '../utils/transcriptionService';
 import { GeminiTranscriber } from '../utils/geminiTranscriber';
 import { apiEndpointStorage } from '../utils/storage';
 import { RecordingPanel } from '../components/RecordingPanel';
 import { RecordingIndicator } from '../utils/recordingIndicator';
+import { LocalTranscriber } from '../utils/localTranscriber';
 
 type Props = {
   onRecordingStateChange?: (isActive: boolean) => void;
@@ -43,6 +47,7 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
   const [hasRecordedSegments, setHasRecordedSegments] = useState<boolean>(false);
   const [isTestingConnection, setIsTestingConnection] = useState<boolean>(false);
   const [connectionTestResult, setConnectionTestResult] = useState<'success' | 'error' | null>(null);
+  const [transcriptionMode, setTranscriptionMode] = useState<TranscriptionMode>('local');
   
   const handleRecordingStateChange = (isActive: boolean) => {
     setIsRecordingActive(isActive);
@@ -619,7 +624,44 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
               <span className="ml-3 text-sm text-gray-500">(文字起こし・要約を使う場合)</span>
             </div>
 
-            {/* API Key Section */}
+            {/* Processing Mode Selection */}
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">処理方法</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setTranscriptionMode('local')}
+                  className={`px-4 py-3 rounded-lg border-2 transition-all ${
+                    transcriptionMode === 'local'
+                      ? 'border-violet-500 bg-violet-50 text-violet-700'
+                      : 'border-gray-300 hover:border-gray-400 bg-white'
+                  }`}
+                >
+                  <div className="flex items-center justify-center gap-2 mb-1">
+                    <Cpu className="w-5 h-5" />
+                    <span className="font-medium">ローカル処理</span>
+                  </div>
+                  <p className="text-xs opacity-75">Whisper (無料・プライバシー重視)</p>
+                </button>
+                <button
+                  onClick={() => setTranscriptionMode('gemini')}
+                  className={`px-4 py-3 rounded-lg border-2 transition-all ${
+                    transcriptionMode === 'gemini'
+                      ? 'border-violet-500 bg-violet-50 text-violet-700'
+                      : 'border-gray-300 hover:border-gray-400 bg-white'
+                  }`}
+                >
+                  <div className="flex items-center justify-center gap-2 mb-1">
+                    <Cloud className="w-5 h-5" />
+                    <span className="font-medium">Gemini API</span>
+                  </div>
+                  <p className="text-xs opacity-75">高精度・高速・要約機能対応</p>
+                </button>
+              </div>
+            </div>
+
+
+            {/* Gemini API Key Section */}
+            {transcriptionMode === 'gemini' && (
             <div className="mb-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-3">Gemini API キー</h3>
               {!apiKey ? (
@@ -700,9 +742,10 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
                 </div>
               )}
             </div>
+            )}
 
             {/* API Endpoint Section */}
-            {apiKey && (
+            {transcriptionMode === 'gemini' && apiKey && (
               <div className="mb-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-3">APIエンドポイント</h3>
                 <div className="space-y-3">
@@ -746,16 +789,21 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
             )}
 
             <div className="text-center">
-              {apiKey ? (
+              {transcriptionMode === 'local' ? (
+                <>
+                  <p className="text-gray-600 font-medium">ローカル処理の準備完了！</p>
+                  <p className="text-sm text-gray-500 mt-1">APIキー不要で文字起こしを開始できます</p>
+                </>
+              ) : apiKey ? (
                 <>
                   <p className="text-gray-600 font-medium">APIキー設定完了！</p>
                   <p className="text-sm text-gray-500 mt-1">下のステップ3で文字起こしを開始できます</p>
                 </>
               ) : (
                 <>
-                  <p className="text-gray-600 font-medium">音声分割のみ利用可能</p>
+                  <p className="text-gray-600 font-medium">Gemini APIキーを設定してください</p>
                   <p className="text-sm text-gray-500 mt-1">
-                    APIキーを設定すると文字起こし・要約機能も使えます
+                    APIキーを設定すると高精度な文字起こし・要約機能が使えます
                   </p>
                 </>
               )}
@@ -776,103 +824,33 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
 
         {splitFiles.length > 0 && (
           <>
-            {apiKey ? (
-              /* With API Key - Show Transcription */
-              <div className="bg-white rounded-2xl shadow-lg p-8 mb-16" data-step="transcription">
-                <div className="flex items-center mb-6">
-                  <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold mr-3">
-                    3
-                  </div>
-                  <h2 className="text-2xl font-bold text-gray-900">文字起こし</h2>
+            {/* Always show TranscriptionStep regardless of API key */}
+            <div className="bg-white rounded-2xl shadow-lg p-8 mb-16" data-step="transcription">
+              <div className="flex items-center mb-6">
+                <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold mr-3">
+                  3
                 </div>
-                
-                <TranscriptionStep
-                  splitFiles={splitFiles}
-                  transcriptionResults={transcriptionResults}
-                  onNext={() => {}}
-                  onDownloadSplit={handleDownload}
-                  onDownloadAllSplits={handleDownloadAll}
-                  onTranscriptionComplete={handleTranscriptionComplete}
-                  onBackgroundInfoChange={setTranscriptionBackgroundInfo}
-                  hideBackgroundInfo={false}
-                  showNext={false}
-                  presetApiKey={apiKey}
-                  presetApiEndpoint={apiEndpoint}
-                  presetBackgroundInfo={transcriptionBackgroundInfo}
-                  presetConcurrencySettings={transcriptionSettings.concurrencySettings}
-                  presetCustomPrompt={transcriptionSettings.customPrompt}
-                />
+                <h2 className="text-2xl font-bold text-gray-900">文字起こし</h2>
               </div>
-            ) : (
-              /* Without API Key - Show Split Results Only */
-              <div className="bg-white rounded-2xl shadow-lg p-8 mb-16" data-step="transcription">
-                <div className="flex items-center mb-6">
-                  <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold mr-3">
-                    3
-                  </div>
-                  <h2 className="text-2xl font-bold text-gray-900">音声分割完了</h2>
-                </div>
-                
-                <div className="bg-green-50 border border-green-200 rounded-xl p-6 mb-6">
-                  <div className="flex items-center mb-4">
-                    <CheckCircle className="w-6 h-6 text-green-600 mr-3" />
-                    <div>
-                      <p className="text-green-800 font-medium">
-                        音声ファイルの分割が完了しました
-                      </p>
-                      <p className="text-sm text-green-700 mt-1">
-                        {splitFiles.length}個のファイルに分割されました
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-900">分割されたファイル</h3>
-                  <div className="space-y-3">
-                    {splitFiles.map((file, index) => (
-                      <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                            <span className="text-sm font-semibold text-blue-600">{index + 1}</span>
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-900">{file.name}</p>
-                            <p className="text-sm text-gray-600">
-                              {(file.size / (1024 * 1024)).toFixed(1)} MB
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => handleDownload(file)}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                        >
-                          ダウンロード
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  
-                  {splitFiles.length > 1 && (
-                    <div className="pt-4 border-t border-gray-200">
-                      <button
-                        onClick={handleDownloadAll}
-                        className="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all duration-200"
-                      >
-                        すべてをZIPでダウンロード
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                  <p className="text-blue-800 text-sm">
-                    💡 <strong>文字起こし・要約機能を使用するには：</strong><br />
-                    上のステップ2でGemini APIキーを設定してください。文字起こしと議事録の自動生成が利用できるようになります。
-                  </p>
-                </div>
-              </div>
-            )}
+              
+              <TranscriptionStep
+                splitFiles={splitFiles}
+                transcriptionResults={transcriptionResults}
+                onNext={() => {}}
+                onDownloadSplit={handleDownload}
+                onDownloadAllSplits={handleDownloadAll}
+                onTranscriptionComplete={handleTranscriptionComplete}
+                onBackgroundInfoChange={setTranscriptionBackgroundInfo}
+                hideBackgroundInfo={false}
+                showNext={false}
+                presetApiKey={transcriptionMode === 'gemini' ? apiKey : ''}
+                presetApiEndpoint={apiEndpoint}
+                presetBackgroundInfo={transcriptionBackgroundInfo}
+                presetConcurrencySettings={transcriptionSettings.concurrencySettings}
+                presetCustomPrompt={transcriptionSettings.customPrompt}
+                presetTranscriptionMode={transcriptionMode}
+              />
+            </div>
 
 
             {/* Arrow between transcription and summary */}

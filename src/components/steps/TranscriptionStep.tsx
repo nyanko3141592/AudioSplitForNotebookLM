@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { Download, Loader2, AlertCircle, StopCircle, CheckCircle, XCircle, Clock, Copy, Info, RefreshCw, Sparkles, ArrowRight } from 'lucide-react';
-import { GeminiTranscriber, downloadTranscription } from '../../utils/geminiTranscriber';
+import { Download, Loader2, AlertCircle, StopCircle, CheckCircle, XCircle, Clock, Copy, Info, RefreshCw, Sparkles, ArrowRight, Cpu, Cloud } from 'lucide-react';
+import { downloadTranscription } from '../../utils/geminiTranscriber';
 import type { TranscriptionResult, TranscriptionProgress } from '../../utils/geminiTranscriber';
+import { TranscriptionService } from '../../utils/transcriptionService';
+import type { TranscriptionMode } from '../../utils/transcriptionService';
+import { LocalTranscriber } from '../../utils/localTranscriber';
 import type { SplitFile } from '../DownloadList';
 import { apiKeyStorage, localStorage, apiEndpointStorage } from '../../utils/storage';
 
@@ -26,6 +29,7 @@ interface TranscriptionStepProps {
     delay: number;
   };
   presetCustomPrompt?: string;
+  presetTranscriptionMode?: TranscriptionMode;
 }
 
 export function TranscriptionStep({ 
@@ -44,7 +48,8 @@ export function TranscriptionStep({
   presetApiEndpoint = '',
   presetBackgroundInfo = '',
   presetConcurrencySettings,
-  presetCustomPrompt = ''
+  presetCustomPrompt = '',
+  presetTranscriptionMode = 'local'
 }: TranscriptionStepProps) {
   const [apiKey, setApiKey] = useState('');
   const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash-lite');
@@ -59,7 +64,7 @@ export function TranscriptionStep({
   });
   const [error, setError] = useState<string | null>(null);
   const [actualCost, setActualCost] = useState<number | null>(null);
-  const transcriberRef = useRef<GeminiTranscriber | null>(null);
+  const transcriptionServiceRef = useRef<TranscriptionService>(TranscriptionService.getInstance());
   const [customPrompt, setCustomPrompt] = useState('');
   const [backgroundInfo, setBackgroundInfo] = useState('');
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
@@ -68,8 +73,16 @@ export function TranscriptionStep({
     count: 2,
     delay: 1000
   });
+  const [transcriptionMode, setTranscriptionMode] = useState<TranscriptionMode>(presetTranscriptionMode || 'local');
+  const [whisperLanguage, setWhisperLanguage] = useState<string>('auto');
+  const [localModelName, setLocalModelName] = useState('Xenova/whisper-tiny');
   
 
+  // presetTranscriptionModeが変更されたらtranscriptionModeを更新
+  useEffect(() => {
+    setTranscriptionMode(presetTranscriptionMode);
+  }, [presetTranscriptionMode]);
+  
   // 初回読み込み時にストレージからデータを復元またはpresetを使用
   useEffect(() => {
     if (presetApiKey) {
@@ -81,7 +94,8 @@ export function TranscriptionStep({
         setApiKey(savedApiKey);
         setShowApiKeyInput(false);
       } else {
-        setShowApiKeyInput(true);
+        // APIキーがない場合、ローカル処理を使うので入力欄は非表示
+        setShowApiKeyInput(false);
       }
     }
     
@@ -174,9 +188,15 @@ export function TranscriptionStep({
 
 
   const handleTranscribe = async () => {
-    if (!apiKey) {
-      setError('APIキーを入力してください');
+    // ローカル処理の場合はAPIキー不要、Gemini APIの場合のみキーチェック
+    if (transcriptionMode === 'gemini' && !apiKey) {
+      setError('Gemini APIを使用するにはAPIキーを入力してください');
       return;
+    }
+    
+    // autoモードの場合、APIキーがなければローカル処理を使用
+    if (transcriptionMode === 'auto' && !apiKey) {
+      setTranscriptionMode('local');
     }
 
     if (splitFiles.length === 0) {
@@ -189,27 +209,45 @@ export function TranscriptionStep({
     setTranscriptionResults([]);
 
     try {
-      const transcriber = new GeminiTranscriber(apiKey, selectedModel, apiEndpoint);
-      transcriberRef.current = transcriber;
+      const service = transcriptionServiceRef.current;
+      
+      // サービスの設定
+      service.configure({
+        mode: transcriptionMode,
+        geminiApiKey: apiKey,
+        geminiModelName: selectedModel,
+        geminiEndpoint: apiEndpoint,
+        localModelName: localModelName
+      });
       
       const concurrency = concurrencySettings.enabled ? concurrencySettings.count : 1;
       const delay = concurrencySettings.delay;
       
-      const results = await transcriber.transcribeMultipleBlobs(
+      // 背景情報をプロンプトに組み込む
+      const fullPrompt = backgroundInfo ? 
+        `背景情報: ${backgroundInfo}\n\n${customPrompt || ''}` : 
+        customPrompt;
+      
+      const results = await service.transcribeMultipleBlobs(
         splitFiles.map(f => f.blob),
         splitFiles.map(f => f.name),
         (progress: TranscriptionProgress) => {
           setCurrentProgress(progress);
         },
-        delay,
-        customPrompt || undefined,
-        concurrency
+        {
+          delay,
+          language: whisperLanguage,
+          customPrompt: fullPrompt || undefined,
+          concurrency
+        }
       );
 
-      // 実際のコストを計算
-      const duration = getTotalDuration();
-      const cost = calculateCost(duration, selectedModel);
-      setActualCost(cost.totalCost);
+      // 実際のコストを計算（Gemini APIの場合のみ）
+      if (transcriptionMode !== 'local') {
+        const duration = getTotalDuration();
+        const cost = calculateCost(duration, selectedModel);
+        setActualCost(cost.totalCost);
+      }
 
       setTranscriptionResults(results);
       onTranscriptionComplete?.(results);
@@ -222,30 +260,45 @@ export function TranscriptionStep({
       }
     } finally {
       setIsTranscribing(false);
-      transcriberRef.current = null;
       setCurrentProgress({ current: 0, total: 0, status: '', fileStates: new Map() });
     }
   };
 
   const handleCopyTranscription = () => {
     if (transcriptionResults.length > 0) {
-      const transcriber = new GeminiTranscriber();
-      const formatted = transcriber.formatTranscriptions(transcriptionResults);
+      const formatted = formatTranscriptions(transcriptionResults);
       navigator.clipboard.writeText(formatted);
       // TODO: Add toast notification for copy success
     }
   };
 
+  const formatTranscriptions = (results: TranscriptionResult[]): string => {
+    let formatted = '# 音声文字起こし結果\n\n';
+    
+    for (const result of results) {
+      formatted += `## パート ${result.partNumber}: ${result.fileName}\n\n`;
+      
+      if (result.error) {
+        formatted += `⚠️ エラー: ${result.error}\n\n`;
+      } else {
+        formatted += `${result.transcription}\n\n`;
+      }
+      
+      formatted += '---\n\n';
+    }
+    
+    return formatted;
+  };
+
   const handleCancelTranscription = () => {
-    if (transcriberRef.current) {
-      transcriberRef.current.cancelTranscription();
+    if (transcriptionServiceRef.current) {
+      transcriptionServiceRef.current.cancelTranscription();
     }
   };
 
   const handleDownloadTranscription = () => {
     if (transcriptionResults.length > 0) {
-      const transcriber = new GeminiTranscriber();
-      const formatted = transcriber.formatTranscriptions(transcriptionResults);
+      const formatted = formatTranscriptions(transcriptionResults);
       downloadTranscription(formatted);
     }
   };
@@ -265,8 +318,77 @@ export function TranscriptionStep({
         </h3>
         
         <div className="space-y-5">
+          {/* Display current mode */}
+          <div className="p-3 bg-violet-50 border border-violet-200 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {transcriptionMode === 'local' ? (
+                  <>
+                    <Cpu className="w-5 h-5 text-violet-600" />
+                    <span className="text-sm font-medium text-violet-800">ローカル処理モード</span>
+                  </>
+                ) : (
+                  <>
+                    <Cloud className="w-5 h-5 text-violet-600" />
+                    <span className="text-sm font-medium text-violet-800">Gemini APIモード</span>
+                  </>
+                )}
+              </div>
+              <p className="text-xs text-violet-600">
+                {transcriptionMode === 'local' ? '無料・プライバシー重視' : '高精度・高速'}
+              </p>
+            </div>
+          </div>
+
+          {/* Local Settings */}
+          {transcriptionMode === 'local' && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">
+                  言語設定
+                </label>
+                <select
+                  value={whisperLanguage}
+                  onChange={(e) => setWhisperLanguage(e.target.value)}
+                  disabled={isTranscribing}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                >
+                  {LocalTranscriber.getAvailableLanguages().map(lang => (
+                    <option key={lang.code} value={lang.code}>
+                      {lang.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500">
+                  文字起こしする音声の言語を選択してください
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Whisperモデル
+                </label>
+              <select
+                value={localModelName}
+                onChange={(e) => setLocalModelName(e.target.value)}
+                disabled={isTranscribing}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+              >
+                {LocalTranscriber.getAvailableModels().map(model => (
+                  <option key={model.id} value={model.id}>
+                    {model.name} ({model.size}, {model.speed}, 精度: {model.accuracy})
+                  </option>
+                ))}
+              </select>
+                <p className="text-xs text-gray-500">
+                  初回はモデルのダウンロードが必要です（キャッシュされます）
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* API Key */}
-          {!presetApiKey && (showApiKeyInput ? (
+          {transcriptionMode === 'gemini' && !presetApiKey && (showApiKeyInput || !apiKey ? (
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700">
                 Gemini API キー
@@ -306,7 +428,7 @@ export function TranscriptionStep({
           ))}
 
           {/* Compact Model Selection */}
-          {apiKey && (
+          {transcriptionMode !== 'local' && apiKey && (
             <div className="flex items-center gap-4">
               <label className="text-sm font-medium text-gray-700 min-w-0">
                 モデル:
@@ -425,11 +547,11 @@ export function TranscriptionStep({
       )}
 
       {/* 再生成ボタン（入力・出力セクション間） */}
-      {apiKey && !isTranscribing && (
+      {!isTranscribing && (
         <div className="text-center space-y-3">
           <button
             onClick={handleTranscribe}
-            disabled={!apiKey || splitFiles.length === 0}
+            disabled={splitFiles.length === 0 || (transcriptionMode === 'gemini' && !apiKey)}
             className="px-8 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold rounded-xl hover:from-violet-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl mx-auto"
           >
             {hasResults || error ? (
@@ -445,14 +567,16 @@ export function TranscriptionStep({
             )}
           </button>
           
-          <div className="text-sm text-gray-600">
-            予想コスト: <span className="font-mono font-semibold">${(() => {
-              const duration = getTotalDuration();
-              const cost = calculateCost(duration, selectedModel);
-              return cost.totalCost.toFixed(4);
-            })()}</span>
-            <span className="ml-2 text-xs">({Math.round(getTotalDuration())}秒)</span>
-          </div>
+          {transcriptionMode !== 'local' && (
+            <div className="text-sm text-gray-600">
+              予想コスト: <span className="font-mono font-semibold">${(() => {
+                const duration = getTotalDuration();
+                const cost = calculateCost(duration, selectedModel);
+                return cost.totalCost.toFixed(4);
+              })()}</span>
+              <span className="ml-2 text-xs">({Math.round(getTotalDuration())}秒)</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -592,7 +716,7 @@ export function TranscriptionStep({
             </div>
 
             {/* Cost Display */}
-            {actualCost !== null && (
+            {transcriptionMode !== 'local' && actualCost !== null && (
               <div className="text-center text-sm text-gray-600">
                 実際のコスト: <span className="font-mono font-semibold">${actualCost.toFixed(4)}</span>
               </div>
