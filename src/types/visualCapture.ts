@@ -38,7 +38,7 @@ export interface VisualCaptureState {
 export const defaultVisualCaptureSettings: VisualCaptureSettings = {
   enabled: true,
   interval: 60,              // 1分間隔
-  maxCaptures: 10,           // 最大10枚（重複検出により効率化）
+  maxCaptures: 100,          // 最大100枚（重複検出により効率化）
   imageQuality: 0.7,         // 70%品質（コスト削減）
   imageFormat: 'jpeg',
   duplicateDetection: true,  // 重複検出有効
