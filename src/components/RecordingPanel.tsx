@@ -994,7 +994,7 @@ export const RecordingPanel: React.FC<Props> = ({
       )}
 
       {/* Manual Capture & Upload */}
-      {visualCaptureSettings.enabled && (
+      {visualCaptureSettings?.enabled && (
         <div className="mb-6 bg-blue-50 rounded-xl p-4 border border-blue-200">
           <h4 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
             📸 画像キャプチャ・アップロード

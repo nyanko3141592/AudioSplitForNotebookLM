@@ -365,7 +365,7 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
 
   // ステップの状態を計算
   const hasVisualCaptures = visualCaptures.length > 0;
-  const hasAnalyzedVisuals = visualSummary.length > 0; // Check if visual summary exists
+  // const hasAnalyzedVisuals = visualSummary.length > 0; // Check if visual summary exists
   const [visualAnalysisCompleted, setVisualAnalysisCompleted] = useState(false); // Track if visual analysis action is completed
   
   const currentStep = !selectedFile ? 1 : 
