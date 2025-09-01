@@ -296,9 +296,12 @@ ${summarySettings.backgroundInfo}
       formatPrompt = (formatPrompt || '') + (useMarkdown ? outputDirectiveMarkdown : outputDirectivePlain);
 
       // Step 2: 文字起こし結果を統合
+      const hasVisualInfo = visualSummary && visualSummary.length > 0;
       setSummarySettings(prev => ({ 
         ...prev, 
-        progress: '文字起こし結果を統合しています...',
+        progress: hasVisualInfo 
+          ? '文字起こし結果と画像解析情報を統合しています...'
+          : '文字起こし結果を統合しています...',
         currentStep: 2 
       }));
 
@@ -323,7 +326,9 @@ ${summarySettings.backgroundInfo}
       setSummarySettings(prev => ({ 
         ...prev, 
         result: summary,
-        progress: 'まとめが完了しました！',
+        progress: hasVisualInfo 
+          ? 'まとめが完了しました！（画像解析情報も含む）'
+          : 'まとめが完了しました！',
         currentStep: 3 
       }));
     } catch (error) {
@@ -588,10 +593,17 @@ ${summarySettings.backgroundInfo}
       {summarySettings.result && (
         <div className="bg-green-50 rounded-xl p-6 border border-green-200">
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-green-800 flex items-center gap-2 justify-center mb-2">
-              <CheckCircle className="w-5 h-5" />
-              まとめ結果
-            </h3>
+            <div className="text-center space-y-2">
+              <h3 className="text-lg font-semibold text-green-800 flex items-center gap-2 justify-center">
+                <CheckCircle className="w-5 h-5" />
+                まとめ結果
+              </h3>
+              {visualSummary && visualSummary.length > 0 && (
+                <p className="text-sm text-green-700 bg-green-100 px-3 py-1.5 rounded-full inline-block">
+                  📸 画像解析情報も含んで要約されています
+                </p>
+              )}
+            </div>
 
             <div className="bg-white rounded-lg border border-green-200 p-4 max-h-80 overflow-y-auto">
               <pre className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{summarySettings.result}</pre>

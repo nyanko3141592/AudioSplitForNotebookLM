@@ -131,7 +131,7 @@ export const VisualCaptureSettingsComponent: React.FC<VisualCaptureSettingsProps
               <input
                 type="range"
                 min="1"
-                max="20"
+                max="100"
                 step="1"
                 value={settings.maxCaptures}
                 onChange={(e) => handleSettingChange('maxCaptures', parseInt(e.target.value))}
@@ -142,11 +142,11 @@ export const VisualCaptureSettingsComponent: React.FC<VisualCaptureSettingsProps
                 <input
                   type="number"
                   min="1"
-                  max="20"
+                  max="100"
                   value={settings.maxCaptures}
                   onChange={(e) => handleSettingChange('maxCaptures', parseInt(e.target.value) || 1)}
                   disabled={disabled}
-                  className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                  className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
                 />
                 <span className="text-sm text-gray-600">枚</span>
               </div>
@@ -181,6 +181,73 @@ export const VisualCaptureSettingsComponent: React.FC<VisualCaptureSettingsProps
             <p className="text-xs text-gray-600 mt-1">
               70%推奨: 分析に十分で転送量も適度
             </p>
+          </div>
+
+          {/* 重複検出設定 */}
+          <div>
+            <label className="flex items-center gap-3 cursor-pointer mb-3">
+              <input
+                type="checkbox"
+                checked={settings.duplicateDetection}
+                onChange={(e) => handleSettingChange('duplicateDetection', e.target.checked)}
+                disabled={disabled}
+                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+              />
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-900">重複画像検出</span>
+                <div className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full font-medium">
+                  API節約
+                </div>
+              </div>
+            </label>
+            
+            {settings.duplicateDetection && (
+              <div className="ml-7 space-y-3">
+                <div>
+                  <label className="block text-sm text-gray-700 mb-2">
+                    類似度閾値: {Math.round(settings.duplicateThreshold * 100)}%
+                  </label>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="range"
+                      min="0.8"
+                      max="0.99"
+                      step="0.01"
+                      value={settings.duplicateThreshold}
+                      onChange={(e) => handleSettingChange('duplicateThreshold', parseFloat(e.target.value))}
+                      disabled={disabled}
+                      className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="0.8"
+                        max="0.99"
+                        step="0.01"
+                        value={settings.duplicateThreshold}
+                        onChange={(e) => handleSettingChange('duplicateThreshold', parseFloat(e.target.value) || 0.95)}
+                        disabled={disabled}
+                        className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-1">
+                    95%推奨: ほぼ同じ画面のみ重複とみなす（85%未満は非推奨）
+                  </p>
+                </div>
+                
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <Info className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-green-800">
+                      <p className="font-medium mb-1">API呼び出し効率化</p>
+                      <p>類似した画像は1枚のみ分析し、結果を共有することでコストを削減します。</p>
+                      <p className="mt-1 font-medium text-green-900">最大10枚まで選択して分析（時系列で均等分散）</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 録音時間と費用の目安 */}

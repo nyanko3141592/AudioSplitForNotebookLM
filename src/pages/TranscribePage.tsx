@@ -79,20 +79,7 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
     }
   };
   
-  const handleVisualBackgroundInfo = (backgroundInfo: string) => {
-    console.log('🎥 Visual background info received:', backgroundInfo);
-    // Auto-populate background information with visual capture analysis
-    if (backgroundInfo) {
-      setTranscriptionBackgroundInfo(prev => {
-        // If there's already background info, append the visual info
-        if (prev.trim()) {
-          return prev + '\n\n' + backgroundInfo;
-        } else {
-          return backgroundInfo;
-        }
-      });
-    }
-  };
+  // Removed unused function handleVisualBackgroundInfo - visual info is now handled separately
   
   const handleVisualCapturesReady = (captures: CaptureAnalysis[]) => {
     console.log('📸 Visual captures received:', captures.length);
@@ -171,15 +158,20 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
     });
   }, [selectedFile, apiKey, splitFiles.length, transcriptionResults.length, onStepStateChange]);
 
-  // Clean up function to release memory
+  // Clean up function to release memory - stable function without dependency on splitFiles
   const cleanupSplitFiles = useCallback(() => {
-    splitFiles.forEach(file => {
-      if (file.blob && (file as any).url) {
-        URL.revokeObjectURL((file as any).url);
+    setSplitFiles(currentFiles => {
+      currentFiles.forEach(file => {
+        if (file.blob && (file as any).url) {
+          URL.revokeObjectURL((file as any).url);
+        }
+      });
+      if (currentFiles.length > 0) {
+        console.log('Cleaned up previous split files');
       }
+      return currentFiles; // Return same array to avoid triggering updates
     });
-    console.log('Cleaned up previous split files');
-  }, [splitFiles]);
+  }, []); // Remove splitFiles dependency
 
   // APIキーとエンドポイントの初期化
   useEffect(() => {
@@ -374,10 +366,12 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
   // ステップの状態を計算
   const hasVisualCaptures = visualCaptures.length > 0;
   const hasAnalyzedVisuals = visualSummary.length > 0; // Check if visual summary exists
+  const [visualAnalysisCompleted, setVisualAnalysisCompleted] = useState(false); // Track if visual analysis action is completed
+  
   const currentStep = !selectedFile ? 1 : 
                      splitFiles.length === 0 ? 2 : 
-                     hasVisualCaptures ? 3 : // Visual analysis step (always show if captures exist)
-                     transcriptionResults.length === 0 ? 4 : 5;
+                     hasVisualCaptures && !visualAnalysisCompleted ? 3 : // Must complete visual analysis if captures exist
+                     transcriptionResults.length === 0 ? (hasVisualCaptures ? 4 : 3) : (hasVisualCaptures ? 5 : 4);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -734,7 +728,10 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
                 
                 <div className="flex gap-4">
                   <button
-                    onClick={analyzeVisualCaptures}
+                    onClick={async () => {
+                      await analyzeVisualCaptures();
+                      setVisualAnalysisCompleted(true);
+                    }}
                     disabled={!apiKey || isAnalyzingVisuals}
                     className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
                       !apiKey || isAnalyzingVisuals
@@ -758,7 +755,8 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
                   <button
                     onClick={() => {
                       // Skip visual analysis and proceed to transcription
-                      setVisualCaptures([]);
+                      setVisualAnalysisCompleted(true);
+                      setVisualSummary(''); // Clear any existing summary
                     }}
                     disabled={isAnalyzingVisuals}
                     className="px-6 py-3 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -784,7 +782,7 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
         )}
         
         {/* Arrow between visual analysis and transcription */}
-        {splitFiles.length > 0 && (!hasVisualCaptures || hasAnalyzedVisuals) && (
+        {splitFiles.length > 0 && (!hasVisualCaptures || visualAnalysisCompleted) && (
           <div className="flex justify-center mb-8">
             <div className="flex flex-col items-center">
               <ArrowDown className="w-8 h-8 text-violet-400 animate-bounce" />
@@ -793,7 +791,8 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
           </div>
         )}
 
-        {splitFiles.length > 0 && (
+        {/* Transcription Step - Only show if visual analysis is completed or no visual captures */}
+        {splitFiles.length > 0 && (!hasVisualCaptures || visualAnalysisCompleted) && (
           <>
             {apiKey ? (
               /* With API Key - Show Transcription */
@@ -820,7 +819,6 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
                   presetBackgroundInfo={transcriptionBackgroundInfo}
                   presetConcurrencySettings={transcriptionSettings.concurrencySettings}
                   presetCustomPrompt={transcriptionSettings.customPrompt}
-                  presetModel={transcriptionSettings.model}
                 />
               </div>
             ) : (

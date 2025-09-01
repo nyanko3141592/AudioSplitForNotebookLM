@@ -126,9 +126,13 @@ export function TranscriptionStep({
     }
     
     // 言語設定を読み込み
-    const savedLanguage = localStorage.getItem('transcription_language');
-    if (savedLanguage) {
-      setSelectedLanguage(savedLanguage);
+    try {
+      const savedLanguage = window.localStorage.getItem('transcription_language');
+      if (savedLanguage) {
+        setSelectedLanguage(savedLanguage);
+      }
+    } catch (error) {
+      console.warn('Failed to load language setting from localStorage:', error);
     }
   }, [presetApiKey, presetBackgroundInfo, presetCustomPrompt, presetConcurrencySettings, onBackgroundInfoChange]);
 

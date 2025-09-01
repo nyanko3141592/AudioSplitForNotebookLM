@@ -718,10 +718,13 @@ export const RecordingPanel: React.FC<Props> = ({
     // Wait a bit for the current segment to be saved
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    // Pass visual captures to parent for separate analysis step
+    // Pass visual captures to parent for separate analysis step (async to avoid setState during render)
     if (visualCapture.state.capturedImages.length > 0 && onVisualCapturesReady) {
       console.log('📸 Passing visual captures to parent:', visualCapture.state.capturedImages.length);
-      onVisualCapturesReady(visualCapture.state.capturedImages);
+      // Use setTimeout to defer the callback to the next tick
+      setTimeout(() => {
+        onVisualCapturesReady(visualCapture.state.capturedImages);
+      }, 0);
     }
 
     // Pass all segments to parent for individual transcription
@@ -988,6 +991,70 @@ export const RecordingPanel: React.FC<Props> = ({
           disabled={isRecording}
           className="mb-6"
         />
+      )}
+
+      {/* Manual Capture & Upload */}
+      {visualCaptureSettings.enabled && (
+        <div className="mb-6 bg-blue-50 rounded-xl p-4 border border-blue-200">
+          <h4 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
+            📸 画像キャプチャ・アップロード
+          </h4>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* 手動キャプチャ */}
+            <div className="flex items-center justify-between bg-white rounded-lg p-3 border">
+              <div>
+                <div className="font-medium text-gray-800">手動キャプチャ</div>
+                <div className="text-sm text-gray-600">今の画面を撮影</div>
+              </div>
+              <button
+                onClick={visualCapture.captureNow}
+                disabled={!tabStream || !visualCapture.state.isCapturing}
+                className={`px-3 py-2 rounded-lg font-medium transition-all text-sm ${
+                  !tabStream || !visualCapture.state.isCapturing
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700 shadow-md hover:shadow-lg'
+                }`}
+              >
+                📷 キャプチャ
+              </button>
+            </div>
+
+            {/* 画像アップロード */}
+            <div className="flex items-center justify-between bg-white rounded-lg p-3 border">
+              <div>
+                <div className="font-medium text-gray-800">画像アップロード</div>
+                <div className="text-sm text-gray-600">ファイルから追加</div>
+              </div>
+              <label className="px-3 py-2 rounded-lg font-medium transition-all text-sm bg-green-600 text-white hover:bg-green-700 shadow-md hover:shadow-lg cursor-pointer">
+                📁 アップロード
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      try {
+                        await visualCapture.uploadImage(file);
+                        e.target.value = ''; // Reset input
+                      } catch (error) {
+                        console.error('Failed to upload image:', error);
+                      }
+                    }
+                  }}
+                  className="hidden"
+                />
+              </label>
+            </div>
+          </div>
+
+          <div className="mt-3 text-xs text-blue-600 space-y-1">
+            {!tabStream && (
+              <p>• 手動キャプチャはタブ共有開始後に利用可能になります</p>
+            )}
+            <p>• アップロード画像は重複チェックの対象外となり、必ず分析されます</p>
+          </div>
+        </div>
       )}
 
       {/* Capture Gallery */}

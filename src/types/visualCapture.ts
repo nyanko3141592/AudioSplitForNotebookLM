@@ -5,6 +5,8 @@ export interface VisualCaptureSettings {
   maxCaptures: number;       // 最大撮影枚数
   imageQuality: number;      // 画質 0.1-1.0
   imageFormat: 'jpeg' | 'png'; // 画像形式
+  duplicateDetection: boolean; // 重複検出機能
+  duplicateThreshold: number;  // 重複判定閾値 0.8-0.99
 }
 
 export interface CaptureAnalysis {
@@ -16,6 +18,7 @@ export interface CaptureAnalysis {
   confidence?: number;      // 分析信頼度
   tokens?: number;         // 使用トークン数
   error?: string;          // エラーメッセージ
+  uploaded?: boolean;       // アップロード画像フラグ（重複チェック除外用）
 }
 
 export interface CostEstimation {
@@ -35,7 +38,9 @@ export interface VisualCaptureState {
 export const defaultVisualCaptureSettings: VisualCaptureSettings = {
   enabled: true,
   interval: 60,              // 1分間隔
-  maxCaptures: 5,            // 最大5枚
+  maxCaptures: 10,           // 最大10枚（重複検出により効率化）
   imageQuality: 0.7,         // 70%品質（コスト削減）
-  imageFormat: 'jpeg'
+  imageFormat: 'jpeg',
+  duplicateDetection: true,  // 重複検出有効
+  duplicateThreshold: 0.95   // 95%以上の類似度で重複とみなす
 };

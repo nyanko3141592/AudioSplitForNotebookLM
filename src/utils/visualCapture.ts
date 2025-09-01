@@ -174,6 +174,19 @@ export class VisualCaptureManager {
   }
 
   /**
+   * 手動で即座にキャプチャを実行
+   */
+  public async captureNow(): Promise<void> {
+    if (!this.stream) {
+      console.warn('No stream available for manual capture');
+      return;
+    }
+    
+    console.log('📸 Manual capture triggered');
+    await this.captureFrame();
+  }
+
+  /**
    * 現在のキャプチャ状態を取得
    */
   public getStatus(): { isCapturing: boolean; captureCount: number; maxCaptures: number } {

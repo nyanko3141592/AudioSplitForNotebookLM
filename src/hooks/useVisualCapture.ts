@@ -65,12 +65,15 @@ export const useVisualCapture = () => {
     if (apiKey) {
       visionAnalyzerRef.current = new GeminiVisionAnalyzer(
         apiKey, 
-        apiEndpoint || 'https://generativelanguage.googleapis.com'
+        apiEndpoint || 'https://generativelanguage.googleapis.com',
+        'gemini-2.0-flash-lite',
+        settings.duplicateThreshold,
+        settings.duplicateDetection
       );
     } else {
       visionAnalyzerRef.current = null;
     }
-  }, []);
+  }, [settings.duplicateThreshold, settings.duplicateDetection]);
 
   /**
    * ビジュアルキャプチャを開始
@@ -228,6 +231,54 @@ export const useVisualCapture = () => {
   }, [state.capturedImages]);
 
   /**
+   * 手動で即座にキャプチャを実行
+   */
+  const captureNow = useCallback(async () => {
+    if (!captureManagerRef.current) {
+      console.warn('Capture manager not available for manual capture');
+      return;
+    }
+    
+    await captureManagerRef.current.captureNow();
+  }, []);
+
+  /**
+   * 画像をアップロードしてキャプチャに追加
+   */
+  const uploadImage = useCallback((file: File): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const imageData = e.target?.result as string;
+        const analysis: CaptureAnalysis = {
+          id: `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          timestamp: new Date().toISOString(),
+          recordingTime: 0, // アップロード画像は録音時間0とする
+          imageData,
+          description: '',
+          uploaded: true // アップロード画像フラグ
+        };
+
+        setState(prev => ({
+          ...prev,
+          capturedImages: [...prev.capturedImages, analysis],
+          totalCost: {
+            imagesCount: prev.capturedImages.length + 1,
+            estimatedTokens: (prev.capturedImages.length + 1) * 1000,
+            estimatedCostJPY: Math.ceil((prev.capturedImages.length + 1) * 1000 * 0.004),
+            warning: null
+          }
+        }));
+
+        console.log('📷 Image uploaded and added to captures:', analysis.id);
+        resolve();
+      };
+      reader.onerror = () => reject(new Error('Failed to read image file'));
+      reader.readAsDataURL(file);
+    });
+  }, []);
+
+  /**
    * キャプチャをクリア
    */
   const clearCaptures = useCallback(() => {
@@ -261,6 +312,8 @@ export const useVisualCapture = () => {
     // アクション
     startCapture,
     stopCapture,
+    captureNow,
+    uploadImage,
     analyzeCaptures,
     generateBackgroundInfo,
     clearCaptures,
