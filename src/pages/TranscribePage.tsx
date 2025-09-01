@@ -55,6 +55,21 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
     setHasRecordedSegments(hasSegments);
   };
   
+  const handleTabMetadataExtracted = (metadata: string) => {
+    console.log('🏷️ Tab metadata received:', metadata);
+    // Auto-populate background information with tab metadata
+    if (metadata) {
+      setTranscriptionBackgroundInfo(prev => {
+        // If there's already background info, append the tab info
+        if (prev.trim()) {
+          return prev + '\n\n' + metadata;
+        } else {
+          return metadata;
+        }
+      });
+    }
+  };
+  
   const [transcriptionSettings] = useState({
     concurrencySettings: {
       enabled: false,
@@ -379,6 +394,7 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
                     onRecorded={handleFileSelect} 
                     onRecordingStateChange={handleRecordingStateChange}
                     onSegmentsStateChange={handleSegmentsStateChange}
+                    onTabMetadataExtracted={handleTabMetadataExtracted}
                   />
                   
                   {!isRecordingActive && !hasRecordedSegments && (

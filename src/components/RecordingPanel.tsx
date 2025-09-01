@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
+import { extractTabMetadata, formatTabMetadataForBackground } from '../utils/tabMetadataExtractor';
 type Props = {
   onRecorded: (file: File | File[]) => void;
   onRecordingStateChange?: (active: boolean) => void;
   onSegmentsStateChange?: (hasSegments: boolean) => void;
+  onTabMetadataExtracted?: (metadata: string) => void;
 };
 
 function supportMimeTypes(): string {
@@ -21,7 +23,7 @@ function supportMimeTypes(): string {
   return '';
 }
 
-export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateChange, onSegmentsStateChange }) => {
+export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateChange, onSegmentsStateChange, onTabMetadataExtracted }) => {
   const [micStream, setMicStream] = useState<MediaStream | null>(null);
   const [tabStream, setTabStream] = useState<MediaStream | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -325,6 +327,11 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
         video: true,
         audio: true
       });
+      
+      // Extract tab metadata before removing video track
+      const metadata = await extractTabMetadata(s);
+      console.log('📊 Extracted tab metadata:', metadata);
+      
       // Remove video track immediately; we only need audio
       s.getVideoTracks().forEach(t => s.removeTrack(t));
       if (s.getAudioTracks().length === 0) {
@@ -332,6 +339,13 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
         return;
       }
       setTabStream(s);
+      
+      // Send tab metadata to parent for background information
+      if (metadata && onTabMetadataExtracted) {
+        const formattedMetadata = formatTabMetadataForBackground(metadata);
+        console.log('📋 Sending formatted tab metadata to parent:', formattedMetadata);
+        onTabMetadataExtracted(formattedMetadata);
+      }
       
       // Ensure AudioContext is ready and start monitoring
       if (!previewCtxRef.current || previewCtxRef.current.state === 'closed') {
@@ -374,7 +388,7 @@ export const RecordingPanel: React.FC<Props> = ({ onRecorded, onRecordingStateCh
         setError('タブ/システム音声の取得に失敗しました。共有ダイアログで該当タブを選択し、「タブの音声を共有」にチェックしてください。');
       }
     }
-  };
+  };;
 
   const enableMic = async () => {
     setError(null);
