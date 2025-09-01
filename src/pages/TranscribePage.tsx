@@ -13,7 +13,7 @@ import {
   ArrowDown
 } from 'lucide-react';
 import type { TranscriptionResult } from '../utils/geminiTranscriber';
-import { GeminiTranscriber } from '../utils/geminiTranscriber';
+// import { GeminiTranscriber } from '../utils/geminiTranscriber';
 import { apiEndpointStorage } from '../utils/storage';
 import { RecordingPanel } from '../components/RecordingPanel';
 import { RecordingIndicator } from '../utils/recordingIndicator';
@@ -41,8 +41,8 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
   const [apiEndpoint, setApiEndpoint] = useState<string>('https://generativelanguage.googleapis.com');
   const [isRecordingActive, setIsRecordingActive] = useState<boolean>(false);
   const [hasRecordedSegments, setHasRecordedSegments] = useState<boolean>(false);
-  const [isTestingConnection, setIsTestingConnection] = useState<boolean>(false);
-  const [connectionTestResult, setConnectionTestResult] = useState<'success' | 'error' | null>(null);
+  // const [isTestingConnection, setIsTestingConnection] = useState<boolean>(false);
+  // const [connectionTestResult, setConnectionTestResult] = useState<'success' | 'error' | null>(null);
   
   const handleRecordingStateChange = (isActive: boolean) => {
     setIsRecordingActive(isActive);
@@ -120,126 +120,11 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
     }
   };
 
-  const handleEndpointChange = (endpoint: string) => {
-    setApiEndpoint(endpoint);
-    apiEndpointStorage.save(endpoint);
-  };
+  // const handleEndpointChange = (endpoint: string) => {
+  //   setApiEndpoint(endpoint);
+  //   apiEndpointStorage.save(endpoint);
+  // };
 
-  const testApiConnection = async () => {
-    if (!apiKey) return;
-    
-    setIsTestingConnection(true);
-    setConnectionTestResult(null);
-    
-    try {
-      console.log('🧪 APIキー疎通テスト開始');
-      console.log('🔍 テスト設定:', { endpoint: apiEndpoint, isDefault: apiEndpoint === 'https://generativelanguage.googleapis.com' });
-      
-      // まずはシンプルなテキストリクエストでSDKをテスト
-      if (apiEndpoint === 'https://generativelanguage.googleapis.com') {
-        console.log('🧪 デフォルトエンドポイント: まずテキストリクエストでテスト');
-        
-        try {
-          const { GoogleGenerativeAI } = await import('@google/generative-ai');
-          const genAI = new GoogleGenerativeAI(apiKey);
-          const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
-          
-          console.log('🔍 テキストリクエスト送信...');
-          const result = await model.generateContent('こんにちは、テストです。');
-          const response = await result.response;
-          const text = response.text();
-          console.log('✅ テキストリクエスト成功:', text.substring(0, 50) + '...');
-        } catch (textError) {
-          console.error('❌ テキストリクエストで失敗:', textError);
-          throw new Error(`テキストAPIテストで失敗: ${textError instanceof Error ? textError.message : '不明なエラー'}`);
-        }
-      }
-      
-      // 音声テストを実行
-      const transcriber = new GeminiTranscriber(apiKey, undefined, apiEndpoint);
-      
-      // テスト用の小さな音声データ（無音1秒）を作成
-      const audioContext = new AudioContext();
-      const sampleRate = 16000;
-      const duration = 1; // 1秒
-      const frameCount = sampleRate * duration;
-      const audioBuffer = audioContext.createBuffer(1, frameCount, sampleRate);
-      
-      // 無音データを作成
-      const channelData = audioBuffer.getChannelData(0);
-      for (let i = 0; i < frameCount; i++) {
-        channelData[i] = 0;
-      }
-      
-      // AudioBufferをWAVファイルに変換
-      const wav = audioBufferToWav(audioBuffer);
-      const blob = new Blob([wav], { type: 'audio/wav' });
-      
-      console.log('🧪 音声APIテスト開始');
-      await transcriber.transcribeAudioBlob(blob, 'connection-test.wav');
-      
-      setConnectionTestResult('success');
-      console.log('✅ APIキー疎通テスト成功');
-    } catch (error) {
-      console.error('❌ APIキー疎通テスト失敗:', error);
-      setConnectionTestResult('error');
-    } finally {
-      setIsTestingConnection(false);
-    }
-  };
-
-  // AudioBufferをWAVに変換するユーティリティ関数
-  const audioBufferToWav = (buffer: AudioBuffer): ArrayBuffer => {
-    const numChannels = buffer.numberOfChannels;
-    const sampleRate = buffer.sampleRate;
-    const format = 1; // PCM
-    const bitDepth = 16;
-    
-    const bytesPerSample = bitDepth / 8;
-    const blockAlign = numChannels * bytesPerSample;
-    
-    const data = new Float32Array(buffer.length * numChannels);
-    let dataOffset = 0;
-    for (let i = 0; i < buffer.length; i++) {
-      for (let channel = 0; channel < numChannels; channel++) {
-        data[dataOffset++] = buffer.getChannelData(channel)[i];
-      }
-    }
-    
-    const arrayBuffer = new ArrayBuffer(44 + data.length * bytesPerSample);
-    const view = new DataView(arrayBuffer);
-    
-    // WAVヘッダー
-    const writeString = (offset: number, string: string) => {
-      for (let i = 0; i < string.length; i++) {
-        view.setUint8(offset + i, string.charCodeAt(i));
-      }
-    };
-    
-    writeString(0, 'RIFF');
-    view.setUint32(4, 36 + data.length * bytesPerSample, true);
-    writeString(8, 'WAVE');
-    writeString(12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, format, true);
-    view.setUint16(22, numChannels, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * blockAlign, true);
-    view.setUint16(32, blockAlign, true);
-    view.setUint16(34, bitDepth, true);
-    writeString(36, 'data');
-    view.setUint32(40, data.length * bytesPerSample, true);
-    
-    // PCMデータ
-    let writeOffset = 44;
-    for (let i = 0; i < data.length; i++) {
-      const sample = Math.max(-1, Math.min(1, data[i]));
-      view.setInt16(writeOffset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
-      writeOffset += 2;
-    }
-    
-    return arrayBuffer;
-  };
 
   const handleFileSelect = useCallback(async (file: File | File[]) => {
     cleanupSplitFiles();
@@ -608,31 +493,51 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
           </div>
         )}
 
-        {/* Step 2: API Key Setup */}
+        {/* Step 2: AI設定 - コンパクト版 */}
         {selectedFile && !isProcessing && (
-          <div className="bg-white rounded-2xl shadow-lg p-8 mb-16" data-step="settings">
-            <div className="flex items-center mb-6">
-              <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold mr-3">
-                2
+          apiKey ? (
+            // 設定済みの場合 - 超コンパクト
+            <div className="bg-white rounded-xl shadow-md p-4 mb-8" data-step="settings">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold text-sm">
+                    2
+                  </div>
+                  <h2 className="text-lg font-semibold text-gray-900">AI設定</h2>
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                  <span className="text-sm text-green-700 font-medium">設定完了</span>
+                </div>
+                <button
+                  onClick={() => handleApiKeyChange('')}
+                  className="text-sm text-gray-600 hover:text-gray-800 underline"
+                >
+                  変更
+                </button>
               </div>
-              <h2 className="text-2xl font-bold text-gray-900">AI設定</h2>
-              <span className="ml-3 text-sm text-gray-500">(文字起こし・要約を使う場合)</span>
             </div>
+          ) : (
+            // 未設定の場合 - 通常サイズ
+            <div className="bg-white rounded-xl shadow-lg p-6 mb-12" data-step="settings">
+              <div className="flex items-center mb-4">
+                <div className="w-7 h-7 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold mr-3 text-sm">
+                  2
+                </div>
+                <h2 className="text-xl font-semibold text-gray-900">AI設定</h2>
+                <span className="ml-3 text-sm text-gray-500">(文字起こし・要約を使う場合)</span>
+              </div>
 
-            {/* API Key Section */}
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">Gemini API キー</h3>
-              {!apiKey ? (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
-                  <p className="text-amber-800 mb-4">
+              {/* API Key Section */}
+              <div className="mb-4">
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <p className="text-amber-800 mb-3 text-sm">
                     🔑 文字起こし・要約機能を使用するにはAPIキーが必要です
                   </p>
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
                     <a 
                       href="https://aistudio.google.com/app/apikey" 
                       target="_blank" 
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
+                      className="inline-flex items-center gap-2 px-3 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm"
                     >
                       <MessageSquare className="w-4 h-4" />
                       APIキーを取得
@@ -642,125 +547,23 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
                       value={apiKey}
                       onChange={(e) => handleApiKeyChange(e.target.value)}
                       placeholder="AIzaSy... で始まるAPIキー"
-                      className="flex-1 px-4 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                      className="flex-1 px-3 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 text-sm"
                     />
                   </div>
-                  <p className="text-sm text-amber-700 mt-3">
+                  <p className="text-xs text-amber-600 mt-2">
                     💡 APIキーなしでも音声ファイルの分割は可能です
                   </p>
                 </div>
-              ) : (
-                <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-green-800 flex items-center gap-2">
-                      <CheckCircle className="w-5 h-5" />
-                      APIキー設定済み
-                    </p>
-                    <button
-                      onClick={() => handleApiKeyChange('')}
-                      className="text-green-700 hover:text-green-800 underline text-sm"
-                    >
-                      削除
-                    </button>
-                  </div>
-                  
-                  {/* 疎通確認セクション */}
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={testApiConnection}
-                      disabled={isTestingConnection}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm"
-                    >
-                      {isTestingConnection ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          テスト中...
-                        </>
-                      ) : (
-                        <>
-                          🧪 APIキー疎通確認
-                        </>
-                      )}
-                    </button>
-                    
-                    {connectionTestResult === 'success' && (
-                      <p className="text-green-700 flex items-center gap-1 text-sm">
-                        <CheckCircle className="w-4 h-4" />
-                        疎通成功
-                      </p>
-                    )}
-                    
-                    {connectionTestResult === 'error' && (
-                      <p className="text-red-700 flex items-center gap-1 text-sm">
-                        <AlertCircle className="w-4 h-4" />
-                        疎通失敗
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* API Endpoint Section */}
-            {apiKey && (
-              <div className="mb-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">APIエンドポイント</h3>
-                <div className="space-y-3">
-                  <select
-                    value={apiEndpoint === 'https://generativelanguage.googleapis.com' ? 'default' : 'custom'}
-                    onChange={(e) => {
-                      if (e.target.value === 'default') {
-                        handleEndpointChange('https://generativelanguage.googleapis.com');
-                      } else if (e.target.value === 'custom' && apiEndpoint === 'https://generativelanguage.googleapis.com') {
-                        // カスタムが選択され、現在がデフォルトの場合のみカスタムURLを空にセット
-                        handleEndpointChange('');
-                      }
-                    }}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent text-sm"
-                  >
-                    <option value="default">🔗 Google公式エンドポイント (デフォルト)</option>
-                    <option value="custom">🌐 カスタムエンドポイント (Cloudflare Gateway等)</option>
-                  </select>
-                  
-                  {apiEndpoint !== 'https://generativelanguage.googleapis.com' && (
-                    <>
-                      <input
-                        type="url"
-                        value={apiEndpoint}
-                        onChange={(e) => handleEndpointChange(e.target.value)}
-                        placeholder="https://your-gateway.example.com"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent text-sm"
-                      />
-                      <p className="text-xs text-gray-500">
-                        💡 Cloudflare API Gateway、プロキシサーバーなどのカスタムエンドポイントURL
-                      </p>
-                    </>
-                  )}
-                  {apiEndpoint === 'https://generativelanguage.googleapis.com' && (
-                    <p className="text-xs text-gray-500">
-                      Google公式のAPIエンドポイントを使用します
-                    </p>
-                  )}
-                </div>
               </div>
-            )}
 
-            <div className="text-center">
-              {apiKey ? (
-                <>
-                  <p className="text-gray-600 font-medium">APIキー設定完了！</p>
-                  <p className="text-sm text-gray-500 mt-1">下のステップ3で文字起こしを開始できます</p>
-                </>
-              ) : (
-                <>
-                  <p className="text-gray-600 font-medium">音声分割のみ利用可能</p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    APIキーを設定すると文字起こし・要約機能も使えます
-                  </p>
-                </>
-              )}
+              <div className="text-center">
+                <p className="text-gray-600 text-sm">音声分割のみ利用可能</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  APIキーを設定すると文字起こし・要約機能も使えます
+                </p>
+              </div>
             </div>
-          </div>
+          )
         )}
 
         {/* Step 3: Transcription or Split Results */}

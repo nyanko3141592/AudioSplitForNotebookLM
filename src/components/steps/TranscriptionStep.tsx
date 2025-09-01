@@ -26,6 +26,10 @@ interface TranscriptionStepProps {
     delay: number;
   };
   presetCustomPrompt?: string;
+  // 音声分割機能を追加
+  splitAudio?: (file: File | Blob, mode: 'size' | 'count', options: { maxSize?: number; count?: number }) => Promise<Blob[]>;
+  // 文字起こし状態変更コールバック
+  onTranscriptionStateChange?: (isTranscribing: boolean, progress?: { isSplitting?: boolean }) => void;
 }
 
 export function TranscriptionStep({ 
@@ -44,7 +48,9 @@ export function TranscriptionStep({
   presetApiEndpoint = '',
   presetBackgroundInfo = '',
   presetConcurrencySettings,
-  presetCustomPrompt = ''
+  presetCustomPrompt = '',
+  splitAudio, // 音声分割機能を追加
+  onTranscriptionStateChange // 文字起こし状態変更コールバック
 }: TranscriptionStepProps) {
   const [apiKey, setApiKey] = useState('');
   const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash-lite');
@@ -186,9 +192,105 @@ export function TranscriptionStep({
 
     setError(null);
     setIsTranscribing(true);
+    onTranscriptionStateChange?.(true, { isSplitting: false });
     setTranscriptionResults([]);
 
     try {
+      // 分割処理が必要かチェック（200MB以上のファイルがある場合）
+      const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB
+      let filesToProcess = [...splitFiles];
+      let needsSplitting = false;
+      
+      // 大きなファイルがあるかチェック
+      for (const file of splitFiles) {
+        if (file.size > MAX_FILE_SIZE) {
+          needsSplitting = true;
+          break;
+        }
+      }
+      
+      if (needsSplitting && splitAudio) {
+        // 分割処理の開始を通知
+        onTranscriptionStateChange?.(true, { isSplitting: true });
+        setCurrentProgress({
+          current: 0,
+          total: 0,
+          status: '音声ファイル分析中...',
+          fileStates: new Map(),
+          isSplitting: true,
+          splitProgress: {
+            phase: 'analyzing',
+            message: '大きな音声ファイルを検出しました'
+          }
+        });
+        
+        const splittedFiles = [];
+        let processedCount = 0;
+        
+        for (const file of splitFiles) {
+          if (file.size > MAX_FILE_SIZE) {
+            // 分割処理中の表示更新
+            setCurrentProgress({
+              current: processedCount,
+              total: splitFiles.length,
+              status: `音声ファイル分割中... (${processedCount + 1}/${splitFiles.length})`,
+              fileStates: new Map(),
+              isSplitting: true,
+              splitProgress: {
+                phase: 'splitting',
+                message: `${file.name} を分割しています...`
+              }
+            });
+            
+            // ファイルをBlobに変換してFFmpegで分割
+            const maxSizeMB = 190; // 安全マージン
+            const blobs = await splitAudio(file.blob, 'size', { maxSize: maxSizeMB });
+            
+            // 分割されたファイルを追加
+            const baseName = file.name.replace(/\.[^/.]+$/, '');
+            const splitParts = blobs.map((blob, partIndex) => ({
+              name: `${baseName}_part${partIndex + 1}.wav`,
+              size: blob.size,
+              blob
+            }));
+            
+            splittedFiles.push(...splitParts);
+          } else {
+            // 分割不要なファイルはそのまま追加
+            splittedFiles.push(file);
+          }
+          processedCount++;
+        }
+        
+        // 分割完了を通知
+        setCurrentProgress({
+          current: splitFiles.length,
+          total: splitFiles.length,
+          status: '音声分割完了',
+          fileStates: new Map(),
+          isSplitting: true,
+          splitProgress: {
+            phase: 'complete',
+            message: `${splittedFiles.length}個のファイルに分割完了`
+          }
+        });
+        
+        filesToProcess = splittedFiles;
+        
+        // 少し待ってから文字起こし開始
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+      
+      // 文字起こし開始
+      onTranscriptionStateChange?.(true, { isSplitting: false });
+      setCurrentProgress({
+        current: 0,
+        total: filesToProcess.length,
+        status: '文字起こし準備中...',
+        fileStates: new Map(),
+        isSplitting: false
+      });
+
       const transcriber = new GeminiTranscriber(apiKey, selectedModel, apiEndpoint);
       transcriberRef.current = transcriber;
       
@@ -196,8 +298,8 @@ export function TranscriptionStep({
       const delay = concurrencySettings.delay;
       
       const results = await transcriber.transcribeMultipleBlobs(
-        splitFiles.map(f => f.blob),
-        splitFiles.map(f => f.name),
+        filesToProcess.map(f => f.blob),
+        filesToProcess.map(f => f.name),
         (progress: TranscriptionProgress) => {
           setCurrentProgress(progress);
         },
@@ -218,10 +320,11 @@ export function TranscriptionStep({
       if (error instanceof Error && error.message !== 'キャンセルされました') {
         setError(error.message);
       } else {
-        setError('文字起こしに失敗しました');
+        setError('処理に失敗しました');
       }
     } finally {
       setIsTranscribing(false);
+      onTranscriptionStateChange?.(false, { isSplitting: false });
       transcriberRef.current = null;
       setCurrentProgress({ current: 0, total: 0, status: '', fileStates: new Map() });
     }
@@ -256,110 +359,117 @@ export function TranscriptionStep({
 
 
   return (
-    <div className="space-y-8">
-      {/* 入力設定セクション */}
-      <div className="bg-violet-50 rounded-xl p-6 border border-violet-200">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-          <Sparkles className="w-5 h-5" />
-          文字起こし設定
-        </h3>
-        
-        <div className="space-y-5">
-          {/* API Key */}
-          {!presetApiKey && (showApiKeyInput ? (
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">
-                Gemini API キー
-              </label>
-              <input
-                type="password"
-                value={apiKey}
-                onChange={(e) => handleApiKeyChange(e.target.value)}
-                placeholder="AIzaSy..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-              />
-              <p className="text-xs text-gray-500">
-                <a 
-                  href="https://aistudio.google.com/app/apikey" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-violet-600 hover:underline"
-                >
-                  Google AI Studio
-                </a>
-                でAPIキーを取得してください
-              </p>
+    <div className="space-y-6">
+      {/* AI設定セクション - コンパクト版 */}
+      {apiKey && !showApiKeyInput ? (
+        // 設定済みの場合 - 超コンパクト
+        <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <CheckCircle className="w-4 h-4 text-green-600" />
+              <span className="text-sm font-medium text-gray-700">AI設定完了</span>
+              <span className="text-xs text-gray-500">({selectedModel})</span>
             </div>
-          ) : (
-            <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-green-600" />
-                <span className="text-sm font-medium text-green-800">APIキー設定済み</span>
-              </div>
-              <button
-                onClick={() => setShowApiKeyInput(true)}
-                className="text-xs text-green-700 hover:text-green-800 underline"
-              >
-                変更
-              </button>
-            </div>
-          ))}
-
-          {/* Compact Model Selection */}
-          {apiKey && (
-            <div className="flex items-center gap-4">
-              <label className="text-sm font-medium text-gray-700 min-w-0">
-                モデル:
-              </label>
-              <select
-                value={selectedModel}
-                onChange={(e) => handleModelChange(e.target.value)}
-                disabled={isTranscribing}
-                className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent disabled:opacity-50 text-sm"
-              >
-                <option value="gemini-2.0-flash-lite">Flash-Lite (推奨)</option>
-                <option value="gemini-2.5-flash">2.5 Flash (高性能)</option>
-                <option value="gemini-2.5-pro">2.5 Pro (最高性能)</option>
-              </select>
-            </div>
-          )}
-
-          {/* 背景情報 - 常時表示 */}
-          {!hideBackgroundInfo && (
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block flex items-center gap-1">
-                <Info className="w-4 h-4" />
-                背景情報（精度向上・オプション）
-              </label>
-              <textarea
-                value={backgroundInfo}
-                onChange={(e) => {
-                  setBackgroundInfo(e.target.value);
-                  onBackgroundInfoChange?.(e.target.value);
-                }}
-                placeholder="例: 2024年1月26日の定例会議。参加者：田中、佐藤、鈴木。議題：新商品の戦略"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent min-h-20 text-sm resize-y"
-                disabled={isTranscribing}
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                会議の詳細情報を入力すると精度が向上します
-              </p>
-            </div>
-          )}
-          
-          {/* 背景情報表示（hideBackgroundInfo=trueの場合） */}
-          {hideBackgroundInfo && presetBackgroundInfo && (
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Info className="w-4 h-4 text-blue-600" />
-                <span className="text-sm font-medium text-blue-800">背景情報を使用中</span>
-              </div>
-              <p className="text-xs text-blue-700">{presetBackgroundInfo}</p>
-            </div>
-          )}
+            <button
+              onClick={() => setShowApiKeyInput(true)}
+              className="text-xs text-gray-600 hover:text-gray-800 underline"
+            >
+              変更
+            </button>
+          </div>
         </div>
-      </div>
+      ) : (
+        // 未設定または変更中の場合 - 通常サイズ
+        <div className="bg-violet-50 rounded-lg p-4 border border-violet-200">
+          <h3 className="text-base font-semibold text-gray-800 mb-3 flex items-center gap-2">
+            <Sparkles className="w-4 h-4" />
+            AI設定
+          </h3>
+          
+          <div className="space-y-3">
+            {/* API Key */}
+            {!presetApiKey && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Gemini API キー
+                </label>
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => handleApiKeyChange(e.target.value)}
+                  placeholder="AIzaSy..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent text-sm"
+                />
+                <p className="text-xs text-gray-500">
+                  <a 
+                    href="https://aistudio.google.com/app/apikey" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-violet-600 hover:underline"
+                  >
+                    Google AI Studio
+                  </a>
+                  でAPIキーを取得
+                </p>
+              </div>
+            )}
 
+            {/* Model Selection */}
+            {apiKey && (
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-medium text-gray-700 min-w-0">
+                  モデル:
+                </label>
+                <select
+                  value={selectedModel}
+                  onChange={(e) => handleModelChange(e.target.value)}
+                  disabled={isTranscribing}
+                  className="flex-1 px-2 py-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-violet-500 focus:border-transparent disabled:opacity-50 text-sm"
+                >
+                  <option value="gemini-2.0-flash-lite">Flash-Lite (推奨)</option>
+                  <option value="gemini-2.5-flash">2.5 Flash (高性能)</option>
+                  <option value="gemini-2.5-pro">2.5 Pro (最高性能)</option>
+                </select>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 背景情報セクション */}
+      {!hideBackgroundInfo && (
+        <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+          <label className="text-sm font-medium text-blue-800 mb-3 block flex items-center gap-2">
+            <Info className="w-4 h-4" />
+            背景情報（精度向上・オプション）
+          </label>
+          <textarea
+            value={backgroundInfo}
+            onChange={(e) => {
+              setBackgroundInfo(e.target.value);
+              onBackgroundInfoChange?.(e.target.value);
+            }}
+            placeholder="例: 2024年1月26日の定例会議。参加者：田中、佐藤、鈴木。議題：新商品の戦略"
+            className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm resize-y"
+            rows={3}
+            disabled={isTranscribing}
+          />
+          <p className="text-xs text-blue-600 mt-2">
+            会議の詳細情報を入力すると精度が向上します
+          </p>
+        </div>
+      )}
+      
+      {/* 背景情報表示（hideBackgroundInfo=trueの場合） */}
+      {hideBackgroundInfo && presetBackgroundInfo && (
+        <div className="p-2 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center gap-2">
+            <Info className="w-3 h-3 text-blue-600" />
+            <span className="text-xs font-medium text-blue-800">背景情報使用中</span>
+            <span className="text-xs text-blue-600 truncate">{presetBackgroundInfo}</span>
+          </div>
+        </div>
+      )}
       {/* エラー表示 */}
       {error && (
         <div className="bg-red-50 rounded-xl p-4 border border-red-200">
@@ -374,12 +484,43 @@ export function TranscriptionStep({
       {isTranscribing && (
         <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
           <div className="space-y-4">
+            {/* ワークフローの進行状況表示 */}
             <div className="text-center">
-              <div className="flex items-center justify-center gap-3 mb-3">
+              <div className="flex items-center justify-center gap-3 mb-4">
                 <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
-                <span className="text-lg font-semibold text-blue-800">文字起こし実行中...</span>
+                <span className="text-lg font-semibold text-blue-800">音声処理中...</span>
               </div>
+              
+              {/* ワークフローステップ */}
+              <div className="flex items-center justify-center gap-4 mb-4 px-4">
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
+                  currentProgress.isSplitting ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-700'
+                }`}>
+                  <span className="text-sm font-medium">
+                    {currentProgress.isSplitting ? '✂️ 分割処理' : '✅ 分割完了'}
+                  </span>
+                </div>
+                <div className="text-gray-400">→</div>
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
+                  !currentProgress.isSplitting ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-500'
+                }`}>
+                  <span className="text-sm font-medium">
+                    {!currentProgress.isSplitting ? '🎤 文字起こし' : '🎤 文字起こし待機中'}
+                  </span>
+                </div>
+              </div>
+              
               <p className="text-sm text-blue-700 font-medium">{currentProgress.status}</p>
+              {currentProgress.splitProgress && (
+                <div className="mt-3 p-3 bg-white/50 rounded-lg">
+                  <p className="text-sm font-medium text-blue-800 mb-1">
+                    {currentProgress.splitProgress.phase === 'analyzing' && '🔍 音声分析中'}
+                    {currentProgress.splitProgress.phase === 'splitting' && '✂️ 分割処理中'}
+                    {currentProgress.splitProgress.phase === 'complete' && '✅ 分割完了'}
+                  </p>
+                  <p className="text-xs text-blue-600">{currentProgress.splitProgress.message}</p>
+                </div>
+              )}
             </div>
             
             {currentProgress.fileStates.size > 0 && (

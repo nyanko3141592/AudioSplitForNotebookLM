@@ -2,16 +2,16 @@
 export class WebAudioSplitter {
   private audioContext: AudioContext | null = null;
 
-  async splitAudioBySize(file: File, maxSizeMB: number): Promise<Blob[]> {
+  async splitAudioBySize(file: File | Blob, maxSizeMB: number): Promise<Blob[]> {
     return this.splitAudio(file, 'size', { maxSize: maxSizeMB });
   }
 
-  async splitAudioByCount(file: File, count: number): Promise<Blob[]> {
+  async splitAudioByCount(file: File | Blob, count: number): Promise<Blob[]> {
     return this.splitAudio(file, 'count', { count });
   }
 
   private async splitAudio(
-    file: File, 
+    file: File | Blob, 
     mode: 'size' | 'count', 
     options: { maxSize?: number; count?: number }
   ): Promise<Blob[]> {
@@ -20,7 +20,7 @@ export class WebAudioSplitter {
     
     try {
       console.log('=== Starting audio splitting process ===');
-      console.log('File:', file.name, 'Size:', (file.size / 1024 / 1024).toFixed(2), 'MB');
+      console.log('File:', file instanceof File ? file.name : 'blob', 'Size:', (file.size / 1024 / 1024).toFixed(2), 'MB');
       console.log('Mode:', mode, 'Options:', options);
       
       // Initialize AudioContext
@@ -281,13 +281,13 @@ export class WebAudioSplitter {
 
 // Main export function for audio splitting
 export const splitAudioFile = async (
-  file: File,
+  file: File | Blob,
   mode: 'size' | 'count',
   options: { maxSize?: number; count?: number },
   progressCallback?: (progress: number) => void
 ): Promise<Blob[]> => {
   console.log('=== splitAudioFile called ===');
-  console.log('File:', file.name, 'Size:', (file.size / 1024 / 1024).toFixed(2), 'MB');
+  console.log('File:', file instanceof File ? file.name : 'blob', 'Size:', (file.size / 1024 / 1024).toFixed(2), 'MB');
   console.log('Mode:', mode, 'Options:', options);
   
   const splitter = new WebAudioSplitter();

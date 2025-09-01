@@ -82,7 +82,7 @@ export const useFFmpeg = () => {
   };
 
   const splitAudio = useCallback(async (
-    file: File,
+    file: File | Blob,
     mode: 'size' | 'count',
     options: { maxSize?: number; count?: number }
   ): Promise<Blob[]> => {
@@ -104,8 +104,9 @@ export const useFFmpeg = () => {
       try {
         // Fallback to FFmpeg.wasm
         const ffmpeg = await loadFFmpeg();
-        const inputFileName = 'input' + file.name.substring(file.name.lastIndexOf('.'));
-        const extension = file.name.substring(file.name.lastIndexOf('.') + 1);
+        const fileName = file instanceof File ? file.name : 'audio.wav';
+        const inputFileName = 'input' + fileName.substring(fileName.lastIndexOf('.'));
+        const extension = fileName.substring(fileName.lastIndexOf('.') + 1);
         
         await ffmpeg.writeFile(inputFileName, await fetchFile(file));
         

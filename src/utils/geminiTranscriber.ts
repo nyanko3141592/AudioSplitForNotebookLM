@@ -13,6 +13,12 @@ export interface TranscriptionProgress {
   total: number;
   status: string;
   fileStates: Map<number, TranscriptionResult>;
+  // 音声分割のプロセス状態を追加
+  isSplitting?: boolean;
+  splitProgress?: {
+    phase: 'analyzing' | 'splitting' | 'complete';
+    message: string;
+  };
 }
 
 export class GeminiTranscriber {
