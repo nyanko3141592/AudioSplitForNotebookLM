@@ -74,6 +74,7 @@ export function TranscriptionStep({
     count: 2,
     delay: 1000
   });
+  const [selectedLanguage, setSelectedLanguage] = useState('ja');
   
 
   // 初回読み込み時にストレージからデータを復元またはpresetを使用
@@ -123,6 +124,12 @@ export function TranscriptionStep({
     if (presetConcurrencySettings) {
       setConcurrencySettings(presetConcurrencySettings);
     }
+    
+    // 言語設定を読み込み
+    const savedLanguage = localStorage.getItem('transcription_language');
+    if (savedLanguage) {
+      setSelectedLanguage(savedLanguage);
+    }
   }, [presetApiKey, presetBackgroundInfo, presetCustomPrompt, presetConcurrencySettings, onBackgroundInfoChange]);
 
   // Auto-start removed - transcription now requires manual trigger
@@ -142,6 +149,11 @@ export function TranscriptionStep({
   const handleModelChange = (value: string) => {
     setSelectedModel(value);
     window.localStorage.setItem('transcription_model', value);
+  };
+
+  const handleLanguageChange = (value: string) => {
+    setSelectedLanguage(value);
+    window.localStorage.setItem('transcription_language', value);
   };
 
 
@@ -291,7 +303,7 @@ export function TranscriptionStep({
         isSplitting: false
       });
 
-      const transcriber = new GeminiTranscriber(apiKey, selectedModel, apiEndpoint);
+      const transcriber = new GeminiTranscriber(apiKey, selectedModel, apiEndpoint, selectedLanguage);
       transcriberRef.current = transcriber;
       
       const concurrency = concurrencySettings.enabled ? concurrencySettings.count : 1;
@@ -414,8 +426,8 @@ export function TranscriptionStep({
               </div>
             )}
 
-            {/* Model Selection */}
-            {apiKey && (
+            {/* Model and Language Selection - Always visible */}
+            <div className="space-y-3">
               <div className="flex items-center gap-3">
                 <label className="text-sm font-medium text-gray-700 min-w-0">
                   モデル:
@@ -423,7 +435,7 @@ export function TranscriptionStep({
                 <select
                   value={selectedModel}
                   onChange={(e) => handleModelChange(e.target.value)}
-                  disabled={isTranscribing}
+                  disabled={isTranscribing || !apiKey}
                   className="flex-1 px-2 py-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-violet-500 focus:border-transparent disabled:opacity-50 text-sm"
                 >
                   <option value="gemini-2.0-flash-lite">Flash-Lite (推奨)</option>
@@ -431,7 +443,30 @@ export function TranscriptionStep({
                   <option value="gemini-2.5-pro">2.5 Pro (最高性能)</option>
                 </select>
               </div>
-            )}
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-medium text-gray-700 min-w-0">
+                  言語:
+                </label>
+                <select
+                  value={selectedLanguage}
+                  onChange={(e) => handleLanguageChange(e.target.value)}
+                  disabled={isTranscribing || !apiKey}
+                  className="flex-1 px-2 py-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-violet-500 focus:border-transparent disabled:opacity-50 text-sm"
+                >
+                  <option value="ja">日本語</option>
+                  <option value="en">英語 (English)</option>
+                  <option value="zh">中国語 (中文)</option>
+                  <option value="ko">韓国語 (한국어)</option>
+                  <option value="es">スペイン語 (Español)</option>
+                  <option value="fr">フランス語 (Français)</option>
+                  <option value="de">ドイツ語 (Deutsch)</option>
+                  <option value="it">イタリア語 (Italiano)</option>
+                  <option value="pt">ポルトガル語 (Português)</option>
+                  <option value="ru">ロシア語 (Русский)</option>
+                  <option value="auto">自動検出</option>
+                </select>
+              </div>
+            </div>
           </div>
         </div>
       )}

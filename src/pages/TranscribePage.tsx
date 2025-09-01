@@ -17,6 +17,9 @@ import type { TranscriptionResult } from '../utils/geminiTranscriber';
 import { apiEndpointStorage } from '../utils/storage';
 import { RecordingPanel } from '../components/RecordingPanel';
 import { RecordingIndicator } from '../utils/recordingIndicator';
+import { CaptureGallery } from '../components/CaptureGallery';
+import type { VisualCaptureSettings, CaptureAnalysis } from '../types/visualCapture';
+import { defaultVisualCaptureSettings } from '../types/visualCapture';
 
 type Props = {
   onRecordingStateChange?: (isActive: boolean) => void;
@@ -41,6 +44,12 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
   const [apiEndpoint, setApiEndpoint] = useState<string>('https://generativelanguage.googleapis.com');
   const [isRecordingActive, setIsRecordingActive] = useState<boolean>(false);
   const [hasRecordedSegments, setHasRecordedSegments] = useState<boolean>(false);
+  const [visualCaptureSettings, setVisualCaptureSettings] = useState<VisualCaptureSettings>(defaultVisualCaptureSettings);
+  const [visualCaptures, setVisualCaptures] = useState<CaptureAnalysis[]>([]);
+  const [isAnalyzingVisuals, setIsAnalyzingVisuals] = useState<boolean>(false);
+  const [analysisProgress, setAnalysisProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
+  const [visualSummary, setVisualSummary] = useState<string>('');
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState<boolean>(false);
   // const [isTestingConnection, setIsTestingConnection] = useState<boolean>(false);
   // const [connectionTestResult, setConnectionTestResult] = useState<'success' | 'error' | null>(null);
   
@@ -70,13 +79,84 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
     }
   };
   
+  const handleVisualBackgroundInfo = (backgroundInfo: string) => {
+    console.log('🎥 Visual background info received:', backgroundInfo);
+    // Auto-populate background information with visual capture analysis
+    if (backgroundInfo) {
+      setTranscriptionBackgroundInfo(prev => {
+        // If there's already background info, append the visual info
+        if (prev.trim()) {
+          return prev + '\n\n' + backgroundInfo;
+        } else {
+          return backgroundInfo;
+        }
+      });
+    }
+  };
+  
+  const handleVisualCapturesReady = (captures: CaptureAnalysis[]) => {
+    console.log('📸 Visual captures received:', captures.length);
+    setVisualCaptures(captures);
+  };
+  
+  const analyzeVisualCaptures = async () => {
+    if (visualCaptures.length === 0 || !apiKey) return;
+    
+    setIsAnalyzingVisuals(true);
+    setIsGeneratingSummary(false);
+    setAnalysisProgress({ current: 0, total: visualCaptures.length });
+    
+    try {
+      const { GeminiVisionAnalyzer } = await import('../utils/geminiVision');
+      const analyzer = new GeminiVisionAnalyzer(apiKey, apiEndpoint, transcriptionSettings.model);
+      
+      // Stage 1: Individual image analysis
+      console.log('📸 Stage 1: Analyzing individual images...');
+      const analyzedCaptures = await analyzer.analyzeBatch(
+        visualCaptures,
+        (current, total) => {
+          setAnalysisProgress({ current, total });
+        }
+      );
+      
+      // Update captures with individual analysis results
+      setVisualCaptures(analyzedCaptures);
+      console.log('✅ Individual image analysis completed');
+      
+      // Stage 2: Generate comprehensive summary
+      console.log('📝 Stage 2: Generating comprehensive summary...');
+      setIsGeneratingSummary(true);
+      setAnalysisProgress({ current: 0, total: 1 }); // Reset for summary generation
+      
+      const validAnalyzedCaptures = analyzedCaptures.filter(c => c.description && !c.error);
+      
+      if (validAnalyzedCaptures.length > 0) {
+        const summary = await analyzer.generateSummary(validAnalyzedCaptures);
+        setVisualSummary(summary);
+        console.log('✅ Visual summary generated');
+      } else {
+        console.log('⚠️ No valid analyzed captures for summary generation');
+        setVisualSummary('※ 画面キャプチャの分析に失敗しました');
+      }
+      
+    } catch (error) {
+      console.error('❌ Visual analysis failed:', error);
+      setError('画面分析中にエラーが発生しました。APIキーやネット接続を確認してください。');
+    } finally {
+      setIsAnalyzingVisuals(false);
+      setIsGeneratingSummary(false);
+      setAnalysisProgress({ current: 0, total: 0 });
+    }
+  };;
+  
   const [transcriptionSettings] = useState({
     concurrencySettings: {
       enabled: false,
       count: 2,
       delay: 1000
     },
-    customPrompt: ''
+    customPrompt: '',
+    model: 'gemini-2.0-flash-lite'
   });
   
   const { splitAudio } = useFFmpeg();
@@ -292,9 +372,12 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
   }, [isRecordingActive, splitFiles.length, transcriptionResults.length, transcriptionBackgroundInfo, summaryBackgroundInfo]);
 
   // ステップの状態を計算
+  const hasVisualCaptures = visualCaptures.length > 0;
+  const hasAnalyzedVisuals = visualSummary.length > 0; // Check if visual summary exists
   const currentStep = !selectedFile ? 1 : 
                      splitFiles.length === 0 ? 2 : 
-                     transcriptionResults.length === 0 ? 3 : 4;
+                     hasVisualCaptures ? 3 : // Visual analysis step (always show if captures exist)
+                     transcriptionResults.length === 0 ? 4 : 5;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -303,7 +386,7 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
         {/* ステップインジケーター */}
         <div className="mb-8">
           <div className="flex items-center justify-center">
-            <div className="flex items-center space-x-2 sm:space-x-4">
+            <div className="flex items-center space-x-2 sm:space-x-3">
               {/* Step 1 */}
               <div className={`flex items-center ${currentStep >= 1 ? 'text-violet-600' : 'text-gray-400'}`}>
                 <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold border-2 ${
@@ -314,7 +397,7 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
                 <span className="ml-1 sm:ml-2 font-medium hidden sm:inline text-sm">音声選択</span>
               </div>
               
-              <div className={`w-8 sm:w-16 h-0.5 ${currentStep >= 2 ? 'bg-violet-600' : 'bg-gray-300'}`}></div>
+              <div className={`w-6 sm:w-12 h-0.5 ${currentStep >= 2 ? 'bg-violet-600' : 'bg-gray-300'}`}></div>
               
               {/* Step 2 */}
               <div className={`flex items-center ${currentStep >= 2 ? 'text-violet-600' : 'text-gray-400'}`}>
@@ -326,26 +409,42 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
                 <span className="ml-1 sm:ml-2 font-medium hidden sm:inline text-sm">設定</span>
               </div>
               
-              <div className={`w-8 sm:w-16 h-0.5 ${currentStep >= 3 ? 'bg-violet-600' : 'bg-gray-300'}`}></div>
+              {/* Visual Analysis Step (conditional) */}
+              {hasVisualCaptures && (
+                <>
+                  <div className={`w-6 sm:w-12 h-0.5 ${currentStep >= 3 ? 'bg-violet-600' : 'bg-gray-300'}`}></div>
+                  
+                  <div className={`flex items-center ${currentStep >= 3 ? 'text-violet-600' : 'text-gray-400'}`}>
+                    <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold border-2 ${
+                      currentStep >= 3 ? 'bg-violet-600 text-white border-violet-600' : 'bg-white border-gray-300'
+                    }`}>
+                      📸
+                    </div>
+                    <span className="ml-1 sm:ml-2 font-medium hidden sm:inline text-sm">画面分析</span>
+                  </div>
+                </>
+              )}
               
-              {/* Step 3 */}
-              <div className={`flex items-center ${currentStep >= 3 ? 'text-violet-600' : 'text-gray-400'}`}>
+              <div className={`w-6 sm:w-12 h-0.5 ${currentStep >= (hasVisualCaptures ? 4 : 3) ? 'bg-violet-600' : 'bg-gray-300'}`}></div>
+              
+              {/* Step 3/4: Transcription */}
+              <div className={`flex items-center ${currentStep >= (hasVisualCaptures ? 4 : 3) ? 'text-violet-600' : 'text-gray-400'}`}>
                 <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold border-2 ${
-                  currentStep >= 3 ? 'bg-violet-600 text-white border-violet-600' : 'bg-white border-gray-300'
+                  currentStep >= (hasVisualCaptures ? 4 : 3) ? 'bg-violet-600 text-white border-violet-600' : 'bg-white border-gray-300'
                 }`}>
-                  3
+                  {hasVisualCaptures ? '4' : '3'}
                 </div>
                 <span className="ml-1 sm:ml-2 font-medium hidden sm:inline text-sm">文字起こし</span>
               </div>
               
-              <div className={`w-8 sm:w-16 h-0.5 ${currentStep >= 4 ? 'bg-violet-600' : 'bg-gray-300'}`}></div>
+              <div className={`w-6 sm:w-12 h-0.5 ${currentStep >= (hasVisualCaptures ? 5 : 4) ? 'bg-violet-600' : 'bg-gray-300'}`}></div>
               
-              {/* Step 4 */}
-              <div className={`flex items-center ${currentStep >= 4 ? 'text-violet-600' : 'text-gray-400'}`}>
+              {/* Step 4/5: Summary */}
+              <div className={`flex items-center ${currentStep >= (hasVisualCaptures ? 5 : 4) ? 'text-violet-600' : 'text-gray-400'}`}>
                 <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold border-2 ${
-                  currentStep >= 4 ? 'bg-violet-600 text-white border-violet-600' : 'bg-white border-gray-300'
+                  currentStep >= (hasVisualCaptures ? 5 : 4) ? 'bg-violet-600 text-white border-violet-600' : 'bg-white border-gray-300'
                 }`}>
-                  4
+                  {hasVisualCaptures ? '5' : '4'}
                 </div>
                 <span className="ml-1 sm:ml-2 font-medium hidden sm:inline text-sm">要約作成</span>
               </div>
@@ -395,6 +494,11 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
                     onRecordingStateChange={handleRecordingStateChange}
                     onSegmentsStateChange={handleSegmentsStateChange}
                     onTabMetadataExtracted={handleTabMetadataExtracted}
+                    onVisualCapturesReady={handleVisualCapturesReady}
+                    apiKey={apiKey}
+                    apiEndpoint={apiEndpoint}
+                    visualCaptureSettings={visualCaptureSettings}
+                    onVisualCaptureSettingsChange={setVisualCaptureSettings}
                   />
                   
                   {!isRecordingActive && !hasRecordedSegments && (
@@ -582,9 +686,105 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
           )
         )}
 
-        {/* Step 3: Transcription or Split Results */}
-        {/* Arrow between settings and transcription */}
-        {splitFiles.length > 0 && (
+        {/* Step 3: Visual Analysis (if visual captures exist) */}
+        {hasVisualCaptures && currentStep >= 3 && (
+          <>
+            <div className="flex justify-center mb-8">
+              <div className="flex flex-col items-center">
+                <ArrowDown className="w-8 h-8 text-violet-400 animate-bounce" />
+                <span className="text-sm text-violet-600 font-medium mt-2">次のステップ</span>
+              </div>
+            </div>
+            
+            <div className="bg-white rounded-2xl shadow-xl p-8 mb-16" data-step="visual-analysis">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="flex items-center justify-center w-10 h-10 bg-blue-600 text-white rounded-full font-bold">
+                  📸
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900">画面分析</h2>
+                <span className="text-sm text-gray-500">({visualCaptures.length}枚のキャプチャ)</span>
+              </div>
+              
+              <div className="space-y-6">
+                <p className="text-gray-700">
+                  録音中にキャプチャした画面を分析して、追加の背景情報を生成します。この情報は文字起こしとは別に管理され、より詳細な文脈情報を提供します。
+                </p>
+                
+                {/* CaptureGallery component */}
+                <CaptureGallery
+                  captures={visualCaptures}
+                  isAnalyzing={isAnalyzingVisuals}
+                  analysisProgress={analysisProgress}
+                  onAnalyzeCaptures={analyzeVisualCaptures}
+                  visualSummary={visualSummary}
+                />
+                
+                {/* Analysis Progress */}
+                {isAnalyzingVisuals && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-center gap-3">
+                      <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                      <span className="text-blue-800 font-medium">
+                        {isGeneratingSummary ? 'AIで全体サマリーを生成中...' : 'Gemini Vision APIで画面を分析中...'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                
+                <div className="flex gap-4">
+                  <button
+                    onClick={analyzeVisualCaptures}
+                    disabled={!apiKey || isAnalyzingVisuals}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
+                      !apiKey || isAnalyzingVisuals
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl'
+                    }`}
+                  >
+                    {isAnalyzingVisuals ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        分析中...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="w-4 h-4" />
+                        画面を分析
+                      </>
+                    )}
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      // Skip visual analysis and proceed to transcription
+                      setVisualCaptures([]);
+                    }}
+                    disabled={isAnalyzingVisuals}
+                    className="px-6 py-3 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    スキップ
+                  </button>
+                </div>
+                
+                {!apiKey && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-5 h-5 text-amber-600" />
+                      <span className="text-amber-800 font-medium">Gemini APIキーが必要です</span>
+                    </div>
+                    <p className="text-amber-700 text-sm mt-2">
+                      画面分析を行うには、ステップ2でAPIキーを入力してください。
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+        
+        {/* Arrow between visual analysis and transcription */}
+        {splitFiles.length > 0 && (!hasVisualCaptures || hasAnalyzedVisuals) && (
           <div className="flex justify-center mb-8">
             <div className="flex flex-col items-center">
               <ArrowDown className="w-8 h-8 text-violet-400 animate-bounce" />
@@ -600,11 +800,11 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
               <div className="bg-white rounded-2xl shadow-lg p-8 mb-16" data-step="transcription">
                 <div className="flex items-center mb-6">
                   <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold mr-3">
-                    3
+                    {hasVisualCaptures ? '4' : '3'}
                   </div>
                   <h2 className="text-2xl font-bold text-gray-900">文字起こし</h2>
                 </div>
-                
+
                 <TranscriptionStep
                   splitFiles={splitFiles}
                   transcriptionResults={transcriptionResults}
@@ -620,6 +820,7 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
                   presetBackgroundInfo={transcriptionBackgroundInfo}
                   presetConcurrencySettings={transcriptionSettings.concurrencySettings}
                   presetCustomPrompt={transcriptionSettings.customPrompt}
+                  presetModel={transcriptionSettings.model}
                 />
               </div>
             ) : (
@@ -627,7 +828,7 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
               <div className="bg-white rounded-2xl shadow-lg p-8 mb-16" data-step="transcription">
                 <div className="flex items-center mb-6">
                   <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold mr-3">
-                    3
+                    {hasVisualCaptures ? '4' : '3'}
                   </div>
                   <h2 className="text-2xl font-bold text-gray-900">音声分割完了</h2>
                 </div>
@@ -704,12 +905,12 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
               </div>
             )}
             
-            {/* Step 4: Summary - Only show if we have transcription results */}
+            {/* Step 4/5: Summary - Only show if we have transcription results */}
             {apiKey && transcriptionResults.length > 0 && (
               <div className="bg-white rounded-2xl shadow-lg p-8" data-step="summary">
                 <div className="flex items-center mb-6">
                   <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold mr-3">
-                    4
+                    {hasVisualCaptures ? '5' : '4'}
                   </div>
                   <h2 className="text-2xl font-bold text-gray-900">要約作成</h2>
                 </div>
@@ -717,6 +918,7 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
                 <SummaryStep
                   transcriptionResults={transcriptionResults}
                   transcriptionBackgroundInfo={summaryBackgroundInfo}
+                  visualSummary={visualSummary}
                   onBackgroundInfoChange={setSummaryBackgroundInfo}
                   presetApiKey={apiKey}
                   presetApiEndpoint={apiEndpoint}

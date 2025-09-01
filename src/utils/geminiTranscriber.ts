@@ -28,13 +28,17 @@ export class GeminiTranscriber {
   private modelName: string = 'gemini-2.0-flash-lite';
   private apiEndpoint: string = 'https://generativelanguage.googleapis.com';
   private apiKey: string = '';
+  private language: string = 'ja';
 
-  constructor(apiKey?: string, modelName?: string, apiEndpoint?: string) {
+  constructor(apiKey?: string, modelName?: string, apiEndpoint?: string, language?: string) {
     if (modelName) {
       this.modelName = modelName;
     }
     if (apiEndpoint) {
       this.apiEndpoint = apiEndpoint;
+    }
+    if (language) {
+      this.language = language;
     }
     if (apiKey) {
       this.initialize(apiKey, apiEndpoint);
@@ -103,6 +107,26 @@ export class GeminiTranscriber {
       // BlobをBase64に変換
       const base64Audio = await this.blobToBase64(blob);
       
+      // 言語指定を含むプロンプトを作成
+      const getLanguageInstruction = (lang: string): string => {
+        switch (lang) {
+          case 'ja': return '出力は日本語で行ってください。';
+          case 'en': return 'Please output in English.';
+          case 'zh': return '请用中文输出。';
+          case 'ko': return '한국어로 출력해 주세요.';
+          case 'es': return 'Por favor, proporcione la salida en español.';
+          case 'fr': return 'Veuillez fournir la sortie en français.';
+          case 'de': return 'Bitte geben Sie die Ausgabe auf Deutsch aus.';
+          case 'it': return 'Si prega di fornire l\'output in italiano.';
+          case 'pt': return 'Por favor, forneça a saída em português.';
+          case 'ru': return 'Пожалуйста, предоставьте вывод на русском языке.';
+          case 'auto': return '音声の言語を自動検出し、その言語で文字起こしを行ってください。';
+          default: return '出力は日本語で行ってください。';
+        }
+      };
+
+      const languageInstruction = getLanguageInstruction(this.language);
+
       const defaultPrompt = `
 この音声ファイルの内容を正確に文字起こししてください。
 以下の点に注意してください：
@@ -111,6 +135,8 @@ export class GeminiTranscriber {
 - 専門用語や固有名詞は正確に記載する
 - フィラー語（えー、あのー等）は適度に省略して読みやすくする
 - 複数の話者がいる場合は、話者を区別して記載する
+
+${languageInstruction}
 
 文字起こし結果のみを出力してください。
 `;
@@ -649,7 +675,8 @@ export class GeminiTranscriber {
   async summarizeTranscriptions(
     results: TranscriptionResult[],
     formatPrompt?: string,
-    onProgress?: (status: string) => void
+    onProgress?: (status: string) => void,
+    visualSummary?: string
   ): Promise<string> {
     if (!this.model) {
       throw new Error('Gemini APIが初期化されていません。');
@@ -670,15 +697,24 @@ export class GeminiTranscriber {
       .map(result => `## ${result.fileName}\n\n${result.transcription}`)
       .join('\n\n---\n\n');
 
+    // 視覚情報がある場合は追加情報として含める
+    const visualInfoSection = visualSummary ? `
+
+画面キャプチャ分析情報：
+${visualSummary}
+
+※ 上記は録音中の画面キャプチャを分析した結果です。音声内容の理解や文脈把握の参考にしてください。
+` : '';
+
     const defaultFormatPrompt = `
-以下の音声文字起こし結果を読みやすくまとめてください。
+以下の音声文字起こし結果を読みやすくまとめてください。${visualInfoSection}
 
 要求事項：
 - 内容を整理し、議事録のような形式で構造化する
 - 重要なポイントを明確にする
 - 話の流れが分かりやすいように段落分けする
 - 必要に応じて見出しを追加する
-- 冗長な表現は簡潔にまとめる
+- 冗長な表現は簡潔にまとめる${visualSummary ? '\n- 画面キャプチャ情報も考慮して、より詳細で正確な要約を作成する' : ''}
 
 文字起こし結果：
 ${combinedText}

@@ -8,6 +8,7 @@ import { apiKeyStorage, localStorage, apiEndpointStorage } from '../../utils/sto
 interface SummaryStepProps {
   transcriptionResults: TranscriptionResult[];
   transcriptionBackgroundInfo?: string;
+  visualSummary?: string;
   onBackgroundInfoChange?: (backgroundInfo: string) => void;
   presetApiKey?: string;
   presetApiEndpoint?: string;
@@ -16,6 +17,7 @@ interface SummaryStepProps {
 export function SummaryStep({ 
   transcriptionResults,
   transcriptionBackgroundInfo = '',
+  visualSummary = '',
   onBackgroundInfoChange,
   presetApiKey = '',
   presetApiEndpoint = ''
@@ -309,7 +311,8 @@ ${summarySettings.backgroundInfo}
             progress: status,
             currentStep: 3 
           }));
-        }
+        },
+        visualSummary || undefined
       );
 
       // 実際のコストを計算
