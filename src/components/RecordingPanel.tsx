@@ -224,10 +224,10 @@ export const RecordingPanel: React.FC<Props> = ({
     visualCapture.stopCapture();
     
     if (audioCtxRef.current) {
-      try { audioCtxRef.current.close(); } catch {}
+      try { audioCtxRef.current.close(); } catch { /* ignore error */ }
     }
     if (previewCtxRef.current) {
-      try { previewCtxRef.current.close(); } catch {}
+      try { previewCtxRef.current.close(); } catch { /* ignore error */ }
     }
     audioCtxRef.current = null;
     previewCtxRef.current = null;
@@ -571,7 +571,7 @@ export const RecordingPanel: React.FC<Props> = ({
         const preferred = mics.find(d => /default|internal/i.test(d.label)) || mics[0];
         if (preferred) setSelectedMicId(preferred.deviceId);
       }
-    } catch (e) {
+    } catch {
       // Ignore; happens if no permissions yet
     }
   };

@@ -110,7 +110,7 @@ export class VisualCaptureManager {
       }
 
       // ImageCaptureを使用してフレームを取得
-      const imageCapture = new (window as any).ImageCapture(videoTrack);
+      const imageCapture = new (window as any).ImageCapture(videoTrack); // eslint-disable-line @typescript-eslint/no-explicit-any
       const bitmap = await imageCapture.grabFrame();
 
       // Canvasに描画してbase64に変換

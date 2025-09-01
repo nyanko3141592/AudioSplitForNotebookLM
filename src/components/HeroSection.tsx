@@ -40,7 +40,7 @@ const steps = [
 
 export const HeroSection: React.FC<Props> = ({ 
   currentPage: _currentPage, 
-  onPageChange: _onPageChange,
+  onPageChange: _onPageChange, // eslint-disable-line @typescript-eslint/no-unused-vars
   hasFile = false,
   hasApiKey = false,
   hasSplitFiles = false,

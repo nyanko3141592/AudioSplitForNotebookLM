@@ -18,7 +18,7 @@ export const extractTabMetadata = async (stream: MediaStream): Promise<TabMetada
     
     if (videoTrack) {
       const settings = videoTrack.getSettings();
-      const displaySurface = (settings as any).displaySurface;
+      const displaySurface = (settings as any).displaySurface; // eslint-disable-line @typescript-eslint/no-explicit-any
       
       if (displaySurface === 'window') {
         captureSource = 'window';

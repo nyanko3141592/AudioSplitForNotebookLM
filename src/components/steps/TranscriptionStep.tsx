@@ -36,7 +36,7 @@ export function TranscriptionStep({
   splitFiles, 
   transcriptionResults: parentTranscriptionResults,
   onNext, 
-  onBack: _onBack,
+  onBack: _onBack, // eslint-disable-line @typescript-eslint/no-unused-vars
   showNext = true, 
   nextButtonText = "要約作成へ",
   onDownloadSplit,
