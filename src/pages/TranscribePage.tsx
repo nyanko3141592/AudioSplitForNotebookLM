@@ -10,7 +10,8 @@ import {
   AlertCircle,
   CheckCircle,
   MessageSquare,
-  ArrowDown
+  ArrowDown,
+  Clock
 } from 'lucide-react';
 import type { TranscriptionResult } from '../utils/geminiTranscriber';
 // import { GeminiTranscriber } from '../utils/geminiTranscriber';
@@ -18,6 +19,7 @@ import { apiEndpointStorage } from '../utils/storage';
 import { RecordingPanel } from '../components/RecordingPanel';
 import { RecordingIndicator } from '../utils/recordingIndicator';
 import { CaptureGallery } from '../components/CaptureGallery';
+import { SummaryHistory } from '../components/SummaryHistory';
 import type { VisualCaptureSettings, CaptureAnalysis } from '../types/visualCapture';
 import { defaultVisualCaptureSettings } from '../types/visualCapture';
 
@@ -367,6 +369,7 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
   const hasVisualCaptures = visualCaptures.length > 0;
   // const hasAnalyzedVisuals = visualSummary.length > 0; // Check if visual summary exists
   const [visualAnalysisCompleted, setVisualAnalysisCompleted] = useState(false); // Track if visual analysis action is completed
+  const [showHistory, setShowHistory] = useState(false); // Toggle for showing summary history
   
   const currentStep = !selectedFile ? 1 : 
                      splitFiles.length === 0 ? 2 : 
@@ -376,6 +379,24 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-5xl mx-auto px-6 py-8">
+        
+        {/* History Toggle Button */}
+        <div className="mb-4 flex justify-end">
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Clock className="w-5 h-5" />
+            {showHistory ? '閉じる' : '要約履歴を見る'}
+          </button>
+        </div>
+
+        {/* Summary History Panel */}
+        {showHistory && (
+          <div className="mb-8">
+            <SummaryHistory />
+          </div>
+        )}
         
         {/* ステップインジケーター */}
         <div className="mb-8">
@@ -917,6 +938,8 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
                   transcriptionResults={transcriptionResults}
                   transcriptionBackgroundInfo={summaryBackgroundInfo}
                   visualSummary={visualSummary}
+                  visualCaptures={visualCaptures}
+                  fileName={selectedFile?.name}
                   onBackgroundInfoChange={setSummaryBackgroundInfo}
                   presetApiKey={apiKey}
                   presetApiEndpoint={apiEndpoint}

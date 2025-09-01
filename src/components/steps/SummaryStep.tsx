@@ -4,11 +4,20 @@ import { GeminiTranscriber, downloadTranscription } from '../../utils/geminiTran
 import { markdownToHtml, plainToHtml, buildHtmlDocument, copyHtmlToClipboard } from '../../utils/format';
 import type { TranscriptionResult } from '../../utils/geminiTranscriber';
 import { apiKeyStorage, localStorage, apiEndpointStorage } from '../../utils/storage';
+import { addSummaryToHistory } from '../../utils/summaryHistory';
+import type { SummaryHistoryItem } from '../../types/summaryHistory';
 
 interface SummaryStepProps {
   transcriptionResults: TranscriptionResult[];
   transcriptionBackgroundInfo?: string;
   visualSummary?: string;
+  visualCaptures?: Array<{
+    id: string;
+    imageData: string;
+    description: string;
+    recordingTime: number;
+  }>;
+  fileName?: string;
   onBackgroundInfoChange?: (backgroundInfo: string) => void;
   presetApiKey?: string;
   presetApiEndpoint?: string;
@@ -18,6 +27,8 @@ export function SummaryStep({
   transcriptionResults,
   transcriptionBackgroundInfo = '',
   visualSummary = '',
+  visualCaptures = [],
+  fileName = 'audio',
   onBackgroundInfoChange,
   presetApiKey = '',
   presetApiEndpoint = ''
@@ -331,6 +342,28 @@ ${summarySettings.backgroundInfo}
           : 'まとめが完了しました！',
         currentStep: 3 
       }));
+
+      // Save to history
+      const historyItem: SummaryHistoryItem = {
+        id: `summary_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        timestamp: new Date().toISOString(),
+        fileName: fileName || 'Untitled',
+        summary: summary,
+        transcriptionResults: transcriptionResults.map(result => ({
+          fileName: result.fileName,
+          text: result.transcription || ''
+        })),
+        visualSummary: visualSummary || undefined,
+        visualCaptures: visualCaptures.length > 0 ? visualCaptures : undefined,
+        metadata: {
+          language: 'ja',
+          model: selectedModel,
+          createdAt: new Date().toISOString()
+        }
+      };
+      
+      addSummaryToHistory(historyItem);
+      console.log('📚 Summary saved to history');
     } catch (error) {
       console.error('Summary error:', error);
       setError(error instanceof Error ? error.message : 'まとめ処理に失敗しました');
