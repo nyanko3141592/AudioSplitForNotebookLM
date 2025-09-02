@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useTransition } from 'react';
 import { FileUpload } from '../components/FileUpload';
 import { TranscriptionStep } from '../components/steps/TranscriptionStep';
-import { SummaryStep } from '../components/steps/SummaryStep';
 import { type SplitFile } from '../components/DownloadList';
 import { useFFmpeg } from '../hooks/useFFmpeg';
 import { downloadFile, downloadAllAsZip } from '../utils/download';
@@ -11,7 +10,7 @@ import {
   CheckCircle,
   MessageSquare,
   ArrowDown,
-  Clock
+  Sparkles
 } from 'lucide-react';
 import type { TranscriptionResult } from '../utils/geminiTranscriber';
 // import { GeminiTranscriber } from '../utils/geminiTranscriber';
@@ -19,7 +18,6 @@ import { apiEndpointStorage } from '../utils/storage';
 import { RecordingPanel } from '../components/RecordingPanel';
 import { RecordingIndicator } from '../utils/recordingIndicator';
 import { CaptureGallery } from '../components/CaptureGallery';
-import { SummaryHistory } from '../components/SummaryHistory';
 import type { VisualCaptureSettings, CaptureAnalysis } from '../types/visualCapture';
 import { defaultVisualCaptureSettings } from '../types/visualCapture';
 
@@ -39,7 +37,6 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
   const [splitFiles, setSplitFiles] = useState<SplitFile[]>([]);
   const [transcriptionResults, setTranscriptionResults] = useState<TranscriptionResult[]>([]);
   const [transcriptionBackgroundInfo, setTranscriptionBackgroundInfo] = useState<string>('');
-  const [summaryBackgroundInfo, setSummaryBackgroundInfo] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState<string>('');
   const [apiEndpoint, setApiEndpoint] = useState<string>('https://generativelanguage.googleapis.com');
@@ -262,10 +259,6 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
 
   const handleTranscriptionComplete = (results: TranscriptionResult[]) => {
     setTranscriptionResults(results);
-    if (results.length > 0 && results.some(r => !r.error)) {
-      // 文字起こしの背景情報を要約に引き継ぐ
-      setSummaryBackgroundInfo(transcriptionBackgroundInfo);
-    }
   };
 
   // Clean up on component unmount
@@ -282,8 +275,7 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
         isRecordingActive || // 録音中
         splitFiles.length > 0 || // 音声ファイルあり
         transcriptionResults.length > 0 || // 文字起こし結果あり
-        transcriptionBackgroundInfo.trim() !== '' || // 背景情報入力済み
-        summaryBackgroundInfo.trim() !== ''; // 要約用背景情報あり
+        transcriptionBackgroundInfo.trim() !== ''; // 背景情報入力済み
 
       if (hasUnsavedData) {
         let message = '';
@@ -294,7 +286,7 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
           const dataTypes = [];
           if (splitFiles.length > 0) dataTypes.push('音声ファイル');
           if (transcriptionResults.length > 0) dataTypes.push('文字起こし結果');
-          if (transcriptionBackgroundInfo.trim() !== '' || summaryBackgroundInfo.trim() !== '') {
+          if (transcriptionBackgroundInfo.trim() !== '') {
             dataTypes.push('入力された背景情報');
           }
           
@@ -315,13 +307,12 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [isRecordingActive, splitFiles.length, transcriptionResults.length, transcriptionBackgroundInfo, summaryBackgroundInfo]);
+  }, [isRecordingActive, splitFiles.length, transcriptionResults.length, transcriptionBackgroundInfo]);
 
   // ステップの状態を計算
   const hasVisualCaptures = visualCaptures.length > 0;
   // const hasAnalyzedVisuals = visualSummary.length > 0; // Check if visual summary exists
   const [visualAnalysisCompleted, setVisualAnalysisCompleted] = useState(false); // Track if visual analysis action is completed
-  const [showHistory, setShowHistory] = useState(false); // Toggle for showing summary history
   
   const currentStep = !selectedFile ? 1 : 
                      hasVisualCaptures && !visualAnalysisCompleted ? 2 : // Must complete visual analysis if captures exist
@@ -329,25 +320,8 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-5xl mx-auto px-6 py-8">
+      <div className="max-w-5xl mx-auto px-6 py-8 pt-20">
         
-        {/* History Toggle Button */}
-        <div className="mb-4 flex justify-end">
-          <button
-            onClick={() => setShowHistory(!showHistory)}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            <Clock className="w-5 h-5" />
-            {showHistory ? '閉じる' : '要約履歴を見る'}
-          </button>
-        </div>
-
-        {/* Summary History Panel */}
-        {showHistory && (
-          <div className="mb-8">
-            <SummaryHistory />
-          </div>
-        )}
         
         {/* ステップインジケーター */}
         <div className="mb-8">
@@ -419,7 +393,7 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
         </div>
 
         {/* Unsaved Data Indicator */}
-        {(isRecordingActive || splitFiles.length > 0 || transcriptionResults.length > 0 || transcriptionBackgroundInfo.trim() !== '' || summaryBackgroundInfo.trim() !== '') && (
+        {(isRecordingActive || splitFiles.length > 0 || transcriptionResults.length > 0 || transcriptionBackgroundInfo.trim() !== '') && (
           <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center">
             <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse mr-3"></div>
             <p className="text-sm text-amber-800">
@@ -525,7 +499,6 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
                         setSplitFiles([]);
                         setTranscriptionResults([]);
                         setTranscriptionBackgroundInfo('');
-                        setSummaryBackgroundInfo('');
                       }}
                       className="text-green-700 hover:text-green-800 underline text-sm"
                     >
@@ -840,36 +813,15 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
             )}
 
 
-            {/* Arrow between transcription and summary */}
+            {/* End of transcription - show message about separate summary page */}
             {apiKey && transcriptionResults.length > 0 && (
-              <div className="flex justify-center mb-8">
-                <div className="flex flex-col items-center">
-                  <ArrowDown className="w-8 h-8 text-violet-400 animate-bounce" />
-                  <span className="text-sm text-violet-600 font-medium mt-2">次のステップ</span>
+              <div className="bg-purple-50 rounded-2xl p-6 border border-purple-200 text-center">
+                <div className="flex items-center justify-center mb-3">
+                  <Sparkles className="w-6 h-6 text-purple-600" />
                 </div>
-              </div>
-            )}
-            
-            {/* Step 4/5: Summary - Only show if we have transcription results */}
-            {apiKey && transcriptionResults.length > 0 && (
-              <div className="bg-white rounded-2xl shadow-lg p-8" data-step="summary">
-                <div className="flex items-center mb-6">
-                  <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold mr-3">
-                    {hasVisualCaptures ? '5' : '4'}
-                  </div>
-                  <h2 className="text-2xl font-bold text-gray-900">要約作成</h2>
-                </div>
-                
-                <SummaryStep
-                  transcriptionResults={transcriptionResults}
-                  transcriptionBackgroundInfo={summaryBackgroundInfo}
-                  visualSummary={visualSummary}
-                  visualCaptures={visualCaptures}
-                  fileName={selectedFile?.name}
-                  onBackgroundInfoChange={setSummaryBackgroundInfo}
-                  presetApiKey={apiKey}
-                  presetApiEndpoint={apiEndpoint}
-                />
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">文字起こし完了！</h3>
+                <p className="text-gray-600 mb-4">要約の作成は専用ページで行えます。</p>
+                <p className="text-sm text-gray-500">※ 文字起こし結果は自動的に要約履歴に保存されます。</p>
               </div>
             )}
           </>

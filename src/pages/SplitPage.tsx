@@ -112,7 +112,7 @@ export function SplitPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-violet-50 via-blue-50 to-cyan-50">
-      <div className="container mx-auto px-6 py-8">
+      <div className="container mx-auto px-6 py-8 pt-20">
         <div className="max-w-4xl mx-auto">
 
           {/* Unsaved Data Indicator */}

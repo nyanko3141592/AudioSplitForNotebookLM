@@ -4,6 +4,7 @@ export interface SummaryHistoryItem {
   id: string;
   timestamp: string;
   fileName: string;
+  title?: string; // Custom title that overrides fileName for display
   summary: string;
   transcriptionResults: Array<{
     fileName: string;

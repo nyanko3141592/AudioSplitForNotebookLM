@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, FileText, Trash2, Eye, Download, X, Image } from 'lucide-react';
+import { Clock, FileText, Trash2, Eye, Download, X, Image, Settings, Edit2, Check, X as Cancel } from 'lucide-react';
 import type { SummaryHistoryItem } from '../types/summaryHistory';
-import { loadSummaryHistory, deleteSummaryFromHistory, clearSummaryHistory, exportSummaryHistory } from '../utils/summaryHistory';
+import { loadSummaryHistory, deleteSummaryFromHistory, clearSummaryHistory, exportSummaryHistory, updateHistoryLimit, getHistoryLimitOptions, updateSummaryTitle } from '../utils/summaryHistory';
 
 export const SummaryHistory: React.FC = () => {
   const [history, setHistory] = useState<SummaryHistoryItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<SummaryHistoryItem | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [currentLimit, setCurrentLimit] = useState<number>(-1);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState<string>('');
 
   // Load history on mount
   useEffect(() => {
@@ -16,6 +20,39 @@ export const SummaryHistory: React.FC = () => {
   const loadHistory = () => {
     const historyData = loadSummaryHistory();
     setHistory(historyData.items);
+    setCurrentLimit(historyData.maxItems);
+  };
+
+  const handleLimitChange = (newLimit: number) => {
+    updateHistoryLimit(newLimit === -1 ? null : newLimit);
+    setCurrentLimit(newLimit);
+    loadHistory(); // Reload to reflect any trimming
+    setShowSettings(false);
+  };
+
+  const handleStartEditing = (item: SummaryHistoryItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingId(item.id);
+    setEditingTitle(item.title || item.fileName);
+  };
+
+  const handleSaveTitle = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (updateSummaryTitle(id, editingTitle)) {
+      loadHistory();
+    }
+    setEditingId(null);
+    setEditingTitle('');
+  };
+
+  const handleCancelEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingId(null);
+    setEditingTitle('');
+  };
+
+  const getDisplayTitle = (item: SummaryHistoryItem) => {
+    return item.title || item.fileName;
   };
 
   const handleDelete = (id: string, e: React.MouseEvent) => {
@@ -79,6 +116,13 @@ export const SummaryHistory: React.FC = () => {
             要約履歴
           </h2>
           <div className="flex gap-2">
+            <button
+              onClick={() => setShowSettings(true)}
+              className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2"
+            >
+              <Settings className="w-4 h-4" />
+              設定
+            </button>
             {history.length > 0 && (
               <>
                 <button
@@ -118,7 +162,50 @@ export const SummaryHistory: React.FC = () => {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
                       <FileText className="w-5 h-5 text-blue-500" />
-                      <h3 className="font-semibold text-gray-800">{item.fileName}</h3>
+                      {editingId === item.id ? (
+                        <div className="flex items-center gap-2 flex-1">
+                          <input
+                            type="text"
+                            value={editingTitle}
+                            onChange={(e) => setEditingTitle(e.target.value)}
+                            className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleSaveTitle(item.id, e as any);
+                              } else if (e.key === 'Escape') {
+                                handleCancelEdit(e as any);
+                              }
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            autoFocus
+                          />
+                          <button
+                            onClick={(e) => handleSaveTitle(item.id, e)}
+                            className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors"
+                            title="保存"
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            className="p-1 text-gray-600 hover:bg-gray-50 rounded transition-colors"
+                            title="キャンセル"
+                          >
+                            <Cancel className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <h3 className="font-semibold text-gray-800 flex-1">{getDisplayTitle(item)}</h3>
+                          <button
+                            onClick={(e) => handleStartEditing(item, e)}
+                            className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded transition-colors"
+                            title="タイトルを編集"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
                       {item.visualCaptures && item.visualCaptures.length > 0 && (
                         <span className="flex items-center gap-1 text-sm text-green-600">
                           <Image className="w-4 h-4" />
@@ -168,7 +255,7 @@ export const SummaryHistory: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             <div className="p-6 border-b flex justify-between items-center">
-              <h3 className="text-xl font-bold">{selectedItem.fileName}</h3>
+              <h3 className="text-xl font-bold">{getDisplayTitle(selectedItem)}</h3>
               <button
                 onClick={() => setShowModal(false)}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -258,6 +345,71 @@ export const SummaryHistory: React.FC = () => {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold">履歴設定</h3>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  保存する要約の件数
+                </label>
+                <div className="space-y-2">
+                  {getHistoryLimitOptions().map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => handleLimitChange(option.value)}
+                      className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
+                        currentLimit === option.value
+                          ? 'bg-purple-50 border-purple-500 text-purple-700'
+                          : 'bg-white border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="font-medium">{option.label}</div>
+                      {option.value === -1 && (
+                        <div className="text-sm text-gray-500 mt-1">
+                          要約は自動削除されません
+                        </div>
+                      )}
+                      {option.value > 0 && (
+                        <div className="text-sm text-gray-500 mt-1">
+                          {option.value}件を超えると古いものから削除
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="pt-4 border-t">
+                <div className="text-sm text-gray-600">
+                  <strong>現在の設定:</strong> {
+                    currentLimit === -1 
+                      ? 'すべて（制限なし）' 
+                      : `${currentLimit}件`
+                  }
+                </div>
+                {history.length > 0 && (
+                  <div className="text-sm text-gray-500 mt-1">
+                    現在保存されている要約: {history.length}件
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
