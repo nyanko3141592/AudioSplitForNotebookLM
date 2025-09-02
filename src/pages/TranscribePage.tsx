@@ -35,7 +35,6 @@ type Props = {
 
 export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Props) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [splitFiles, setSplitFiles] = useState<SplitFile[]>([]);
   const [transcriptionResults, setTranscriptionResults] = useState<TranscriptionResult[]>([]);
@@ -222,7 +221,7 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
     setError(null);
     
     if (Array.isArray(file)) {
-      // Multiple segments: create SplitFiles from all segments
+      // Multiple segments from recording: create SplitFiles from all segments
       console.log(`📁 ${file.length}個のセグメントを受信。個別に文字起こしします。`);
       
       const splitFiles: SplitFile[] = file.map((segment, index) => {
@@ -243,60 +242,13 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
       return;
     }
     
-    // Single file processing (existing logic)
+    // Single file processing - just store it without splitting
+    // The splitting will be handled in TranscriptionStep when needed
     setSelectedFile(file);
     
-    // Check if file needs splitting (>200MB)
-    const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB in bytes
-    
-    if (file.size > MAX_FILE_SIZE) {
-      // Auto-split large files
-      setIsProcessing(true);
-      
-      // Use requestAnimationFrame to ensure smooth UI updates
-      requestAnimationFrame(async () => {
-        try {
-          const maxSizeMB = 190; // Safe margin under 200MB
-          const blobs = await splitAudio(file, 'size', { maxSize: maxSizeMB });
-          
-          const files: SplitFile[] = blobs.map((blob, index) => {
-            const baseName = file.name.replace(/\.[^/.]+$/, '');
-            const extension = 'wav'; // FFmpeg outputs WAV
-            return {
-              name: `${baseName}_part${index + 1}.${extension}`,
-              size: blob.size,
-              blob
-            };
-          });
-          
-          // Use startTransition for non-urgent state updates
-          startTransition(() => {
-            setSplitFiles(files);
-          });
-        } catch (error) {
-          console.error('Error splitting audio:', error);
-          setError('音声ファイルの自動分割中にエラーが発生しました。');
-          return;
-        } finally {
-          setIsProcessing(false);
-        }
-      });
-    } else {
-      // Use file directly without splitting - defer to prevent blocking
-      requestAnimationFrame(() => {
-        const fileAsBlob = new Blob([file], { type: file.type });
-        const splitFile: SplitFile = {
-          name: file.name,
-          size: file.size,
-          blob: fileAsBlob
-        };
-        
-        startTransition(() => {
-          setSplitFiles([splitFile]);
-        });
-      });
-    }
-  }, [cleanupSplitFiles, splitAudio]);
+    // Don't split here - just pass the file as-is
+    // TranscriptionStep will handle the splitting if needed
+  }, [cleanupSplitFiles]);
 
   const handleDownload = useCallback((file: SplitFile) => {
     downloadFile(file);
@@ -372,9 +324,8 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
   const [showHistory, setShowHistory] = useState(false); // Toggle for showing summary history
   
   const currentStep = !selectedFile ? 1 : 
-                     splitFiles.length === 0 ? 2 : 
-                     hasVisualCaptures && !visualAnalysisCompleted ? 3 : // Must complete visual analysis if captures exist
-                     transcriptionResults.length === 0 ? (hasVisualCaptures ? 4 : 3) : (hasVisualCaptures ? 5 : 4);
+                     hasVisualCaptures && !visualAnalysisCompleted ? 2 : // Must complete visual analysis if captures exist
+                     transcriptionResults.length === 0 ? (hasVisualCaptures ? 3 : 2) : (hasVisualCaptures ? 4 : 3);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -530,11 +481,11 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
                       <div className="mt-6">
                         <FileUpload
                           onFileSelect={handleFileSelect}
-                          disabled={isProcessing || isPending}
+                          disabled={isPending}
                         />
-                        {!isProcessing && !isPending && (
+                        {!isPending && (
                           <p className="text-sm text-gray-500 mt-3 text-center">
-                            💡 200MB以上のファイルは自動分割されます
+                            💡 200MB以上のファイルは文字起こし時に自動分割されます
                           </p>
                         )}
                       </div>
@@ -591,35 +542,8 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
           </div>
         </div>
 
-        {/* Processing Status - Between Step 2 and 3 */}
-        {selectedFile && isProcessing && (
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <Loader2 className="w-5 h-5 mr-3 text-blue-600 animate-spin" />
-                <div>
-                  <p className="text-blue-800 font-medium">
-                    {selectedFile.size > 200 * 1024 * 1024
-                      ? '大きなファイルを分割中...'
-                      : 'ファイルを処理中...'}
-                  </p>
-                  <p className="text-sm text-blue-600 mt-1">
-                    {selectedFile.size > 200 * 1024 * 1024
-                      ? `${selectedFile.name} (${(selectedFile.size / (1024 * 1024)).toFixed(1)}MB) を190MB以下に分割しています`
-                      : 'しばらくお待ちください...'}
-                  </p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-blue-600">処理中...</p>
-                <p className="text-xs text-blue-500 mt-1">ブラウザを閉じないでください</p>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Arrow between file selection and settings */}
-        {selectedFile && !isProcessing && (
+        {selectedFile && (
           <div className="flex justify-center mb-8">
             <div className="flex flex-col items-center">
               <ArrowDown className="w-8 h-8 text-violet-400 animate-bounce" />
@@ -629,7 +553,7 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
         )}
 
         {/* Step 2: AI設定 - コンパクト版 */}
-        {selectedFile && !isProcessing && (
+        {selectedFile && (
           apiKey ? (
             // 設定済みの場合 - 超コンパクト
             <div className="bg-white rounded-xl shadow-md p-4 mb-8" data-step="settings">
@@ -827,6 +751,8 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
 
                 <TranscriptionStep
                   splitFiles={splitFiles}
+                  selectedFile={selectedFile || undefined}
+                  splitAudio={splitAudio}
                   transcriptionResults={transcriptionResults}
                   onNext={() => {}}
                   onDownloadSplit={handleDownload}

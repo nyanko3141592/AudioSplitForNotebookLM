@@ -28,6 +28,7 @@ interface TranscriptionStepProps {
   presetCustomPrompt?: string;
   // 音声分割機能を追加
   splitAudio?: (file: File | Blob, mode: 'size' | 'count', options: { maxSize?: number; count?: number }) => Promise<Blob[]>;
+  selectedFile?: File; // Original file for splitting if needed
   // 文字起こし状態変更コールバック
   onTranscriptionStateChange?: (isTranscribing: boolean, progress?: { isSplitting?: boolean }) => void;
 }
@@ -50,6 +51,7 @@ export function TranscriptionStep({
   presetConcurrencySettings,
   presetCustomPrompt = '',
   splitAudio, // 音声分割機能を追加
+  selectedFile, // Original file for splitting
   onTranscriptionStateChange // 文字起こし状態変更コールバック
 }: TranscriptionStepProps) {
   const [apiKey, setApiKey] = useState('');
@@ -66,6 +68,7 @@ export function TranscriptionStep({
   const [error, setError] = useState<string | null>(null);
   const [actualCost, setActualCost] = useState<number | null>(null);
   const transcriberRef = useRef<GeminiTranscriber | null>(null);
+  const [localSplitFiles, setLocalSplitFiles] = useState<SplitFile[]>(splitFiles || []);
   const [customPrompt, setCustomPrompt] = useState('');
   const [backgroundInfo, setBackgroundInfo] = useState('');
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
@@ -145,6 +148,22 @@ export function TranscriptionStep({
     }
   }, [parentTranscriptionResults]);
 
+  // Check if we have a selectedFile but no splitFiles (need to prepare for splitting)
+  useEffect(() => {
+    if (selectedFile && splitFiles.length === 0) {
+      // Create a single split file from the selected file
+      const fileAsBlob = new Blob([selectedFile], { type: selectedFile.type });
+      const singleFile: SplitFile = {
+        name: selectedFile.name,
+        size: selectedFile.size,
+        blob: fileAsBlob
+      };
+      setLocalSplitFiles([singleFile]);
+    } else if (splitFiles.length > 0) {
+      setLocalSplitFiles(splitFiles);
+    }
+  }, [selectedFile, splitFiles]);
+
   const handleApiKeyChange = (value: string) => {
     setApiKey(value);
     apiKeyStorage.save(value);
@@ -186,7 +205,7 @@ export function TranscriptionStep({
 
   // 総再生時間を計算
   const getTotalDuration = () => {
-    return splitFiles.reduce((total, file) => {
+    return localSplitFiles.reduce((total, file) => {
       // BlobのdurationプロパティまたはFile.sizeから推定
       // WAVファイルの場合、おおよそ1MB = 10秒と仮定
       const estimatedDuration = file.size / (1024 * 1024) * 10;
@@ -201,7 +220,7 @@ export function TranscriptionStep({
       return;
     }
 
-    if (splitFiles.length === 0) {
+    if (localSplitFiles.length === 0) {
       setError('文字起こしする音声ファイルがありません');
       return;
     }
@@ -214,11 +233,11 @@ export function TranscriptionStep({
     try {
       // 分割処理が必要かチェック（200MB以上のファイルがある場合）
       const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB
-      let filesToProcess = [...splitFiles];
+      let filesToProcess = [...localSplitFiles];
       let needsSplitting = false;
       
       // 大きなファイルがあるかチェック
-      for (const file of splitFiles) {
+      for (const file of localSplitFiles) {
         if (file.size > MAX_FILE_SIZE) {
           needsSplitting = true;
           break;
@@ -243,13 +262,13 @@ export function TranscriptionStep({
         const splittedFiles = [];
         let processedCount = 0;
         
-        for (const file of splitFiles) {
+        for (const file of localSplitFiles) {
           if (file.size > MAX_FILE_SIZE) {
             // 分割処理中の表示更新
             setCurrentProgress({
               current: processedCount,
-              total: splitFiles.length,
-              status: `音声ファイル分割中... (${processedCount + 1}/${splitFiles.length})`,
+              total: localSplitFiles.length,
+              status: `音声ファイル分割中... (${processedCount + 1}/${localSplitFiles.length})`,
               fileStates: new Map(),
               isSplitting: true,
               splitProgress: {
@@ -280,8 +299,8 @@ export function TranscriptionStep({
         
         // 分割完了を通知
         setCurrentProgress({
-          current: splitFiles.length,
-          total: splitFiles.length,
+          current: localSplitFiles.length,
+          total: localSplitFiles.length,
           status: '音声分割完了',
           fileStates: new Map(),
           isSplitting: true,
@@ -609,7 +628,7 @@ export function TranscriptionStep({
         <div className="text-center space-y-3">
           <button
             onClick={handleTranscribe}
-            disabled={!apiKey || splitFiles.length === 0}
+            disabled={!apiKey || localSplitFiles.length === 0}
             className="px-8 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold rounded-xl hover:from-violet-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl mx-auto"
           >
             {hasResults || error ? (
@@ -653,7 +672,7 @@ export function TranscriptionStep({
             <div className="bg-white/80 rounded-lg p-4 border border-green-300">
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
-                  <div className="text-xl font-bold text-green-600">{splitFiles.length}</div>
+                  <div className="text-xl font-bold text-green-600">{localSplitFiles.length}</div>
                   <div className="text-xs text-green-700">音声ファイル</div>
                 </div>
                 <div>
@@ -676,7 +695,7 @@ export function TranscriptionStep({
                 <div>
                   <div className="text-xs text-gray-600 mb-2">音声ファイル</div>
                   <div className="flex flex-wrap gap-2">
-                    {onDownloadSplit && splitFiles.map(file => (
+                    {onDownloadSplit && localSplitFiles.map(file => (
                       <button
                         key={file.name}
                         onClick={() => onDownloadSplit(file)}
@@ -685,7 +704,7 @@ export function TranscriptionStep({
                         🎵 {file.name}
                       </button>
                     ))}
-                    {onDownloadAllSplits && splitFiles.length > 1 && (
+                    {onDownloadAllSplits && localSplitFiles.length > 1 && (
                       <button
                         onClick={onDownloadAllSplits}
                         className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-medium"
