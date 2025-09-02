@@ -210,6 +210,19 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
   //   apiEndpointStorage.save(endpoint);
   // };
 
+  // Helper function to download selected file
+  const handleDownloadSelectedFile = () => {
+    if (!selectedFile) return;
+    
+    const url = URL.createObjectURL(selectedFile);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = selectedFile.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   const handleFileSelect = useCallback(async (file: File | File[]) => {
     cleanupSplitFiles();
@@ -314,9 +327,30 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
   // const hasAnalyzedVisuals = visualSummary.length > 0; // Check if visual summary exists
   const [visualAnalysisCompleted, setVisualAnalysisCompleted] = useState(false); // Track if visual analysis action is completed
   
-  const currentStep = !selectedFile ? 1 : 
-                     hasVisualCaptures && !visualAnalysisCompleted ? 2 : // Must complete visual analysis if captures exist
-                     transcriptionResults.length === 0 ? (hasVisualCaptures ? 3 : 2) : (hasVisualCaptures ? 4 : 3);
+  // Automatically set visualAnalysisCompleted to true when no visual captures exist
+  useEffect(() => {
+    if (!hasVisualCaptures) {
+      setVisualAnalysisCompleted(true);
+    } else {
+      setVisualAnalysisCompleted(false);
+    }
+  }, [hasVisualCaptures]);
+  
+  // Calculate current step based on progress and conditions
+  const getCurrentStep = () => {
+    if (!selectedFile) return 1; // Step 1: File selection
+    
+    if (!hasVisualCaptures) {
+      // No visual captures: 1 -> 2 (AI Settings) -> 3 (Transcription) -> 4 (Summary)
+      return transcriptionResults.length === 0 ? 2 : 3;
+    } else {
+      // With visual captures: 1 -> 2 (AI Settings) -> 3 (Visual Analysis) -> 4 (Transcription) -> 5 (Summary)
+      if (!visualAnalysisCompleted) return 3; // Visual analysis pending
+      return transcriptionResults.length === 0 ? 4 : 5; // Transcription or Summary
+    }
+  };
+  
+  const currentStep = getCurrentStep();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -493,17 +527,25 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
                         {selectedFile.name} ({(selectedFile.size / (1024 * 1024)).toFixed(2)} MB)
                       </span>
                     </div>
-                    <button
-                      onClick={() => {
-                        setSelectedFile(null);
-                        setSplitFiles([]);
-                        setTranscriptionResults([]);
-                        setTranscriptionBackgroundInfo('');
-                      }}
-                      className="text-green-700 hover:text-green-800 underline text-sm"
-                    >
-                      変更
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleDownloadSelectedFile}
+                        className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                      >
+                        ダウンロード
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedFile(null);
+                          setSplitFiles([]);
+                          setTranscriptionResults([]);
+                          setTranscriptionBackgroundInfo('');
+                        }}
+                        className="text-green-700 hover:text-green-800 underline text-sm"
+                      >
+                        変更
+                      </button>
+                    </div>
                   </div>
                   {selectedFile.size > 200 * 1024 * 1024 && (
                     <p className="text-sm text-green-700 mt-2">
@@ -700,7 +742,7 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
         )}
         
         {/* Arrow between visual analysis and transcription */}
-        {splitFiles.length > 0 && (!hasVisualCaptures || visualAnalysisCompleted) && (
+        {selectedFile && (!hasVisualCaptures || visualAnalysisCompleted) && (
           <div className="flex justify-center mb-8">
             <div className="flex flex-col items-center">
               <ArrowDown className="w-8 h-8 text-violet-400 animate-bounce" />
@@ -709,8 +751,8 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
           </div>
         )}
 
-        {/* Transcription Step - Only show if visual analysis is completed or no visual captures */}
-        {splitFiles.length > 0 && (!hasVisualCaptures || visualAnalysisCompleted) && (
+        {/* Transcription Step - Show if file is selected and (no visual captures OR visual analysis is completed) */}
+        {selectedFile && (!hasVisualCaptures || visualAnalysisCompleted) && (
           <>
             {apiKey ? (
               /* With API Key - Show Transcription */

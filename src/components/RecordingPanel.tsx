@@ -358,19 +358,23 @@ export const RecordingPanel: React.FC<Props> = ({
     setError(null);
     stopTabMonitoring(); // Stop any existing monitoring
     try {
-      // Using video: true improves likelihood of getting tab/system audio with picker
+      // Only request video if visual capture is enabled
+      const needsVideo = visualCapture.settings.enabled;
       const s = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
+        video: needsVideo,
         audio: true
       });
       
-      // Extract tab metadata before removing video track
-      const metadata = await extractTabMetadata(s);
-      console.log('📊 Extracted tab metadata:', metadata);
+      // Extract tab metadata if video track is available
+      let metadata = null;
+      if (needsVideo && s.getVideoTracks().length > 0) {
+        metadata = await extractTabMetadata(s);
+        console.log('📊 Extracted tab metadata:', metadata);
+      }
       
       // Clone stream for visual capture before removing video tracks
       let visualStream: MediaStream | null = null;
-      if (visualCapture.settings.enabled) {
+      if (visualCapture.settings.enabled && s.getVideoTracks().length > 0) {
         try {
           visualStream = s.clone();
           await visualCapture.startCapture(visualStream);
@@ -381,7 +385,7 @@ export const RecordingPanel: React.FC<Props> = ({
         }
       }
       
-      // Remove video track from the main audio stream
+      // Remove video track from the main audio stream if present
       s.getVideoTracks().forEach(t => s.removeTrack(t));
       if (s.getAudioTracks().length === 0) {
         setError('選択したソースに音声トラックがありません。共有ダイアログで「タブの音声を共有」をオンにしてください。');
@@ -437,7 +441,7 @@ export const RecordingPanel: React.FC<Props> = ({
         setError('タブ/システム音声の取得に失敗しました。共有ダイアログで該当タブを選択し、「タブの音声を共有」にチェックしてください。');
       }
     }
-  };;
+  };;;
 
   const enableMic = async () => {
     setError(null);
