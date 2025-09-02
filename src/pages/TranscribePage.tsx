@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useTransition } from 'react';
 import { FileUpload } from '../components/FileUpload';
 import { TranscriptionStep } from '../components/steps/TranscriptionStep';
+import { SummaryStep } from '../components/steps/SummaryStep';
 import { type SplitFile } from '../components/DownloadList';
 import { useFFmpeg } from '../hooks/useFFmpeg';
 import { downloadFile, downloadAllAsZip } from '../utils/download';
@@ -9,8 +10,7 @@ import {
   AlertCircle,
   CheckCircle,
   MessageSquare,
-  ArrowDown,
-  Sparkles
+  ArrowDown
 } from 'lucide-react';
 import type { TranscriptionResult } from '../utils/geminiTranscriber';
 // import { GeminiTranscriber } from '../utils/geminiTranscriber';
@@ -37,6 +37,7 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
   const [splitFiles, setSplitFiles] = useState<SplitFile[]>([]);
   const [transcriptionResults, setTranscriptionResults] = useState<TranscriptionResult[]>([]);
   const [transcriptionBackgroundInfo, setTranscriptionBackgroundInfo] = useState<string>('');
+  const [summaryBackgroundInfo, setSummaryBackgroundInfo] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState<string>('');
   const [apiEndpoint, setApiEndpoint] = useState<string>('https://generativelanguage.googleapis.com');
@@ -855,15 +856,36 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
             )}
 
 
-            {/* End of transcription - show message about separate summary page */}
+            {/* Arrow between transcription and summary */}
             {apiKey && transcriptionResults.length > 0 && (
-              <div className="bg-purple-50 rounded-2xl p-6 border border-purple-200 text-center">
-                <div className="flex items-center justify-center mb-3">
-                  <Sparkles className="w-6 h-6 text-purple-600" />
+              <div className="flex justify-center mb-8">
+                <div className="flex flex-col items-center">
+                  <ArrowDown className="w-8 h-8 text-violet-400 animate-bounce" />
+                  <span className="text-sm text-violet-600 font-medium mt-2">次のステップ</span>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-800 mb-2">文字起こし完了！</h3>
-                <p className="text-gray-600 mb-4">要約の作成は専用ページで行えます。</p>
-                <p className="text-sm text-gray-500">※ 文字起こし結果は自動的に要約履歴に保存されます。</p>
+              </div>
+            )}
+            
+            {/* Step 4/5: Summary - Only show if we have transcription results */}
+            {apiKey && transcriptionResults.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-lg p-8 mb-16" data-step="summary">
+                <div className="flex items-center mb-6">
+                  <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold mr-3">
+                    {hasVisualCaptures ? '5' : '4'}
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900">要約作成</h2>
+                </div>
+                
+                <SummaryStep
+                  transcriptionResults={transcriptionResults}
+                  transcriptionBackgroundInfo={summaryBackgroundInfo}
+                  visualSummary={visualSummary}
+                  visualCaptures={visualCaptures}
+                  fileName={selectedFile?.name}
+                  onBackgroundInfoChange={setSummaryBackgroundInfo}
+                  presetApiKey={apiKey}
+                  presetApiEndpoint={apiEndpoint}
+                />
               </div>
             )}
           </>
