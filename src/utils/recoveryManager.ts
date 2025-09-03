@@ -73,7 +73,7 @@ const RECOVERY_EXPIRY_HOURS = 24; // 24時間後に自動削除
 
 export class RecoveryManager {
   private static instance: RecoveryManager;
-  private autoSaveInterval: NodeJS.Timeout | null = null;
+  private autoSaveInterval: ReturnType<typeof setInterval> | null = null;
   private currentState: RecoveryState | null = null;
   
   private constructor() {
