@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Sparkles, Download, Loader2, AlertCircle, CheckCircle, RefreshCw, Copy, Key } from 'lucide-react';
+// import { recoveryManager } from '../../utils/recoveryManager';
 import { GeminiTranscriber, downloadTranscription } from '../../utils/geminiTranscriber';
 import { markdownToHtml, plainToHtml, buildHtmlDocument, copyHtmlToClipboard } from '../../utils/format';
 import type { TranscriptionResult } from '../../utils/geminiTranscriber';
@@ -260,6 +261,14 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
       currentStep: 0 
     }));
     setError(null);
+    
+    // Start recovery tracking - disabled
+    // recoveryManager.startAutoSave();
+    // recoveryManager.updateStepState('summary', {
+    //   isProcessing: true,
+    //   transcriptionResults,
+    //   backgroundInfo: summarySettings.backgroundInfo
+    // });
 
     try {
       const transcriber = new GeminiTranscriber(apiKey, selectedModel, apiEndpoint);
@@ -342,6 +351,12 @@ ${summarySettings.backgroundInfo}
           : 'まとめが完了しました！',
         currentStep: 3 
       }));
+      
+      // Save summary to recovery state - disabled
+      // recoveryManager.updateStepState('summary', {
+      //   isProcessing: false,
+      //   generatedSummary: summary
+      // });
 
       // Save to history
       const historyItem: SummaryHistoryItem = {
@@ -364,11 +379,23 @@ ${summarySettings.backgroundInfo}
       
       addSummaryToHistory(historyItem);
       console.log('📚 Summary saved to history');
+      
+      // Clear recovery state on successful completion - disabled
+      // recoveryManager.clearState();
     } catch (error) {
       console.error('Summary error:', error);
       setError(error instanceof Error ? error.message : 'まとめ処理に失敗しました');
+      
+      // Save error state for recovery - disabled
+      // recoveryManager.updateStepState('summary', {
+      //   isProcessing: false,
+      //   error: error instanceof Error ? error.message : 'まとめ処理に失敗しました'
+      // });
     } finally {
       setSummarySettings(prev => ({ ...prev, isProcessing: false }));
+      
+      // Stop auto-save - disabled
+      // recoveryManager.stopAutoSave();
     }
   };
 

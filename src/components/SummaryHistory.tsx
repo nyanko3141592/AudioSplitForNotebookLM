@@ -99,6 +99,19 @@ export const SummaryHistory: React.FC = () => {
       minute: '2-digit'
     });
   };
+  
+  const formatDateShort = (timestamp: string) => {
+    return new Date(timestamp).toLocaleString('ja-JP', {
+      month: '2-digit',
+      day: '2-digit'
+    });
+  };
+  
+  const getUniqueCaptures = (captures?: any[]) => {
+    if (!captures || captures.length === 0) return [];
+    // Filter out duplicate images (those without uploaded flag or with uploaded=false)
+    return captures.filter(capture => !capture.uploaded);
+  };
 
   const formatDuration = (seconds?: number) => {
     if (!seconds) return '';
@@ -164,13 +177,14 @@ export const SummaryHistory: React.FC = () => {
                       <FileText className="w-5 h-5 text-blue-500" />
                       {editingId === item.id ? (
                         <div className="flex items-center gap-2 flex-1">
+                          <span className="text-gray-500 font-medium">[{formatDateShort(item.timestamp)}]</span>
                           <input
                             type="text"
                             value={editingTitle}
                             onChange={(e) => setEditingTitle(e.target.value)}
                             className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
+                              if (e.key === 'Enter' && e.ctrlKey) {
                                 handleSaveTitle(item.id, e as any);
                               } else if (e.key === 'Escape') {
                                 handleCancelEdit(e as any);
@@ -178,11 +192,12 @@ export const SummaryHistory: React.FC = () => {
                             }}
                             onClick={(e) => e.stopPropagation()}
                             autoFocus
+                            placeholder="Ctrl+Enterで確定"
                           />
                           <button
                             onClick={(e) => handleSaveTitle(item.id, e)}
                             className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors"
-                            title="保存"
+                            title="確定 (Ctrl+Enter)"
                           >
                             <Check className="w-4 h-4" />
                           </button>
@@ -196,22 +211,28 @@ export const SummaryHistory: React.FC = () => {
                         </div>
                       ) : (
                         <>
-                          <h3 className="font-semibold text-gray-800 flex-1">{getDisplayTitle(item)}</h3>
+                          <h3 className="font-semibold text-gray-800 flex-1">
+                            <span className="text-gray-500 font-medium">[{formatDateShort(item.timestamp)}]</span>
+                            <span className="ml-2">{getDisplayTitle(item)}</span>
+                          </h3>
                           <button
                             onClick={(e) => handleStartEditing(item, e)}
                             className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded transition-colors"
-                            title="タイトルを編集"
+                            title="タイトルを編雈"
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
                         </>
                       )}
-                      {item.visualCaptures && item.visualCaptures.length > 0 && (
-                        <span className="flex items-center gap-1 text-sm text-green-600">
-                          <Image className="w-4 h-4" />
-                          {item.visualCaptures.length}枚
-                        </span>
-                      )}
+                      {(() => {
+                        const uniqueCaptures = getUniqueCaptures(item.visualCaptures);
+                        return uniqueCaptures.length > 0 && (
+                          <span className="flex items-center gap-1 text-sm text-green-600">
+                            <Image className="w-4 h-4" />
+                            {uniqueCaptures.length}枚
+                          </span>
+                        );
+                      })()}
                     </div>
                     <p className="text-sm text-gray-600 line-clamp-2 mb-2">{item.summary}</p>
                     <div className="flex items-center gap-4 text-xs text-gray-500">
@@ -308,26 +329,29 @@ export const SummaryHistory: React.FC = () => {
               )}
 
               {/* Visual Captures */}
-              {selectedItem.visualCaptures && selectedItem.visualCaptures.length > 0 && (
-                <div className="mb-6">
-                  <h4 className="font-semibold text-lg mb-2">キャプチャ画像 ({selectedItem.visualCaptures.length}枚)</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {selectedItem.visualCaptures.map((capture) => (
-                      <div key={capture.id} className="border rounded-lg overflow-hidden">
-                        <img 
-                          src={capture.imageData} 
-                          alt={`Capture at ${capture.recordingTime}s`}
-                          className="w-full h-32 object-cover"
-                        />
-                        <div className="p-2 text-xs">
-                          <div className="text-gray-500 mb-1">{capture.recordingTime}秒</div>
-                          <div className="line-clamp-2">{capture.description}</div>
+              {(() => {
+                const uniqueCaptures = getUniqueCaptures(selectedItem.visualCaptures);
+                return uniqueCaptures.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="font-semibold text-lg mb-2">キャプチャ画像 ({uniqueCaptures.length}枚)</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {uniqueCaptures.map((capture) => (
+                        <div key={capture.id} className="border rounded-lg overflow-hidden">
+                          <img 
+                            src={capture.imageData} 
+                            alt={`Capture at ${capture.recordingTime}s`}
+                            className="w-full h-32 object-cover"
+                          />
+                          <div className="p-2 text-xs">
+                            <div className="text-gray-500 mb-1">{capture.recordingTime}秒</div>
+                            <div className="line-clamp-2">{capture.description}</div>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Transcription Results */}
               {selectedItem.transcriptionResults && selectedItem.transcriptionResults.length > 0 && (

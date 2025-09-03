@@ -31,6 +31,9 @@ type Props = {
   }) => void;
 };
 
+// import { useRecovery } from '../hooks/useRecovery';
+// import { RecoveryDialog } from '../components/RecoveryDialog';
+
 export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Props) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -49,14 +52,30 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
   const [analysisProgress, setAnalysisProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
   const [visualSummary, setVisualSummary] = useState<string>('');
   const [isGeneratingSummary, setIsGeneratingSummary] = useState<boolean>(false);
-  // const [isTestingConnection, setIsTestingConnection] = useState<boolean>(false);
-  // const [connectionTestResult, setConnectionTestResult] = useState<'success' | 'error' | null>(null);
+  // Recovery functionality temporarily disabled
+  // const [showRecoveryDialog, setShowRecoveryDialog] = useState(false);
+  // const [recoveryDialogShown, setRecoveryDialogShown] = useState(false);
+  
+  // Recovery hook - temporarily disabled
+  // const recoveryInfo = { canRecover: false };
+  // const recoverState = () => null;
+  // const clearRecovery = () => {};
+  const saveProgress = (_step: string, _data: any) => {}; // Keep for now to avoid more errors
+  const startAutoSave = () => {};
+  const stopAutoSave = () => {};
   
   const handleRecordingStateChange = (isActive: boolean) => {
     setIsRecordingActive(isActive);
     onRecordingStateChange?.(isActive);
     // Update recording indicator (favicon and title)
     RecordingIndicator.setRecording(isActive);
+    
+    // Save recording state for recovery
+    if (isActive) {
+      startAutoSave();
+    } else {
+      stopAutoSave();
+    }
   };
   
   const handleSegmentsStateChange = (hasSegments: boolean) => {
@@ -83,6 +102,15 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
   const handleVisualCapturesReady = (captures: CaptureAnalysis[]) => {
     console.log('📸 Visual captures received:', captures.length);
     setVisualCaptures(captures);
+    
+    // Save visual captures for recovery
+    saveProgress('visual', {
+      captures: captures.map(c => ({
+        timestamp: c.recordingTime,
+        imageUrl: c.imageData,
+        tabInfo: c.description
+      }))
+    });
   };
   
   const analyzeVisualCaptures = async () => {
@@ -91,6 +119,9 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
     setIsAnalyzingVisuals(true);
     setIsGeneratingSummary(false);
     setAnalysisProgress({ current: 0, total: visualCaptures.length });
+    
+    // Start auto-save during analysis
+    startAutoSave();
     
     try {
       const { GeminiVisionAnalyzer } = await import('../utils/geminiVision');
@@ -102,6 +133,11 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
         visualCaptures,
         (current, total) => {
           setAnalysisProgress({ current, total });
+          // Save progress for recovery
+          saveProgress('visual', {
+            analysisProgress: current / total,
+            analyzedCaptures: analyzedCaptures
+          });
         }
       );
       
@@ -120,6 +156,13 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
         const summary = await analyzer.generateSummary(validAnalyzedCaptures);
         setVisualSummary(summary);
         console.log('✅ Visual summary generated');
+        
+        // Save completed visual analysis
+        saveProgress('visual', {
+          visualSummary: summary,
+          analyzedCaptures,
+          analysisProgress: 1
+        });
       } else {
         console.log('⚠️ No valid analyzed captures for summary generation');
         setVisualSummary('※ 画面キャプチャの分析に失敗しました');
@@ -132,6 +175,7 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
       setIsAnalyzingVisuals(false);
       setIsGeneratingSummary(false);
       setAnalysisProgress({ current: 0, total: 0 });
+      stopAutoSave();
     }
   };;
   
@@ -192,8 +236,10 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
     // Cleanup recording indicator when component unmounts
     return () => {
       RecordingIndicator.reset();
+      stopAutoSave(); // Stop auto-save on unmount
+      // Don't clear recovery state here - keep it for next session
     };
-  }, []);
+  }, [stopAutoSave]);
 
   const handleApiKeyChange = (key: string) => {
     setApiKey(key);
@@ -247,6 +293,15 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
       // Use the first segment as the selected file for UI purposes
       setSelectedFile(file[0]);
       
+      // Save file info for recovery
+      saveProgress('split', {
+        completedFiles: splitFiles.map(f => ({
+          name: f.name,
+          size: f.size,
+          duration: (f as any).duration || 0
+        }))
+      });
+      
       startTransition(() => {
         setSplitFiles(splitFiles);
       });
@@ -257,9 +312,19 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
     // The splitting will be handled in TranscriptionStep when needed
     setSelectedFile(file);
     
+    // Save file info for recovery
+    saveProgress('split', {
+      selectedFile: {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        lastModified: file.lastModified
+      }
+    });
+    
     // Don't split here - just pass the file as-is
     // TranscriptionStep will handle the splitting if needed
-  }, [cleanupSplitFiles]);
+  }, [cleanupSplitFiles, saveProgress]);
 
   const handleDownload = useCallback((file: SplitFile) => {
     downloadFile(file);
@@ -273,7 +338,18 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
 
   const handleTranscriptionComplete = (results: TranscriptionResult[]) => {
     setTranscriptionResults(results);
+    // Clear recovery state when transcription is complete - disabled
+    // clearRecovery();
   };
+  
+  // Handle recovery dialog actions - disabled
+  // const handleRecover = async () => {
+  //   // Recovery logic disabled
+  // };
+  // 
+  // const handleDiscardRecovery = () => {
+  //   // Recovery logic disabled
+  // };
 
   // Clean up on component unmount
   useEffect(() => {
@@ -355,6 +431,14 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Recovery Dialog - temporarily disabled */}
+      {/* <RecoveryDialog
+        open={showRecoveryDialog}
+        onRecover={handleRecover}
+        onDiscard={handleDiscardRecovery}
+        recoveryInfo={recoveryInfo}
+      /> */}
+      
       <div className="max-w-5xl mx-auto px-6 py-8 pt-20">
         
         

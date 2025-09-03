@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Download, Loader2, AlertCircle, StopCircle, CheckCircle, XCircle, Clock, Copy, Info, RefreshCw, Sparkles, ArrowRight } from 'lucide-react';
+// import { recoveryManager } from '../../utils/recoveryManager';
 import { GeminiTranscriber, downloadTranscription } from '../../utils/geminiTranscriber';
 import type { TranscriptionResult, TranscriptionProgress } from '../../utils/geminiTranscriber';
 import type { SplitFile } from '../DownloadList';
@@ -229,6 +230,21 @@ export function TranscriptionStep({
     setIsTranscribing(true);
     onTranscriptionStateChange?.(true, { isSplitting: false });
     setTranscriptionResults([]);
+    
+    // Start recovery tracking - disabled
+    // recoveryManager.startAutoSave();
+    // recoveryManager.updateStepState('transcription', {
+    //   isProcessing: true,
+    //   currentFileIndex: 0,
+    //   totalFiles: localSplitFiles.length,
+    //   completedTranscriptions: [],
+    //   settings: {
+    //     model: selectedModel,
+    //     language: selectedLanguage,
+    //     backgroundInfo: backgroundInfo,
+    //     customPrompt: customPrompt
+    //   }
+    // });
 
     try {
       // 分割処理が必要かチェック（200MB以上のファイルがある場合）
@@ -337,6 +353,21 @@ export function TranscriptionStep({
         filesToProcess.map(f => f.name),
         (progress: TranscriptionProgress) => {
           setCurrentProgress(progress);
+          
+          // Update recovery state with progress - disabled
+          // const completedFiles = Array.from(progress.fileStates.entries())
+          //   .filter(([_, state]) => state.status === 'completed')
+          //   .map(([fileName, state]) => ({
+          //     fileName,
+          //     text: state.transcription || '',
+          //     timestamp: Date.now()
+          //   }));
+          // 
+          // recoveryManager.updateStepState('transcription', {
+          //   currentFileIndex: progress.current,
+          //   totalFiles: progress.total,
+          //   completedTranscriptions: completedFiles
+          // });
         },
         delay,
         customPrompt || undefined,
@@ -350,6 +381,9 @@ export function TranscriptionStep({
 
       setTranscriptionResults(results);
       onTranscriptionComplete?.(results);
+      
+      // Clear recovery state on successful completion - disabled
+      // recoveryManager.clearState();
     } catch (error) {
       console.error('Transcription error:', error);
       if (error instanceof Error && error.message !== 'キャンセルされました') {
@@ -357,11 +391,20 @@ export function TranscriptionStep({
       } else {
         setError('処理に失敗しました');
       }
+      
+      // Save error state for recovery - disabled
+      // recoveryManager.updateStepState('transcription', {
+      //   isProcessing: false,
+      //   error: error instanceof Error ? error.message : '処理に失敗しました'
+      // });
     } finally {
       setIsTranscribing(false);
       onTranscriptionStateChange?.(false, { isSplitting: false });
       transcriberRef.current = null;
       setCurrentProgress({ current: 0, total: 0, status: '', fileStates: new Map() });
+      
+      // Stop auto-save - disabled
+      // recoveryManager.stopAutoSave();
     }
   };
 
