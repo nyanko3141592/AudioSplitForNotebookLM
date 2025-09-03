@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, FileText, Trash2, Eye, Download, X, Image, Settings, Edit2, Check, X as Cancel } from 'lucide-react';
+import { Clock, FileText, Trash2, Eye, Download, X, Image, Settings, Edit2, Check, X as Cancel, List, Grid } from 'lucide-react';
 import type { SummaryHistoryItem } from '../types/summaryHistory';
 import { loadSummaryHistory, deleteSummaryFromHistory, clearSummaryHistory, exportSummaryHistory, updateHistoryLimit, getHistoryLimitOptions, updateSummaryTitle } from '../utils/summaryHistory';
 
@@ -121,6 +121,66 @@ export const SummaryHistory: React.FC = () => {
     const secs = seconds % 60;
     return `${mins}分${secs}秒`;
   };
+  // View settings persistence
+  const getViewSettings = () => {
+    try {
+      const saved = localStorage.getItem('summaryHistory.viewSettings');
+      return saved ? JSON.parse(saved) : { viewMode: 'list' };
+    } catch {
+      return { viewMode: 'list' };
+    }
+  };
+
+  const saveViewSettings = (settings: { viewMode: 'list' | 'tile' }) => {
+    try {
+      localStorage.setItem('summaryHistory.viewSettings', JSON.stringify(settings));
+    } catch (error) {
+      console.warn('Failed to save view settings:', error);
+    }
+  };
+
+  // View mode state
+  const [viewMode, setViewMode] = useState<'list' | 'tile'>(() => getViewSettings().viewMode);
+
+  const handleViewModeChange = (newMode: 'list' | 'tile') => {
+    setViewMode(newMode);
+    saveViewSettings({ viewMode: newMode });
+  };
+
+  // Group history by date
+  const groupHistoryByDate = (items: SummaryHistoryItem[]) => {
+    const groups: { [key: string]: SummaryHistoryItem[] } = {};
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    items.forEach(item => {
+      const itemDate = new Date(item.timestamp);
+      const dateKey = itemDate.toDateString();
+      
+      let groupKey: string;
+      if (dateKey === today.toDateString()) {
+        groupKey = '今日';
+      } else if (dateKey === yesterday.toDateString()) {
+        groupKey = '昨日';
+      } else {
+        groupKey = itemDate.toLocaleDateString('ja-JP', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+      }
+      
+      if (!groups[groupKey]) {
+        groups[groupKey] = [];
+      }
+      groups[groupKey].push(item);
+    });
+    
+    return groups;
+  };
+
+  const historyGroups = groupHistoryByDate(history);
 
   return (
     <>
@@ -131,6 +191,31 @@ export const SummaryHistory: React.FC = () => {
             要約履歴
           </h2>
           <div className="flex gap-2">
+            {/* View mode toggle */}
+            <div className="flex border rounded-lg overflow-hidden">
+              <button
+                onClick={() => handleViewModeChange('list')}
+                className={`px-3 py-2 flex items-center gap-2 transition-colors ${
+                  viewMode === 'list'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+                title="リスト表示"
+              >
+                <List className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => handleViewModeChange('tile')}
+                className={`px-3 py-2 flex items-center gap-2 transition-colors ${
+                  viewMode === 'tile'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+                title="タイル表示"
+              >
+                <Grid className="w-4 h-4" />
+              </button>
+            </div>
             <button
               onClick={() => setShowSettings(true)}
               className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2"
@@ -166,13 +251,23 @@ export const SummaryHistory: React.FC = () => {
             <p className="text-sm mt-2">要約を作成すると、ここに最新10件が表示されます</p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {history.map((item) => (
-              <div
-                key={item.id}
-                className="border rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
-                onClick={() => handleView(item)}
-              >
+          <div className="space-y-6">
+            {Object.entries(historyGroups).map(([dateGroup, items]) => (
+              <div key={dateGroup}>
+                {/* Date Section Header */}
+                <h3 className="text-lg font-semibold text-gray-700 mb-3 border-b border-gray-200 pb-2">
+                  {dateGroup}
+                </h3>
+                
+                {/* Items Display */}
+                {viewMode === 'list' ? (
+                  <div className="space-y-4">
+                    {items.map((item) => (
+                      <div
+                        key={item.id}
+                        className="border rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
+                        onClick={() => handleView(item)}
+                      >
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
@@ -267,6 +362,102 @@ export const SummaryHistory: React.FC = () => {
                     </button>
                   </div>
                 </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  /* Tile View */
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {items.map((item) => (
+                      <div
+                        key={item.id}
+                        className="border rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
+                        onClick={() => handleView(item)}
+                      >
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex items-center gap-2">
+                            <FileText className="w-4 h-4 text-blue-500" />
+                            {(() => {
+                              const uniqueCaptures = getUniqueCaptures(item.visualCaptures);
+                              return uniqueCaptures.length > 0 && (
+                                <span className="flex items-center gap-1 text-xs text-green-600">
+                                  <Image className="w-3 h-3" />
+                                  {uniqueCaptures.length}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={(e) => handleStartEditing(item, e)}
+                              className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                              title="タイトルを編集"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={(e) => handleDelete(item.id, e)}
+                              className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                              title="削除"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                        
+                        {editingId === item.id ? (
+                          <div className="mb-3">
+                            <input
+                              type="text"
+                              value={editingTitle}
+                              onChange={(e) => setEditingTitle(e.target.value)}
+                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && e.ctrlKey) {
+                                  handleSaveTitle(item.id, e as any);
+                                } else if (e.key === 'Escape') {
+                                  handleCancelEdit(e as any);
+                                }
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              autoFocus
+                              placeholder="Ctrl+Enterで確定"
+                            />
+                            <div className="flex gap-1 mt-1">
+                              <button
+                                onClick={(e) => handleSaveTitle(item.id, e)}
+                                className="px-2 py-1 text-xs text-green-600 hover:bg-green-50 rounded transition-colors"
+                                title="確定 (Ctrl+Enter)"
+                              >
+                                <Check className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={handleCancelEdit}
+                                className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 rounded transition-colors"
+                                title="キャンセル"
+                              >
+                                <Cancel className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <h4 className="font-medium text-gray-800 mb-2 line-clamp-2">
+                            {getDisplayTitle(item)}
+                          </h4>
+                        )}
+                        
+                        <p className="text-sm text-gray-600 line-clamp-3 mb-3">{item.summary}</p>
+                        
+                        <div className="flex items-center justify-between text-xs text-gray-500">
+                          <span>{formatDateShort(item.timestamp)}</span>
+                          {item.metadata.totalDuration && (
+                            <span>{formatDuration(item.metadata.totalDuration)}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
