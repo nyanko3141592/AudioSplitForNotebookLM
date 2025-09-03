@@ -750,6 +750,46 @@ ${combinedText}
       throw new Error(`まとめ処理に失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
     }
   }
+
+  async generateTitle(summary: string): Promise<string> {
+    if (!this.genAI || !this.model) {
+      throw new Error('API not initialized');
+    }
+
+    try {
+      const prompt = `以下の要約文に基づいて、簡潔で分かりやすいタイトルを生成してください。
+      
+要約文:
+${summary}
+
+タイトルの要件:
+- 20文字以内
+- 要約の主要な内容を表現
+- 読みやすく自然な日本語
+- タイトルのみを出力（説明や前置きは不要）
+
+タイトル:`;
+
+      const result = await this.model.generateContent(prompt);
+      const response = result.response;
+      let title = response.text().trim();
+
+      // 不要な引用符やマークダウン記法を削除
+      title = title.replace(/^["']|["']$/g, '');
+      title = title.replace(/^#+\s*/, '');
+      title = title.replace(/^\*+\s*/, '');
+
+      // 長すぎる場合は切り詰める
+      if (title.length > 20) {
+        title = title.substring(0, 17) + '...';
+      }
+
+      return title || '要約';
+    } catch (error) {
+      console.error('Title generation error:', error);
+      return '要約'; // フォールバック
+    }
+  }
 }
 
 // ユーティリティ関数

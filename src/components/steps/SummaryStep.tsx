@@ -358,11 +358,27 @@ ${summarySettings.backgroundInfo}
       //   generatedSummary: summary
       // });
 
+      // Generate title using Gemini API
+      setSummarySettings(prev => ({ 
+        ...prev, 
+        progress: 'タイトルを生成しています...',
+        currentStep: 4 
+      }));
+      
+      let generatedTitle = '';
+      try {
+        generatedTitle = await transcriber.generateTitle(summary);
+      } catch (titleError) {
+        console.error('Title generation failed:', titleError);
+        generatedTitle = fileName || 'Untitled';
+      }
+
       // Save to history
       const historyItem: SummaryHistoryItem = {
         id: `summary_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         timestamp: new Date().toISOString(),
         fileName: fileName || 'Untitled',
+        title: generatedTitle, // Use generated title
         summary: summary,
         transcriptionResults: transcriptionResults.map(result => ({
           fileName: result.fileName,
@@ -378,7 +394,15 @@ ${summarySettings.backgroundInfo}
       };
       
       addSummaryToHistory(historyItem);
-      console.log('📚 Summary saved to history');
+      console.log('📚 Summary saved to history with generated title:', generatedTitle);
+      
+      setSummarySettings(prev => ({ 
+        ...prev, 
+        progress: hasVisualInfo 
+          ? 'まとめが完了しました！（画像解析情報も含む）'
+          : 'まとめが完了しました！',
+        currentStep: 4 
+      }));
       
       // Clear recovery state on successful completion - disabled
       // recoveryManager.clearState();
@@ -397,7 +421,7 @@ ${summarySettings.backgroundInfo}
       // Stop auto-save - disabled
       // recoveryManager.stopAutoSave();
     }
-  };
+  };;
 
   const handleDownloadSummary = () => {
     if (summarySettings.result) {
