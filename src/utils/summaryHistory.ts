@@ -2,7 +2,7 @@
 import type { SummaryHistoryItem, SummaryHistoryState } from '../types/summaryHistory';
 
 const STORAGE_KEY = 'summaryHistory';
-const MAX_HISTORY_ITEMS = 50;
+const MAX_HISTORY_ITEMS = -1; // -1 means unlimited
 
 /**
  * Load summary history from localStorage

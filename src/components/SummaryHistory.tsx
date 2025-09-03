@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, FileText, Trash2, Eye, Download, X, Image, Settings, Edit2, Check, X as Cancel, List, Grid } from 'lucide-react';
+import { Clock, FileText, Trash2, Eye, Download, X, Image, Settings, Edit2, Check, X as Cancel, List, Grid, MoreVertical } from 'lucide-react';
 import type { SummaryHistoryItem } from '../types/summaryHistory';
 import { loadSummaryHistory, deleteSummaryFromHistory, clearSummaryHistory, exportSummaryHistory, updateHistoryLimit, getHistoryLimitOptions, updateSummaryTitle } from '../utils/summaryHistory';
 
@@ -11,10 +11,24 @@ export const SummaryHistory: React.FC = () => {
   const [currentLimit, setCurrentLimit] = useState<number>(-1);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string>('');
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   // Load history on mount
   useEffect(() => {
     loadHistory();
+  }, []);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.menu-container')) {
+        setOpenMenuId(null);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
   const loadHistory = () => {
@@ -248,7 +262,7 @@ export const SummaryHistory: React.FC = () => {
           <div className="text-center py-12 text-gray-500">
             <Clock className="w-16 h-16 mx-auto mb-4 opacity-50" />
             <p>まだ要約履歴がありません</p>
-            <p className="text-sm mt-2">要約を作成すると、ここに最新10件が表示されます</p>
+            <p className="text-sm mt-2">要約を作成すると、ここに履歴が表示されます</p>
           </div>
         ) : (
           <div className="space-y-6">
@@ -342,7 +356,7 @@ export const SummaryHistory: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  <div className="flex gap-2 ml-4">
+                  <div className="flex gap-2 ml-4 relative menu-container">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -354,12 +368,30 @@ export const SummaryHistory: React.FC = () => {
                       <Eye className="w-5 h-5" />
                     </button>
                     <button
-                      onClick={(e) => handleDelete(item.id, e)}
-                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      title="削除"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenMenuId(openMenuId === item.id ? null : item.id);
+                      }}
+                      className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg transition-colors"
+                      title="その他のオプション"
                     >
-                      <Trash2 className="w-5 h-5" />
+                      <MoreVertical className="w-5 h-5" />
                     </button>
+                    {openMenuId === item.id && (
+                      <div className="absolute right-0 top-10 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-10">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(item.id, e);
+                            setOpenMenuId(null);
+                          }}
+                          className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          削除
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
                       </div>
@@ -387,7 +419,7 @@ export const SummaryHistory: React.FC = () => {
                               );
                             })()}
                           </div>
-                          <div className="flex gap-1">
+                          <div className="flex gap-1 relative menu-container">
                             <button
                               onClick={(e) => handleStartEditing(item, e)}
                               className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
@@ -396,12 +428,30 @@ export const SummaryHistory: React.FC = () => {
                               <Edit2 className="w-3 h-3" />
                             </button>
                             <button
-                              onClick={(e) => handleDelete(item.id, e)}
-                              className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                              title="削除"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenMenuId(openMenuId === item.id ? null : item.id);
+                              }}
+                              className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                              title="その他のオプション"
                             >
-                              <Trash2 className="w-3 h-3" />
+                              <MoreVertical className="w-3 h-3" />
                             </button>
+                            {openMenuId === item.id && (
+                              <div className="absolute right-0 top-6 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-10">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDelete(item.id, e);
+                                    setOpenMenuId(null);
+                                  }}
+                                  className="w-full px-3 py-1.5 text-left text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  削除
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </div>
                         
