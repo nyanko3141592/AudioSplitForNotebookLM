@@ -146,32 +146,7 @@ export const SummaryHistory: React.FC = () => {
     }
   };
 
-  const handleDownloadAll = (item: SummaryHistoryItem) => {
-    const timestamp = new Date(item.timestamp).toISOString().replace(/[:.]/g, '-');
-    const baseFilename = `${getDisplayTitle(item)}_${timestamp}`;
-    
-    // Download summary
-    handleDownloadText(item.summary, `${baseFilename}_要約.txt`);
-    
-    // Download visual summary if exists
-    if (item.visualSummary) {
-      handleDownloadText(item.visualSummary, `${baseFilename}_画面解析.txt`);
-    }
-    
-    // Download transcription results if exists
-    if (item.transcriptionResults && item.transcriptionResults.length > 0) {
-      item.transcriptionResults.forEach((result, index) => {
-        handleDownloadText(result.text, `${baseFilename}_文字起こし_${index + 1}.txt`);
-      });
-    }
-    
-    // Download images
-    const uniqueCaptures = getUniqueCaptures(item.visualCaptures);
-    uniqueCaptures.forEach((capture, index) => {
-      const imageFilename = `${baseFilename}_キャプチャ_${index + 1}.png`;
-      handleDownloadImage(capture.imageData, imageFilename);
-    });
-  };
+
 
   const formatDate = (timestamp: string) => {
     return new Date(timestamp).toLocaleString('ja-JP', {
@@ -671,16 +646,30 @@ export const SummaryHistory: React.FC = () => {
                         </div>
                       </div>
                       
-                      {/* Download All and Font Size Controls */}
+                      {/* Individual Download and Font Size Controls */}
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleDownloadAll(selectedItem)}
-                          className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 text-sm font-medium"
-                          title="すべてのファイルをダウンロード"
-                        >
-                          <Download className="w-4 h-4" />
-                          <span className="hidden sm:inline">すべてDL</span>
-                        </button>
+                        {/* Summary Download Buttons */}
+                        <div className="flex items-center gap-1 mr-2">
+                          <button
+                            onClick={() => handleCopyText(selectedItem.summary, '要約')}
+                            className="px-2 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1 text-sm font-medium"
+                            title="要約をコピー"
+                          >
+                            <Copy className="w-3 h-3" />
+                            <span className="hidden sm:inline">コピー</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              const timestamp = new Date(selectedItem.timestamp).toISOString().replace(/[:.]/g, '-');
+                              handleDownloadText(selectedItem.summary, `${getDisplayTitle(selectedItem)}_${timestamp}_要約.txt`);
+                            }}
+                            className="px-2 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1 text-sm font-medium"
+                            title="要約をダウンロード"
+                          >
+                            <FileDown className="w-3 h-3" />
+                            <span className="hidden sm:inline">DL</span>
+                          </button>
+                        </div>
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => handleFontSizeChange('small')}
@@ -848,19 +837,33 @@ export const SummaryHistory: React.FC = () => {
                         <div>
                           <div className="flex justify-between items-center mb-4">
                             <h4 className="font-semibold text-lg lg:text-xl text-gray-700">文字起こし結果</h4>
-                            <button
-                              onClick={() => {
-                                const timestamp = new Date(selectedItem.timestamp).toISOString().replace(/[:.]/g, '-');
-                                const baseFilename = `${getDisplayTitle(selectedItem)}_${timestamp}`;
-                                selectedItem.transcriptionResults!.forEach((result, index) => {
-                                  handleDownloadText(result.text, `${baseFilename}_文字起こし_${index + 1}.txt`);
-                                });
-                              }}
-                              className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                              title="すべての文字起こしをダウンロード"
-                            >
-                              <Download className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => {
+                                  const allTranscriptions = selectedItem.transcriptionResults!.map(result => result.text).join('\n\n--- 次のファイル ---\n\n');
+                                  handleCopyText(allTranscriptions, '文字起こし');
+                                }}
+                                className="px-2 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-1 text-sm font-medium"
+                                title="すべての文字起こしをコピー"
+                              >
+                                <Copy className="w-3 h-3" />
+                                <span className="hidden sm:inline">コピー</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const timestamp = new Date(selectedItem.timestamp).toISOString().replace(/[:.]/g, '-');
+                                  const baseFilename = `${getDisplayTitle(selectedItem)}_${timestamp}`;
+                                  selectedItem.transcriptionResults!.forEach((result, index) => {
+                                    handleDownloadText(result.text, `${baseFilename}_文字起こし_${index + 1}.txt`);
+                                  });
+                                }}
+                                className="px-2 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-1 text-sm font-medium"
+                                title="すべての文字起こしをダウンロード"
+                              >
+                                <FileDown className="w-3 h-3" />
+                                <span className="hidden sm:inline">DL</span>
+                              </button>
+                            </div>
                           </div>
                           <div className="space-y-4">
                             {selectedItem.transcriptionResults.map((result, index) => (
