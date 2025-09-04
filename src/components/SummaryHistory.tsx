@@ -57,8 +57,13 @@ export const SummaryHistory: React.FC = () => {
   };
 
   const getDisplayTitle = (item: SummaryHistoryItem) => {
-    return item.title || item.fileName;
-  };
+    const title = item.title || item.fileName;
+    // Ensure title is truncated to 25 characters max
+    if (title.length > 25) {
+      return title.substring(0, 22) + '...';
+    }
+    return title;
+  };;;
 
   const handleDelete = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
