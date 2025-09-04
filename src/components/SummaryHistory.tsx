@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, FileText, Trash2, Eye, Download, X, Image, Settings, Edit2, Check, X as Cancel, List, Grid, Type, ZoomIn, ZoomOut } from 'lucide-react';
+import { Clock, FileText, Trash2, Eye, Download, X, Image, Settings, Edit2, Check, X as Cancel, List, Grid, Type, Copy, FileDown } from 'lucide-react';
 import type { SummaryHistoryItem } from '../types/summaryHistory';
 import { loadSummaryHistory, deleteSummaryFromHistory, clearSummaryHistory, exportSummaryHistory, updateHistoryLimit, getHistoryLimitOptions, updateSummaryTitle } from '../utils/summaryHistory';
 
@@ -93,6 +93,84 @@ export const SummaryHistory: React.FC = () => {
   const handleView = (item: SummaryHistoryItem) => {
     setSelectedItem(item);
     setShowModal(true);
+  };
+
+  // Copy functionality
+  const handleCopyText = async (text: string, type: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      // Show temporary success notification
+      const notification = document.createElement('div');
+      notification.className = 'fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-[9999]';
+      notification.textContent = `${type}をコピーしました`;
+      document.body.appendChild(notification);
+      setTimeout(() => {
+        notification.remove();
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy text:', err);
+      // Fallback to older method
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+    }
+  };
+
+  // Download functionality
+  const handleDownloadText = (text: string, filename: string) => {
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadImage = async (imageData: string, filename: string) => {
+    try {
+      // Convert base64 to blob
+      const response = await fetch(imageData);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to download image:', err);
+    }
+  };
+
+  const handleDownloadAll = (item: SummaryHistoryItem) => {
+    const timestamp = new Date(item.timestamp).toISOString().replace(/[:.]/g, '-');
+    const baseFilename = `${getDisplayTitle(item)}_${timestamp}`;
+    
+    // Download summary
+    handleDownloadText(item.summary, `${baseFilename}_要約.txt`);
+    
+    // Download visual summary if exists
+    if (item.visualSummary) {
+      handleDownloadText(item.visualSummary, `${baseFilename}_画面解析.txt`);
+    }
+    
+    // Download transcription results if exists
+    if (item.transcriptionResults && item.transcriptionResults.length > 0) {
+      item.transcriptionResults.forEach((result, index) => {
+        handleDownloadText(result.text, `${baseFilename}_文字起こし_${index + 1}.txt`);
+      });
+    }
+    
+    // Download images
+    const uniqueCaptures = getUniqueCaptures(item.visualCaptures);
+    uniqueCaptures.forEach((capture, index) => {
+      const imageFilename = `${baseFilename}_キャプチャ_${index + 1}.png`;
+      handleDownloadImage(capture.imageData, imageFilename);
+    });
   };
 
   const formatDate = (timestamp: string) => {
@@ -580,41 +658,51 @@ export const SummaryHistory: React.FC = () => {
                         </div>
                       </div>
                       
-                      {/* Font Size Controls */}
-                      <div className="flex items-center gap-1">
+                      {/* Download All and Font Size Controls */}
+                      <div className="flex items-center gap-2">
                         <button
-                          onClick={() => handleFontSizeChange('small')}
-                          className={`p-2 rounded transition-colors ${
-                            fontSize === 'small'
-                              ? 'bg-purple-100 text-purple-700'
-                              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
-                          }`}
-                          title="小さいフォント"
+                          onClick={() => handleDownloadAll(selectedItem)}
+                          className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 text-sm font-medium"
+                          title="すべてのファイルをダウンロード"
                         >
-                          <Type className="w-3 h-3" />
+                          <Download className="w-4 h-4" />
+                          <span className="hidden sm:inline">すべてDL</span>
                         </button>
-                        <button
-                          onClick={() => handleFontSizeChange('medium')}
-                          className={`p-2 rounded transition-colors ${
-                            fontSize === 'medium'
-                              ? 'bg-purple-100 text-purple-700'
-                              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
-                          }`}
-                          title="標準フォント"
-                        >
-                          <Type className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleFontSizeChange('large')}
-                          className={`p-2 rounded transition-colors ${
-                            fontSize === 'large'
-                              ? 'bg-purple-100 text-purple-700'
-                              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
-                          }`}
-                          title="大きいフォント"
-                        >
-                          <Type className="w-5 h-5" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleFontSizeChange('small')}
+                            className={`p-2 rounded transition-colors ${
+                              fontSize === 'small'
+                                ? 'bg-purple-100 text-purple-700'
+                                : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                            }`}
+                            title="小さいフォント"
+                          >
+                            <Type className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => handleFontSizeChange('medium')}
+                            className={`p-2 rounded transition-colors ${
+                              fontSize === 'medium'
+                                ? 'bg-purple-100 text-purple-700'
+                                : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                            }`}
+                            title="標準フォント"
+                          >
+                            <Type className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleFontSizeChange('large')}
+                            className={`p-2 rounded transition-colors ${
+                              fontSize === 'large'
+                                ? 'bg-purple-100 text-purple-700'
+                                : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                            }`}
+                            title="大きいフォント"
+                          >
+                            <Type className="w-5 h-5" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -624,7 +712,28 @@ export const SummaryHistory: React.FC = () => {
                     <div className="p-4 lg:p-6 lg:p-8 space-y-6 lg:space-y-8">
                       {/* Summary */}
                       <div>
-                        <h4 className="font-semibold text-lg lg:text-xl mb-4 text-gray-700">要約</h4>
+                        <div className="flex justify-between items-center mb-4">
+                          <h4 className="font-semibold text-lg lg:text-xl text-gray-700">要約</h4>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleCopyText(selectedItem.summary, '要約')}
+                              className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="要約をコピー"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                const timestamp = new Date(selectedItem.timestamp).toISOString().replace(/[:.]/g, '-');
+                                handleDownloadText(selectedItem.summary, `${getDisplayTitle(selectedItem)}_${timestamp}_要約.txt`);
+                              }}
+                              className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                              title="要約をダウンロード"
+                            >
+                              <FileDown className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
                         <div className={`p-6 lg:p-8 bg-blue-50 rounded-lg text-gray-800 whitespace-pre-wrap leading-relaxed ${getFontSizeClasses()}`}>
                           {selectedItem.summary}
                         </div>
@@ -633,7 +742,28 @@ export const SummaryHistory: React.FC = () => {
                       {/* Visual Summary */}
                       {selectedItem.visualSummary && (
                         <div>
-                          <h4 className="font-semibold text-lg lg:text-xl mb-4 text-gray-700">画面解析サマリー</h4>
+                          <div className="flex justify-between items-center mb-4">
+                            <h4 className="font-semibold text-lg lg:text-xl text-gray-700">画面解析サマリー</h4>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleCopyText(selectedItem.visualSummary!, '画面解析サマリー')}
+                                className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="画面解析サマリーをコピー"
+                              >
+                                <Copy className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const timestamp = new Date(selectedItem.timestamp).toISOString().replace(/[:.]/g, '-');
+                                  handleDownloadText(selectedItem.visualSummary!, `${getDisplayTitle(selectedItem)}_${timestamp}_画面解析.txt`);
+                                }}
+                                className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                title="画面解析サマリーをダウンロード"
+                              >
+                                <FileDown className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
                           <div className={`p-6 lg:p-8 bg-green-50 rounded-lg text-gray-800 whitespace-pre-wrap leading-relaxed ${getFontSizeClasses()}`}>
                             {selectedItem.visualSummary}
                           </div>
@@ -645,20 +775,50 @@ export const SummaryHistory: React.FC = () => {
                         const uniqueCaptures = getUniqueCaptures(selectedItem.visualCaptures);
                         return uniqueCaptures.length > 0 && (
                           <div>
-                            <h4 className="font-semibold text-lg lg:text-xl mb-4 text-gray-700">
-                              キャプチャ画像 ({uniqueCaptures.length}枚)
-                            </h4>
+                            <div className="flex justify-between items-center mb-4">
+                              <h4 className="font-semibold text-lg lg:text-xl text-gray-700">
+                                キャプチャ画像 ({uniqueCaptures.length}枚)
+                              </h4>
+                              <button
+                                onClick={() => {
+                                  const timestamp = new Date(selectedItem.timestamp).toISOString().replace(/[:.]/g, '-');
+                                  const baseFilename = `${getDisplayTitle(selectedItem)}_${timestamp}`;
+                                  uniqueCaptures.forEach((capture, index) => {
+                                    const imageFilename = `${baseFilename}_キャプチャ_${index + 1}.png`;
+                                    handleDownloadImage(capture.imageData, imageFilename);
+                                  });
+                                }}
+                                className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                title="すべての画像をダウンロード"
+                              >
+                                <Download className="w-4 h-4" />
+                              </button>
+                            </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 lg:gap-6">
-                              {uniqueCaptures.map((capture) => (
-                                <div key={capture.id} className="border rounded-lg overflow-hidden hover:shadow-lg transition-shadow">
-                                  <img 
-                                    src={capture.imageData} 
-                                    alt={`Capture at ${capture.recordingTime}s`}
-                                    className="w-full h-40 lg:h-48 object-cover cursor-pointer"
-                                    onClick={() => {
-                                      // Optional: Add image modal functionality
-                                    }}
-                                  />
+                              {uniqueCaptures.map((capture, index) => (
+                                <div key={capture.id} className="group border rounded-lg overflow-hidden hover:shadow-lg transition-shadow">
+                                  <div className="relative">
+                                    <img 
+                                      src={capture.imageData} 
+                                      alt={`Capture at ${capture.recordingTime}s`}
+                                      className="w-full h-40 lg:h-48 object-cover cursor-pointer"
+                                      onClick={() => {
+                                        // Optional: Add image modal functionality
+                                      }}
+                                    />
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const timestamp = new Date(selectedItem.timestamp).toISOString().replace(/[:.]/g, '-');
+                                        const imageFilename = `${getDisplayTitle(selectedItem)}_${timestamp}_キャプチャ_${index + 1}.png`;
+                                        handleDownloadImage(capture.imageData, imageFilename);
+                                      }}
+                                      className="absolute top-2 right-2 p-2 bg-black bg-opacity-50 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-opacity-70"
+                                      title="画像をダウンロード"
+                                    >
+                                      <FileDown className="w-3 h-3" />
+                                    </button>
+                                  </div>
                                   <div className="p-3">
                                     <div className="text-gray-500 text-xs mb-1">{capture.recordingTime}秒</div>
                                     <div className="text-xs text-gray-700 line-clamp-2">{capture.description}</div>
@@ -673,12 +833,48 @@ export const SummaryHistory: React.FC = () => {
                       {/* Transcription Results */}
                       {selectedItem.transcriptionResults && selectedItem.transcriptionResults.length > 0 && (
                         <div>
-                          <h4 className="font-semibold text-lg lg:text-xl mb-4 text-gray-700">文字起こし結果</h4>
+                          <div className="flex justify-between items-center mb-4">
+                            <h4 className="font-semibold text-lg lg:text-xl text-gray-700">文字起こし結果</h4>
+                            <button
+                              onClick={() => {
+                                const timestamp = new Date(selectedItem.timestamp).toISOString().replace(/[:.]/g, '-');
+                                const baseFilename = `${getDisplayTitle(selectedItem)}_${timestamp}`;
+                                selectedItem.transcriptionResults!.forEach((result, index) => {
+                                  handleDownloadText(result.text, `${baseFilename}_文字起こし_${index + 1}.txt`);
+                                });
+                              }}
+                              className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                              title="すべての文字起こしをダウンロード"
+                            >
+                              <Download className="w-4 h-4" />
+                            </button>
+                          </div>
                           <div className="space-y-4">
                             {selectedItem.transcriptionResults.map((result, index) => (
                               <div key={index} className="border rounded-lg">
                                 <div className="p-4 bg-gray-50 border-b">
-                                  <h5 className="font-medium text-gray-800">{result.fileName}</h5>
+                                  <div className="flex justify-between items-center">
+                                    <h5 className="font-medium text-gray-800">{result.fileName}</h5>
+                                    <div className="flex gap-1">
+                                      <button
+                                        onClick={() => handleCopyText(result.text, `文字起こし (${result.fileName})`)}
+                                        className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                        title="この文字起こしをコピー"
+                                      >
+                                        <Copy className="w-3 h-3" />
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          const timestamp = new Date(selectedItem.timestamp).toISOString().replace(/[:.]/g, '-');
+                                          handleDownloadText(result.text, `${getDisplayTitle(selectedItem)}_${timestamp}_文字起こし_${index + 1}.txt`);
+                                        }}
+                                        className="p-1.5 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+                                        title="この文字起こしをダウンロード"
+                                      >
+                                        <FileDown className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  </div>
                                 </div>
                                 <div className={`p-6 text-gray-700 whitespace-pre-wrap leading-relaxed ${getFontSizeClasses()}`}>
                                   {result.text}
@@ -791,14 +987,14 @@ export const SummaryHistory: React.FC = () => {
               {/* Summary */}
               <div className="mb-6">
                 <h4 className="font-semibold text-lg mb-2">要約</h4>
-                <div className={`p-4 bg-blue-50 rounded-lg whitespace-pre-wrap ${getFontSizeClasses(fontSize)}`}>{selectedItem.summary}</div>
+                <div className={`p-4 bg-blue-50 rounded-lg whitespace-pre-wrap ${getFontSizeClasses()}`}>{selectedItem.summary}</div>
               </div>
 
               {/* Visual Summary */}
               {selectedItem.visualSummary && (
                 <div className="mb-6">
                   <h4 className="font-semibold text-lg mb-2">画面解析サマリー</h4>
-                  <div className={`p-4 bg-green-50 rounded-lg whitespace-pre-wrap ${getFontSizeClasses(fontSize)}`}>{selectedItem.visualSummary}</div>
+                  <div className={`p-4 bg-green-50 rounded-lg whitespace-pre-wrap ${getFontSizeClasses()}`}>{selectedItem.visualSummary}</div>
                 </div>
               )}
 
@@ -835,7 +1031,7 @@ export const SummaryHistory: React.FC = () => {
                     {selectedItem.transcriptionResults.map((result, index) => (
                       <div key={index} className="border rounded-lg p-4">
                         <h5 className="font-medium mb-2">{result.fileName}</h5>
-                        <div className={`text-sm text-gray-700 whitespace-pre-wrap max-h-40 overflow-y-auto ${getFontSizeClasses(fontSize)}`}>
+                        <div className={`text-sm text-gray-700 whitespace-pre-wrap max-h-40 overflow-y-auto ${getFontSizeClasses()}`}>
                           {result.text}
                         </div>
                       </div>
