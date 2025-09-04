@@ -4,21 +4,23 @@ import { Sparkles, Home } from 'lucide-react';
 type Props = {
   currentPage: 'transcribe' | 'split' | 'summary';
   onPageChange: (page: 'transcribe' | 'split' | 'summary') => void;
+  isRecording?: boolean;
 };
 
 
 export const HeroSection: React.FC<Props> = ({ 
   currentPage: _currentPage, 
-  onPageChange: _onPageChange
+  onPageChange: _onPageChange,
+  isRecording = false
 }) => {
 
   return (
     <>
       {/* Compact Header - always visible */}
       <div className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-200">
-        <div className="max-w-6xl mx-auto px-6 py-3">
+        <div className="w-full px-4 sm:px-6 py-3">
           <div className="flex items-center justify-between">
-            {/* Logo */}
+            {/* Logo - Left Edge */}
             <div className="flex items-center">
               <img
                 src={import.meta.env.BASE_URL + 'icon.png'}
@@ -30,26 +32,40 @@ export const HeroSection: React.FC<Props> = ({
               <span className="text-lg font-bold text-gray-900">爆速議事録</span>
             </div>
 
-            {/* Navigation Buttons */}
+            {/* Navigation Buttons - Right Edge */}
             <div className="flex items-center gap-2">
+              {isRecording && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-red-100 text-red-700 rounded-lg text-sm font-medium">
+                  <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                  <span className="hidden sm:inline">録画中</span>
+                </div>
+              )}
               <button
-                onClick={() => _onPageChange('transcribe')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium shadow-sm ${
-                  _currentPage === 'transcribe' || _currentPage === 'split'
+                onClick={() => !isRecording && _onPageChange('transcribe')}
+                disabled={isRecording}
+                className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg transition-colors text-sm font-medium shadow-sm ${
+                  isRecording 
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : _currentPage === 'transcribe' || _currentPage === 'split'
                     ? 'bg-blue-600 text-white hover:bg-blue-700'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
+                title={isRecording ? '録画中はページ移動できません' : ''}
               >
                 <Home className="w-4 h-4" />
                 <span className="hidden sm:inline">ホーム</span>
               </button>
               <button
-                onClick={() => _onPageChange('summary')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium shadow-sm ${
-                  _currentPage === 'summary'
+                onClick={() => !isRecording && _onPageChange('summary')}
+                disabled={isRecording}
+                className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg transition-colors text-sm font-medium shadow-sm ${
+                  isRecording
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : _currentPage === 'summary'
                     ? 'bg-purple-600 text-white hover:bg-purple-700'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
+                title={isRecording ? '録画中はページ移動できません' : ''}
               >
                 <Sparkles className="w-4 h-4" />
                 <span className="hidden sm:inline">要約一覧</span>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, FileText, Trash2, Eye, Download, X, Image, Settings, Edit2, Check, X as Cancel, List, Grid, MoreVertical } from 'lucide-react';
+import { Clock, FileText, Trash2, Eye, Download, X, Image, Settings, Edit2, Check, X as Cancel, List, Grid, Type, ZoomIn, ZoomOut } from 'lucide-react';
 import type { SummaryHistoryItem } from '../types/summaryHistory';
 import { loadSummaryHistory, deleteSummaryFromHistory, clearSummaryHistory, exportSummaryHistory, updateHistoryLimit, getHistoryLimitOptions, updateSummaryTitle } from '../utils/summaryHistory';
 
@@ -11,25 +11,16 @@ export const SummaryHistory: React.FC = () => {
   const [currentLimit, setCurrentLimit] = useState<number>(-1);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string>('');
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large'>(() => {
+    const saved = localStorage.getItem('summaryHistory.fontSize');
+    return (saved as 'small' | 'medium' | 'large') || 'medium';
+  });
 
   // Load history on mount
   useEffect(() => {
     loadHistory();
   }, []);
 
-  // Close menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (!target.closest('.menu-container')) {
-        setOpenMenuId(null);
-      }
-    };
-
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, []);
 
   const loadHistory = () => {
     const historyData = loadSummaryHistory();
@@ -139,13 +130,13 @@ export const SummaryHistory: React.FC = () => {
   const getViewSettings = () => {
     try {
       const saved = localStorage.getItem('summaryHistory.viewSettings');
-      return saved ? JSON.parse(saved) : { viewMode: 'list' };
+      return saved ? JSON.parse(saved) : { viewMode: 'sidebar' };
     } catch {
-      return { viewMode: 'list' };
+      return { viewMode: 'sidebar' };
     }
   };
 
-  const saveViewSettings = (settings: { viewMode: 'list' | 'tile' }) => {
+  const saveViewSettings = (settings: { viewMode: 'sidebar' | 'tile' }) => {
     try {
       localStorage.setItem('summaryHistory.viewSettings', JSON.stringify(settings));
     } catch (error) {
@@ -154,11 +145,31 @@ export const SummaryHistory: React.FC = () => {
   };
 
   // View mode state
-  const [viewMode, setViewMode] = useState<'list' | 'tile'>(() => getViewSettings().viewMode);
+  const [viewMode, setViewMode] = useState<'sidebar' | 'tile'>(() => {
+    const settings = getViewSettings();
+    // Migrate old 'list' mode to 'sidebar'
+    return settings.viewMode === 'list' ? 'sidebar' : settings.viewMode || 'sidebar';
+  });
 
-  const handleViewModeChange = (newMode: 'list' | 'tile') => {
+  const handleViewModeChange = (newMode: 'sidebar' | 'tile') => {
     setViewMode(newMode);
     saveViewSettings({ viewMode: newMode });
+  };
+
+  const handleFontSizeChange = (size: 'small' | 'medium' | 'large') => {
+    setFontSize(size);
+    localStorage.setItem('summaryHistory.fontSize', size);
+  };
+
+  const getFontSizeClasses = () => {
+    switch (fontSize) {
+      case 'small':
+        return 'text-sm lg:text-base';
+      case 'large':
+        return 'text-lg lg:text-xl';
+      default:
+        return 'text-base lg:text-lg';
+    }
   };
 
   // Group history by date
@@ -198,63 +209,78 @@ export const SummaryHistory: React.FC = () => {
 
   return (
     <>
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            <Clock className="w-6 h-6" />
-            要約履歴
-          </h2>
-          <div className="flex gap-2">
-            {/* View mode toggle */}
-            <div className="flex border rounded-lg overflow-hidden">
-              <button
-                onClick={() => handleViewModeChange('list')}
-                className={`px-3 py-2 flex items-center gap-2 transition-colors ${
-                  viewMode === 'list'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-50'
-                }`}
-                title="リスト表示"
-              >
-                <List className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => handleViewModeChange('tile')}
-                className={`px-3 py-2 flex items-center gap-2 transition-colors ${
-                  viewMode === 'tile'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-50'
-                }`}
-                title="タイル表示"
-              >
-                <Grid className="w-4 h-4" />
-              </button>
-            </div>
-            <button
-              onClick={() => setShowSettings(true)}
-              className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2"
-            >
-              <Settings className="w-4 h-4" />
-              設定
-            </button>
+      <div className="bg-white rounded-xl shadow-lg p-4 lg:p-6 w-full max-w-none">
+        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 mb-6">
+          {/* Title Section */}
+          <div className="flex items-center">
+            <h2 className="text-xl lg:text-2xl font-bold text-gray-800 flex items-center gap-3">
+              <Clock className="w-6 h-6 text-purple-600" />
+              要約履歴
+            </h2>
+          </div>
+          
+          {/* Action Section */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            {/* View Mode Toggle */}
             {history.length > 0 && (
-              <>
+              <div className="flex items-center bg-gray-100 rounded-lg p-1">
                 <button
-                  onClick={handleExport}
-                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
+                  onClick={() => handleViewModeChange('sidebar')}
+                  className={`px-4 py-2 rounded-md transition-all text-sm font-medium flex items-center gap-2 ${
+                    viewMode === 'sidebar'
+                      ? 'bg-white text-purple-700 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                  title="サイドバー表示"
                 >
-                  <Download className="w-4 h-4" />
-                  エクスポート
+                  <List className="w-4 h-4" />
+                  <span>サイドバー</span>
                 </button>
                 <button
-                  onClick={handleClearAll}
-                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center gap-2"
+                  onClick={() => handleViewModeChange('tile')}
+                  className={`px-4 py-2 rounded-md transition-all text-sm font-medium flex items-center gap-2 ${
+                    viewMode === 'tile'
+                      ? 'bg-white text-purple-700 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                  title="タイル表示"
                 >
-                  <Trash2 className="w-4 h-4" />
-                  すべて削除
+                  <Grid className="w-4 h-4" />
+                  <span>タイル</span>
                 </button>
-              </>
+              </div>
             )}
+            
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowSettings(true)}
+                className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center gap-2 text-sm font-medium shadow-sm"
+              >
+                <Settings className="w-4 h-4" />
+                <span>設定</span>
+              </button>
+              
+              {history.length > 0 && (
+                <>
+                  <button
+                    onClick={handleExport}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all flex items-center gap-2 text-sm font-medium shadow-sm"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>エクスポート</span>
+                  </button>
+                  <button
+                    onClick={handleClearAll}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all flex items-center gap-2 text-sm font-medium shadow-sm"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span className="hidden sm:inline">すべて削除</span>
+                    <span className="sm:hidden">削除</span>
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -264,204 +290,29 @@ export const SummaryHistory: React.FC = () => {
             <p>まだ要約履歴がありません</p>
             <p className="text-sm mt-2">要約を作成すると、ここに履歴が表示されます</p>
           </div>
-        ) : (
-          <div className="space-y-6">
-            {Object.entries(historyGroups).map(([dateGroup, items]) => (
-              <div key={dateGroup}>
-                {/* Date Section Header */}
-                <h3 className="text-lg font-semibold text-gray-700 mb-3 border-b border-gray-200 pb-2">
-                  {dateGroup}
-                </h3>
-                
-                {/* Items Display */}
-                {viewMode === 'list' ? (
-                  <div className="space-y-4">
-                    {items.map((item) => (
-                      <div
-                        key={item.id}
-                        className="border rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
-                        onClick={() => handleView(item)}
-                      >
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <FileText className="w-5 h-5 text-blue-500" />
-                      {editingId === item.id ? (
-                        <div className="flex items-center gap-2 flex-1">
-                          <span className="text-gray-500 font-medium">[{formatDateShort(item.timestamp)}]</span>
-                          <input
-                            type="text"
-                            value={editingTitle}
-                            onChange={(e) => setEditingTitle(e.target.value)}
-                            className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && e.ctrlKey) {
-                                handleSaveTitle(item.id, e as any);
-                              } else if (e.key === 'Escape') {
-                                handleCancelEdit(e as any);
-                              }
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                            autoFocus
-                            placeholder="Ctrl+Enterで確定"
-                          />
-                          <button
-                            onClick={(e) => handleSaveTitle(item.id, e)}
-                            className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors"
-                            title="確定 (Ctrl+Enter)"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={handleCancelEdit}
-                            className="p-1 text-gray-600 hover:bg-gray-50 rounded transition-colors"
-                            title="キャンセル"
-                          >
-                            <Cancel className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <>
-                          <h3 className="font-semibold text-gray-800 flex-1">
-                            <span className="text-gray-500 font-medium">[{formatDateShort(item.timestamp)}]</span>
-                            <span className="ml-2">{getDisplayTitle(item)}</span>
-                          </h3>
-                          <button
-                            onClick={(e) => handleStartEditing(item, e)}
-                            className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded transition-colors"
-                            title="タイトルを編雈"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                        </>
-                      )}
-                      {(() => {
-                        const uniqueCaptures = getUniqueCaptures(item.visualCaptures);
-                        return uniqueCaptures.length > 0 && (
-                          <span className="flex items-center gap-1 text-sm text-green-600">
-                            <Image className="w-4 h-4" />
-                            {uniqueCaptures.length}枚
-                          </span>
-                        );
-                      })()}
-                    </div>
-                    <p className="text-sm text-gray-600 line-clamp-2 mb-2">{item.summary}</p>
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <span>{formatDate(item.timestamp)}</span>
-                      {item.metadata.totalDuration && (
-                        <span>長さ: {formatDuration(item.metadata.totalDuration)}</span>
-                      )}
-                      {item.metadata.language && (
-                        <span>言語: {item.metadata.language}</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex gap-2 ml-4 relative menu-container">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleView(item);
-                      }}
-                      className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
-                      title="詳細を見る"
-                    >
-                      <Eye className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setOpenMenuId(openMenuId === item.id ? null : item.id);
-                      }}
-                      className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg transition-colors"
-                      title="その他のオプション"
-                    >
-                      <MoreVertical className="w-5 h-5" />
-                    </button>
-                    {openMenuId === item.id && (
-                      <div className="absolute right-0 top-10 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-10">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDelete(item.id, e);
-                            setOpenMenuId(null);
-                          }}
-                          className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          削除
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  /* Tile View */
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {items.map((item) => (
-                      <div
-                        key={item.id}
-                        className="border rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
-                        onClick={() => handleView(item)}
-                      >
-                        <div className="flex justify-between items-start mb-3">
-                          <div className="flex items-center gap-2">
-                            <FileText className="w-4 h-4 text-blue-500" />
-                            {(() => {
-                              const uniqueCaptures = getUniqueCaptures(item.visualCaptures);
-                              return uniqueCaptures.length > 0 && (
-                                <span className="flex items-center gap-1 text-xs text-green-600">
-                                  <Image className="w-3 h-3" />
-                                  {uniqueCaptures.length}
-                                </span>
-                              );
-                            })()}
-                          </div>
-                          <div className="flex gap-1 relative menu-container">
-                            <button
-                              onClick={(e) => handleStartEditing(item, e)}
-                              className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
-                              title="タイトルを編集"
-                            >
-                              <Edit2 className="w-3 h-3" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenMenuId(openMenuId === item.id ? null : item.id);
-                              }}
-                              className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
-                              title="その他のオプション"
-                            >
-                              <MoreVertical className="w-3 h-3" />
-                            </button>
-                            {openMenuId === item.id && (
-                              <div className="absolute right-0 top-6 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-10">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDelete(item.id, e);
-                                    setOpenMenuId(null);
-                                  }}
-                                  className="w-full px-3 py-1.5 text-left text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                  削除
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        
-                        {editingId === item.id ? (
-                          <div className="mb-3">
+        ) : viewMode === 'tile' ? (
+          /* Full-width Tile View */
+          <div className="h-[calc(100vh-180px)]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+              {history.map((item) => {
+                const uniqueCaptures = getUniqueCaptures(item.visualCaptures);
+                return (
+                  <div
+                    key={item.id}
+                    className="group p-4 bg-white border border-gray-200 rounded-lg cursor-pointer hover:shadow-lg transition-all duration-200 hover:border-blue-300"
+                    onClick={() => handleView(item)}
+                  >
+                    <div className="flex flex-col h-full">
+                      {/* Header */}
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                          {editingId === item.id ? (
                             <input
                               type="text"
                               value={editingTitle}
                               onChange={(e) => setEditingTitle(e.target.value)}
-                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter' && e.ctrlKey) {
                                   handleSaveTitle(item.id, e as any);
@@ -473,43 +324,383 @@ export const SummaryHistory: React.FC = () => {
                               autoFocus
                               placeholder="Ctrl+Enterで確定"
                             />
-                            <div className="flex gap-1 mt-1">
+                          ) : (
+                            <h3 className="text-sm font-semibold text-gray-800 line-clamp-2 leading-tight">
+                              {getDisplayTitle(item)}
+                            </h3>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+                          {editingId === item.id ? (
+                            <>
                               <button
                                 onClick={(e) => handleSaveTitle(item.id, e)}
-                                className="px-2 py-1 text-xs text-green-600 hover:bg-green-50 rounded transition-colors"
-                                title="確定 (Ctrl+Enter)"
+                                className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors"
+                                title="確定"
                               >
                                 <Check className="w-3 h-3" />
                               </button>
                               <button
                                 onClick={handleCancelEdit}
-                                className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 rounded transition-colors"
+                                className="p-1 text-gray-600 hover:bg-gray-50 rounded transition-colors"
                                 title="キャンセル"
                               >
                                 <Cancel className="w-3 h-3" />
                               </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <h4 className="font-medium text-gray-800 mb-2 line-clamp-2">
-                            {getDisplayTitle(item)}
-                          </h4>
-                        )}
-                        
-                        <p className="text-sm text-gray-600 line-clamp-3 mb-3">{item.summary}</p>
-                        
-                        <div className="flex items-center justify-between text-xs text-gray-500">
-                          <span>{formatDateShort(item.timestamp)}</span>
-                          {item.metadata.totalDuration && (
-                            <span>{formatDuration(item.metadata.totalDuration)}</span>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={(e) => handleStartEditing(item, e)}
+                                className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded transition-all"
+                                title="編集"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={(e) => handleDelete(item.id, e)}
+                                className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
+                                title="削除"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </>
                           )}
                         </div>
                       </div>
-                    ))}
+                      
+                      {/* Summary preview */}
+                      <p className="text-xs text-gray-600 line-clamp-4 leading-relaxed mb-3 flex-1">
+                        {item.summary}
+                      </p>
+                      
+                      {/* Footer with metadata */}
+                      <div className="flex items-center justify-between pt-3 border-t border-gray-100 mt-auto">
+                        <span className="text-xs text-gray-500">{formatDateShort(item.timestamp)}</span>
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          {uniqueCaptures.length > 0 && (
+                            <span className="flex items-center gap-1 bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                              <Image className="w-3 h-3" />
+                              {uniqueCaptures.length}
+                            </span>
+                          )}
+                          {item.metadata.totalDuration && (
+                            <span className="bg-gray-100 px-2 py-1 rounded-full">
+                              {formatDuration(item.metadata.totalDuration)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                )}
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          /* Sidebar View */
+          <div className="flex gap-4 lg:gap-6 h-[calc(100vh-180px)]">
+            {/* Left Sidebar - History List */}
+            <div className="w-full lg:w-80 xl:w-96 flex flex-col min-w-0">
+              <div className="flex-1 overflow-y-auto space-y-4">
+                {Object.entries(historyGroups).map(([groupKey, items]) => (
+                  <div key={groupKey} className="space-y-3">
+                    <h3 className="text-sm font-semibold text-gray-700 sticky top-0 bg-white py-1 border-b border-gray-200">
+                      {groupKey}
+                    </h3>
+                    <div className="space-y-1">
+                      {items.map((item) => {
+                        const isSelected = selectedItem?.id === item.id;
+                        return (
+                          <div
+                            key={item.id}
+                            className={`group p-3 rounded-lg cursor-pointer transition-colors ${
+                              isSelected 
+                                ? 'bg-blue-100 border border-blue-300' 
+                                : 'bg-white hover:bg-gray-100 border border-gray-200'
+                            }`}
+                            onClick={() => setSelectedItem(item)}
+                          >
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1 mb-1">
+                                  <FileText className="w-3 h-3 text-blue-500 flex-shrink-0" />
+                                  {editingId === item.id ? (
+                                    <input
+                                      type="text"
+                                      value={editingTitle}
+                                      onChange={(e) => setEditingTitle(e.target.value)}
+                                      className="flex-1 px-1 py-0.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && e.ctrlKey) {
+                                          handleSaveTitle(item.id, e as any);
+                                        } else if (e.key === 'Escape') {
+                                          handleCancelEdit(e as any);
+                                        }
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      autoFocus
+                                      placeholder="Ctrl+Enterで確定"
+                                    />
+                                  ) : (
+                                    <>
+                                      <h3 className="text-sm font-medium text-gray-800 truncate">
+                                        {getDisplayTitle(item)}
+                                      </h3>
+                                      <button
+                                        onClick={(e) => handleStartEditing(item, e)}
+                                        className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded transition-all ml-1"
+                                        title="タイトルを編集"
+                                      >
+                                        <Edit2 className="w-3 h-3" />
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                                <p className="text-xs text-gray-600 line-clamp-2 mb-1">{item.summary}</p>
+                                <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                                  <span>{formatDateShort(item.timestamp)}</span>
+                                  {(() => {
+                                    const uniqueCaptures = getUniqueCaptures(item.visualCaptures);
+                                    return uniqueCaptures.length > 0 && (
+                                      <span className="flex items-center gap-0.5">
+                                        <Image className="w-3 h-3" />
+                                        {uniqueCaptures.length}
+                                      </span>
+                                    );
+                                  })()}
+                                  {item.metadata.totalDuration && (
+                                    <span>{formatDuration(item.metadata.totalDuration)}</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                {editingId === item.id ? (
+                                  <>
+                                    <button
+                                      onClick={(e) => handleSaveTitle(item.id, e)}
+                                      className="p-0.5 text-green-600 hover:bg-green-50 rounded transition-colors"
+                                      title="確定 (Ctrl+Enter)"
+                                    >
+                                      <Check className="w-3 h-3" />
+                                    </button>
+                                    <button
+                                      onClick={handleCancelEdit}
+                                      className="p-0.5 text-gray-600 hover:bg-gray-50 rounded transition-colors"
+                                      title="キャンセル"
+                                    >
+                                      <Cancel className="w-3 h-3" />
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    onClick={(e) => handleDelete(item.id, e)}
+                                    className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-all"
+                                    title="削除"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+
+            {/* Right Panel - Detail View */}
+            <div className="flex-1 bg-white rounded-lg border border-gray-200 flex flex-col min-w-0">
+              {selectedItem ? (
+                <>
+                  {/* Header - Fixed */}
+                  <div className="p-4 lg:p-6 border-b bg-gray-50 flex-shrink-0">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1 min-w-0">
+                        {editingId === selectedItem.id ? (
+                          <div className="mb-3">
+                            <input
+                              type="text"
+                              value={editingTitle}
+                              onChange={(e) => setEditingTitle(e.target.value)}
+                              className="w-full px-3 py-2 text-xl lg:text-2xl font-bold border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && e.ctrlKey) {
+                                  handleSaveTitle(selectedItem.id, e as any);
+                                } else if (e.key === 'Escape') {
+                                  handleCancelEdit(e as any);
+                                }
+                              }}
+                              autoFocus
+                              placeholder="Ctrl+Enterで確定、Escapeでキャンセル"
+                            />
+                            <div className="flex gap-2 mt-2">
+                              <button
+                                onClick={(e) => handleSaveTitle(selectedItem.id, e)}
+                                className="px-3 py-1 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors flex items-center gap-2"
+                              >
+                                <Check className="w-4 h-4" />
+                                保存
+                              </button>
+                              <button
+                                onClick={handleCancelEdit}
+                                className="px-3 py-1 bg-gray-500 text-white text-sm rounded-md hover:bg-gray-600 transition-colors flex items-center gap-2"
+                              >
+                                <Cancel className="w-4 h-4" />
+                                キャンセル
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="group flex items-start gap-2 mb-2">
+                            <h3 className="text-xl lg:text-2xl font-bold text-gray-800 break-words flex-1 cursor-pointer hover:text-purple-700 transition-colors"
+                                onClick={() => handleStartEditing(selectedItem, {} as React.MouseEvent)}>
+                              {getDisplayTitle(selectedItem)}
+                            </h3>
+                            <button
+                              onClick={(e) => handleStartEditing(selectedItem, e)}
+                              className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-all mt-1"
+                              title="タイトルを編集"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                        <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
+                          <span>{formatDate(selectedItem.timestamp)}</span>
+                          {selectedItem.metadata.totalDuration && (
+                            <span>長さ: {formatDuration(selectedItem.metadata.totalDuration)}</span>
+                          )}
+                          {selectedItem.metadata.language && (
+                            <span>言語: {selectedItem.metadata.language}</span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Font Size Controls */}
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleFontSizeChange('small')}
+                          className={`p-2 rounded transition-colors ${
+                            fontSize === 'small'
+                              ? 'bg-purple-100 text-purple-700'
+                              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                          }`}
+                          title="小さいフォント"
+                        >
+                          <Type className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={() => handleFontSizeChange('medium')}
+                          className={`p-2 rounded transition-colors ${
+                            fontSize === 'medium'
+                              ? 'bg-purple-100 text-purple-700'
+                              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                          }`}
+                          title="標準フォント"
+                        >
+                          <Type className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleFontSizeChange('large')}
+                          className={`p-2 rounded transition-colors ${
+                            fontSize === 'large'
+                              ? 'bg-purple-100 text-purple-700'
+                              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                          }`}
+                          title="大きいフォント"
+                        >
+                          <Type className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Content - Scrollable */}
+                  <div className="flex-1 overflow-y-auto">
+                    <div className="p-4 lg:p-6 lg:p-8 space-y-6 lg:space-y-8">
+                      {/* Summary */}
+                      <div>
+                        <h4 className="font-semibold text-lg lg:text-xl mb-4 text-gray-700">要約</h4>
+                        <div className={`p-6 lg:p-8 bg-blue-50 rounded-lg text-gray-800 whitespace-pre-wrap leading-relaxed ${getFontSizeClasses()}`}>
+                          {selectedItem.summary}
+                        </div>
+                      </div>
+
+                      {/* Visual Summary */}
+                      {selectedItem.visualSummary && (
+                        <div>
+                          <h4 className="font-semibold text-lg lg:text-xl mb-4 text-gray-700">画面解析サマリー</h4>
+                          <div className={`p-6 lg:p-8 bg-green-50 rounded-lg text-gray-800 whitespace-pre-wrap leading-relaxed ${getFontSizeClasses()}`}>
+                            {selectedItem.visualSummary}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Visual Captures */}
+                      {(() => {
+                        const uniqueCaptures = getUniqueCaptures(selectedItem.visualCaptures);
+                        return uniqueCaptures.length > 0 && (
+                          <div>
+                            <h4 className="font-semibold text-lg lg:text-xl mb-4 text-gray-700">
+                              キャプチャ画像 ({uniqueCaptures.length}枚)
+                            </h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 lg:gap-6">
+                              {uniqueCaptures.map((capture) => (
+                                <div key={capture.id} className="border rounded-lg overflow-hidden hover:shadow-lg transition-shadow">
+                                  <img 
+                                    src={capture.imageData} 
+                                    alt={`Capture at ${capture.recordingTime}s`}
+                                    className="w-full h-40 lg:h-48 object-cover cursor-pointer"
+                                    onClick={() => {
+                                      // Optional: Add image modal functionality
+                                    }}
+                                  />
+                                  <div className="p-3">
+                                    <div className="text-gray-500 text-xs mb-1">{capture.recordingTime}秒</div>
+                                    <div className="text-xs text-gray-700 line-clamp-2">{capture.description}</div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Transcription Results */}
+                      {selectedItem.transcriptionResults && selectedItem.transcriptionResults.length > 0 && (
+                        <div>
+                          <h4 className="font-semibold text-lg lg:text-xl mb-4 text-gray-700">文字起こし結果</h4>
+                          <div className="space-y-4">
+                            {selectedItem.transcriptionResults.map((result, index) => (
+                              <div key={index} className="border rounded-lg">
+                                <div className="p-4 bg-gray-50 border-b">
+                                  <h5 className="font-medium text-gray-800">{result.fileName}</h5>
+                                </div>
+                                <div className={`p-6 text-gray-700 whitespace-pre-wrap leading-relaxed ${getFontSizeClasses()}`}>
+                                  {result.text}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="flex-1 flex items-center justify-center text-gray-400">
+                  <div className="text-center p-8">
+                    <Eye className="w-20 h-20 mx-auto mb-6 opacity-50" />
+                    <p className="text-xl lg:text-2xl mb-2">要約を選択して詳細を表示</p>
+                    <p className="text-sm lg:text-base">左側のリストから確認したい要約をクリックしてください</p>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -518,14 +709,54 @@ export const SummaryHistory: React.FC = () => {
       {showModal && selectedItem && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="p-6 border-b flex justify-between items-center">
-              <h3 className="text-xl font-bold">{getDisplayTitle(selectedItem)}</h3>
-              <button
-                onClick={() => setShowModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+            <div className="p-6 border-b">
+              <div className="flex justify-between items-start">
+                <h3 className="text-xl font-bold flex-1">{getDisplayTitle(selectedItem)}</h3>
+                <div className="flex items-center gap-2">
+                  {/* Font Size Controls */}
+                  <div className="flex items-center gap-1 mr-2">
+                    <button
+                      onClick={() => handleFontSizeChange('small')}
+                      className={`p-1 rounded transition-colors ${
+                        fontSize === 'small'
+                          ? 'bg-purple-100 text-purple-700'
+                          : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                      }`}
+                      title="小さいフォント"
+                    >
+                      <Type className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => handleFontSizeChange('medium')}
+                      className={`p-1 rounded transition-colors ${
+                        fontSize === 'medium'
+                          ? 'bg-purple-100 text-purple-700'
+                          : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                      }`}
+                      title="標準フォント"
+                    >
+                      <Type className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleFontSizeChange('large')}
+                      className={`p-1 rounded transition-colors ${
+                        fontSize === 'large'
+                          ? 'bg-purple-100 text-purple-700'
+                          : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                      }`}
+                      title="大きいフォント"
+                    >
+                      <Type className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => setShowModal(false)}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
             </div>
             
             <div className="p-6 overflow-y-auto flex-1">
@@ -560,14 +791,14 @@ export const SummaryHistory: React.FC = () => {
               {/* Summary */}
               <div className="mb-6">
                 <h4 className="font-semibold text-lg mb-2">要約</h4>
-                <div className="p-4 bg-blue-50 rounded-lg whitespace-pre-wrap">{selectedItem.summary}</div>
+                <div className={`p-4 bg-blue-50 rounded-lg whitespace-pre-wrap ${getFontSizeClasses(fontSize)}`}>{selectedItem.summary}</div>
               </div>
 
               {/* Visual Summary */}
               {selectedItem.visualSummary && (
                 <div className="mb-6">
                   <h4 className="font-semibold text-lg mb-2">画面解析サマリー</h4>
-                  <div className="p-4 bg-green-50 rounded-lg whitespace-pre-wrap">{selectedItem.visualSummary}</div>
+                  <div className={`p-4 bg-green-50 rounded-lg whitespace-pre-wrap ${getFontSizeClasses(fontSize)}`}>{selectedItem.visualSummary}</div>
                 </div>
               )}
 
@@ -604,7 +835,7 @@ export const SummaryHistory: React.FC = () => {
                     {selectedItem.transcriptionResults.map((result, index) => (
                       <div key={index} className="border rounded-lg p-4">
                         <h5 className="font-medium mb-2">{result.fileName}</h5>
-                        <div className="text-sm text-gray-700 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                        <div className={`text-sm text-gray-700 whitespace-pre-wrap max-h-40 overflow-y-auto ${getFontSizeClasses(fontSize)}`}>
                           {result.text}
                         </div>
                       </div>
