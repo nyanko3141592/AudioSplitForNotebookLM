@@ -286,92 +286,104 @@ export const SummaryHistory: React.FC = () => {
   const historyGroups = groupHistoryByDate(history);
 
   return (
-    <>
-      <div className="bg-white rounded-xl shadow-lg p-4 lg:p-6 w-full max-w-none">
-        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 mb-6">
-          {/* Title Section */}
-          <div className="flex items-center">
-            <h2 className="text-xl lg:text-2xl font-bold text-gray-800 flex items-center gap-3">
-              <Clock className="w-6 h-6 text-purple-600" />
-              要約履歴
-            </h2>
-          </div>
-          
-          {/* Action Section */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            {/* View Mode Toggle */}
-            {history.length > 0 && (
-              <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                <button
-                  onClick={() => handleViewModeChange('sidebar')}
-                  className={`px-4 py-2 rounded-md transition-all text-sm font-medium flex items-center gap-2 ${
-                    viewMode === 'sidebar'
-                      ? 'bg-white text-purple-700 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-800'
-                  }`}
-                  title="サイドバー表示"
-                >
-                  <List className="w-4 h-4" />
-                  <span>サイドバー</span>
-                </button>
-                <button
-                  onClick={() => handleViewModeChange('tile')}
-                  className={`px-4 py-2 rounded-md transition-all text-sm font-medium flex items-center gap-2 ${
-                    viewMode === 'tile'
-                      ? 'bg-white text-purple-700 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-800'
-                  }`}
-                  title="タイル表示"
-                >
-                  <Grid className="w-4 h-4" />
-                  <span>タイル</span>
-                </button>
-              </div>
-            )}
+    <div className="h-full flex flex-col bg-gray-50 overflow-hidden">
+      {/* Fixed Header */}
+      <div className="flex-shrink-0 bg-white shadow-sm border-b border-gray-200">
+        <div className="px-4 lg:px-6 py-3">
+          <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3">
+            {/* Title Section */}
+            <div className="flex items-center">
+              <h2 className="text-lg lg:text-xl font-bold text-gray-800 flex items-center gap-2">
+                <Clock className="w-5 h-5 text-purple-600" />
+                要約履歴
+              </h2>
+            </div>
             
-            {/* Action Buttons */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowSettings(true)}
-                className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center gap-2 text-sm font-medium shadow-sm"
-              >
-                <Settings className="w-4 h-4" />
-                <span>設定</span>
-              </button>
-              
+            {/* Controls Section */}
+            <div className="flex flex-col sm:flex-row gap-2">
+              {/* View Mode Toggle */}
               {history.length > 0 && (
-                <>
+                <div className="flex items-center bg-gray-100 rounded-lg p-1">
                   <button
-                    onClick={handleExport}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all flex items-center gap-2 text-sm font-medium shadow-sm"
+                    onClick={() => handleViewModeChange('sidebar')}
+                    className={`px-3 py-1.5 rounded-md transition-all text-sm font-medium flex items-center gap-1.5 ${
+                      viewMode === 'sidebar'
+                        ? 'bg-white text-purple-700 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-800'
+                    }`}
+                    title="サイドバー表示"
                   >
-                    <Download className="w-4 h-4" />
-                    <span>エクスポート</span>
+                    <List className="w-4 h-4" />
+                    <span>サイドバー</span>
                   </button>
                   <button
-                    onClick={handleClearAll}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all flex items-center gap-2 text-sm font-medium shadow-sm"
+                    onClick={() => handleViewModeChange('tile')}
+                    className={`px-3 py-1.5 rounded-md transition-all text-sm font-medium flex items-center gap-1.5 ${
+                      viewMode === 'tile'
+                        ? 'bg-white text-purple-700 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-800'
+                    }`}
+                    title="タイル表示"
                   >
-                    <Trash2 className="w-4 h-4" />
-                    <span className="hidden sm:inline">すべて削除</span>
-                    <span className="sm:hidden">削除</span>
+                    <Grid className="w-4 h-4" />
+                    <span>タイル</span>
                   </button>
-                </>
+                </div>
               )}
+              
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowSettings(true)}
+                  className="px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center gap-1.5 text-sm font-medium shadow-sm"
+                >
+                  <Settings className="w-4 h-4" />
+                  <span>設定</span>
+                </button>
+                
+                {history.length > 0 && (
+                  <>
+                    <button
+                      onClick={handleExport}
+                      className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all flex items-center gap-1.5 text-sm font-medium shadow-sm"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>エクスポート</span>
+                    </button>
+                    <button
+                      onClick={handleClearAll}
+                      className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all flex items-center gap-1.5 text-sm font-medium shadow-sm"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span className="hidden sm:inline">すべて削除</span>
+                      <span className="sm:hidden">削除</span>
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
+      </div>
 
-        {history.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            <Clock className="w-16 h-16 mx-auto mb-4 opacity-50" />
-            <p>まだ要約履歴がありません</p>
-            <p className="text-sm mt-2">要約を作成すると、ここに履歴が表示されます</p>
-          </div>
-        ) : viewMode === 'tile' ? (
-          /* Full-width Tile View */
-          <div className="h-[calc(100vh-180px)]">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+      {/* Content Area */}
+      <div className="flex-1 overflow-hidden min-h-0">
+        <div className="h-full bg-white rounded-xl shadow-lg overflow-hidden m-4 lg:mx-6 lg:my-4">
+          <div className="h-full flex flex-col overflow-hidden">
+
+            {history.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center text-gray-500">
+                <div className="text-center">
+                  <Clock className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                  <p>まだ要約履歴がありません</p>
+                  <p className="text-sm mt-2">要約を作成すると、ここに履歴が表示されます</p>
+                </div>
+              </div>
+            ) : viewMode === 'tile' ? (
+              /* Tile View with independent scrolling */
+              <div className="flex-1 overflow-hidden min-h-0">
+                <div className="h-full overflow-y-auto p-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
               {history.map((item) => {
                 const uniqueCaptures = getUniqueCaptures(item.visualCaptures);
                 return (
@@ -473,14 +485,15 @@ export const SummaryHistory: React.FC = () => {
                   </div>
                 );
               })}
-            </div>
-          </div>
-        ) : (
-          /* Sidebar View */
-          <div className="flex gap-4 lg:gap-6 h-[calc(100vh-180px)]">
-            {/* Left Sidebar - History List */}
-            <div className="w-full lg:w-80 xl:w-96 flex flex-col min-w-0">
-              <div className="flex-1 overflow-y-auto space-y-4">
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Sidebar View with independent scrolling */
+              <div className="flex-1 flex overflow-hidden min-h-0">
+                {/* Left Sidebar - History List */}
+                <div className="w-full lg:w-80 xl:w-96 flex-shrink-0 border-r border-gray-200 min-h-0">
+                  <div className="h-full overflow-y-auto p-4 space-y-4">
                 {Object.entries(historyGroups).map(([groupKey, items]) => (
                   <div key={groupKey} className="space-y-3">
                     <h3 className="text-sm font-semibold text-gray-700 sticky top-0 bg-white py-1 border-b border-gray-200">
@@ -586,12 +599,12 @@ export const SummaryHistory: React.FC = () => {
                       })}
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
+                    ))}
+                  </div>
+                </div>
 
-            {/* Right Panel - Detail View */}
-            <div className="flex-1 bg-white rounded-lg border border-gray-200 flex flex-col min-w-0">
+                {/* Right Panel - Detail View */}
+                <div className="flex-1 flex flex-col bg-white min-w-0 min-h-0 overflow-hidden">
               {selectedItem ? (
                 <>
                   {/* Header - Fixed */}
@@ -895,10 +908,12 @@ export const SummaryHistory: React.FC = () => {
                     <p className="text-sm lg:text-base">左側のリストから確認したい要約をクリックしてください</p>
                   </div>
                 </div>
-              )}
-            </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
       {/* Detail Modal */}
@@ -1108,6 +1123,6 @@ export const SummaryHistory: React.FC = () => {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };
