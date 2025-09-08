@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### 🐛 Fixed
+- **要約履歴表示**: 議事録生成後に要約履歴に反映されない問題を修正
+  - localStorage のキー不一致を解消（`summaryHistory` を使用するように統一）
+  - 後方互換性のため古いキー (`transcription-history`) からのフォールバック読み込みを実装
+
 ## [2.0.0] - 2024-12-XX
 
 ### 🎉 Major Release: Complete UI/UX Redesign & Enhanced Features
