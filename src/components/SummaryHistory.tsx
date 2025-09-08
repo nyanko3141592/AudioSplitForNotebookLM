@@ -15,9 +15,17 @@ export const SummaryHistory: React.FC = () => {
   // Load history on component mount
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('transcription-history');
-      if (saved) {
-        setHistory(JSON.parse(saved));
+      // First try to load from the new storage key
+      const savedNew = localStorage.getItem('summaryHistory');
+      if (savedNew) {
+        const historyData = JSON.parse(savedNew);
+        setHistory(historyData.items || []);
+      } else {
+        // Fallback to old storage key for backward compatibility
+        const savedOld = localStorage.getItem('transcription-history');
+        if (savedOld) {
+          setHistory(JSON.parse(savedOld));
+        }
       }
     } catch (error) {
       console.error('Failed to load history:', error);
@@ -41,7 +49,13 @@ export const SummaryHistory: React.FC = () => {
       item.id === id ? { ...item, title: editingTitle.trim() } : item
     );
     setHistory(updatedHistory);
-    localStorage.setItem('transcription-history', JSON.stringify(updatedHistory));
+    // Save to new format
+    const historyState = {
+      version: 1,
+      items: updatedHistory,
+      maxItems: -1
+    };
+    localStorage.setItem('summaryHistory', JSON.stringify(historyState));
     setEditingId(null);
     setEditingTitle('');
   };
@@ -66,7 +80,13 @@ export const SummaryHistory: React.FC = () => {
     if (window.confirm('この要約を削除しますか？')) {
       const updatedHistory = history.filter(item => item.id !== id);
       setHistory(updatedHistory);
-      localStorage.setItem('transcription-history', JSON.stringify(updatedHistory));
+      // Save to new format
+      const historyState = {
+        version: 1,
+        items: updatedHistory,
+        maxItems: -1
+      };
+      localStorage.setItem('summaryHistory', JSON.stringify(historyState));
       if (selectedItem?.id === id) {
         setSelectedItem(null);
       }
@@ -76,7 +96,8 @@ export const SummaryHistory: React.FC = () => {
   const handleClearAll = () => {
     if (window.confirm('すべての要約履歴を削除しますか？この操作は元に戻せません。')) {
       setHistory([]);
-      localStorage.removeItem('transcription-history');
+      localStorage.removeItem('summaryHistory');
+      localStorage.removeItem('transcription-history'); // Also clear old key
       setSelectedItem(null);
       setShowModal(false);
     }
