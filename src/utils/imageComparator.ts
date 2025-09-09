@@ -21,7 +21,11 @@ export class ImageComparator {
 
   constructor(duplicateThreshold: number = 0.95) {
     this.canvas = document.createElement('canvas');
-    this.ctx = this.canvas.getContext('2d')!;
+    const ctx = this.canvas.getContext('2d');
+    if (!ctx) {
+      throw new Error('Canvas 2D context not supported');
+    }
+    this.ctx = ctx;
     this.duplicateThreshold = duplicateThreshold;
   }
 

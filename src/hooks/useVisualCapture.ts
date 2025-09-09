@@ -62,15 +62,22 @@ export const useVisualCapture = () => {
    * API キーを設定
    */
   const setApiCredentials = useCallback((apiKey: string, apiEndpoint?: string) => {
-    if (apiKey) {
-      visionAnalyzerRef.current = new GeminiVisionAnalyzer(
-        apiKey, 
-        apiEndpoint || 'https://generativelanguage.googleapis.com',
-        'gemini-2.0-flash-lite',
-        settings.duplicateThreshold,
-        settings.duplicateDetection
-      );
-    } else {
+    try {
+      if (apiKey) {
+        visionAnalyzerRef.current = new GeminiVisionAnalyzer(
+          apiKey, 
+          apiEndpoint || 'https://generativelanguage.googleapis.com',
+          'gemini-2.0-flash-lite',
+          settings.duplicateThreshold,
+          settings.duplicateDetection
+        );
+        console.log('✅ Gemini Vision Analyzer initialized successfully');
+      } else {
+        visionAnalyzerRef.current = null;
+        console.log('🔑 Gemini Vision Analyzer cleared (no API key)');
+      }
+    } catch (error) {
+      console.error('❌ Failed to initialize Gemini Vision Analyzer:', error);
       visionAnalyzerRef.current = null;
     }
   }, [settings.duplicateThreshold, settings.duplicateDetection]);

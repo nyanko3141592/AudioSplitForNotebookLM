@@ -43,8 +43,21 @@ export class GeminiVisionAnalyzer {
     }
 
     try {
+      // MIME typeを検出
+      let mimeType = "image/jpeg"; // デフォルト
+      if (imageData.startsWith('data:image/png;base64,')) {
+        mimeType = "image/png";
+      } else if (imageData.startsWith('data:image/webp;base64,')) {
+        mimeType = "image/webp";
+      }
+      
       // base64画像データからMIME部分を除去
       const base64Image = imageData.replace(/^data:image\/[a-z]+;base64,/, '');
+      
+      // base64データの検証
+      if (!base64Image || base64Image.length < 100) {
+        throw new Error('Invalid or empty image data');
+      }
       
       const prompt = customPrompt || this.getDefaultPrompt();
 
@@ -57,7 +70,7 @@ export class GeminiVisionAnalyzer {
               },
               {
                 inline_data: {
-                  mime_type: "image/jpeg",
+                  mime_type: mimeType,
                   data: base64Image
                 }
               }
@@ -95,10 +108,17 @@ export class GeminiVisionAnalyzer {
       const data = await response.json();
       
       if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-        throw new Error('Invalid response from Gemini Vision API');
+        console.error('❌ Invalid Gemini API response:', data);
+        throw new Error(`Invalid response from Gemini Vision API: ${JSON.stringify(data)}`);
       }
 
-      const description = data.candidates[0].content.parts[0].text;
+      const candidate = data.candidates[0];
+      if (!candidate.content.parts || !candidate.content.parts[0] || !candidate.content.parts[0].text) {
+        console.error('❌ Missing text in Gemini response:', candidate);
+        throw new Error('No text content in Gemini Vision API response');
+      }
+
+      const description = candidate.content.parts[0].text;
       const tokens = data.usageMetadata?.totalTokenCount || 1000; // フォールバック値
 
       console.log('🤖 Gemini Vision analysis completed:', {
