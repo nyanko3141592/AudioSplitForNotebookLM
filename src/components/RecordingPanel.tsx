@@ -12,6 +12,7 @@ type Props = {
   onSegmentsStateChange?: (hasSegments: boolean) => void;
   onTabMetadataExtracted?: (metadata: string) => void;
   onVisualCapturesReady?: (captures: any[]) => void;
+  onVideoRecorded?: (videoFile: File) => void;
   apiKey?: string;
   apiEndpoint?: string;
   visualCaptureSettings?: VisualCaptureSettings;
@@ -39,6 +40,7 @@ export const RecordingPanel: React.FC<Props> = ({
   onSegmentsStateChange, 
   onTabMetadataExtracted, 
   onVisualCapturesReady,
+  onVideoRecorded,
   apiKey,
   apiEndpoint,
   visualCaptureSettings,
@@ -698,6 +700,10 @@ export const RecordingPanel: React.FC<Props> = ({
           
           // Store video file separately for download
           setRecordedVideo(file);
+          
+          // Notify parent about video recording
+          onVideoRecorded?.(file);
+          
           videoChunksRef.current = [];
         };
         

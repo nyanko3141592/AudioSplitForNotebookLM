@@ -52,6 +52,7 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
   const [analysisProgress, setAnalysisProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
   const [visualSummary, setVisualSummary] = useState<string>('');
   const [isGeneratingSummary, setIsGeneratingSummary] = useState<boolean>(false);
+  const [recordedVideo, setRecordedVideo] = useState<File | null>(null);
   // Recovery functionality temporarily disabled
   // const [showRecoveryDialog, setShowRecoveryDialog] = useState(false);
   // const [recoveryDialogShown, setRecoveryDialogShown] = useState(false);
@@ -111,6 +112,11 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
         tabInfo: c.description
       }))
     });
+  };
+
+  const handleVideoRecorded = (videoFile: File) => {
+    console.log('🎬 Video file received:', videoFile.name);
+    setRecordedVideo(videoFile);
   };
   
   const analyzeVisualCaptures = async () => {
@@ -553,6 +559,7 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
                     onSegmentsStateChange={handleSegmentsStateChange}
                     onTabMetadataExtracted={handleTabMetadataExtracted}
                     onVisualCapturesReady={handleVisualCapturesReady}
+                    onVideoRecorded={handleVideoRecorded}
                     apiKey={apiKey}
                     apiEndpoint={apiEndpoint}
                     visualCaptureSettings={visualCaptureSettings}
@@ -636,6 +643,33 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
                       💡 ファイルサイズが大きいため、自動的に分割されます
                     </p>
                   )}
+                </div>
+              )}
+
+              {/* Video Download UI */}
+              {recordedVideo && (
+                <div className="mt-6 p-4 bg-blue-50 border-l-4 border-blue-400 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-blue-600">🎥</span>
+                      <span className="font-semibold text-blue-800">画面録画完了</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const url = URL.createObjectURL(recordedVideo);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = recordedVideo.name;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                    >
+                      <span>💾</span>
+                      <span>動画をダウンロード</span>
+                      <span className="text-xs">({Math.round(recordedVideo.size / 1024 / 1024 * 100) / 100}MB)</span>
+                    </button>
+                  </div>
                 </div>
               )}
           </div>
