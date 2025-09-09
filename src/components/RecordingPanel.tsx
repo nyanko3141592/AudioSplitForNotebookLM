@@ -986,7 +986,7 @@ export const RecordingPanel: React.FC<Props> = ({
       {/* 音声入力設定 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         {/* マイク設定 */}
-        <div className="bg-gray-50 p-4 rounded-xl border">
+        <div className="bg-gray-50 p-4 rounded-xl border flex flex-col">
           <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
             🎤 マイク入力
             {micStream && <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">接続済み</span>}
@@ -1027,20 +1027,23 @@ export const RecordingPanel: React.FC<Props> = ({
             </div>
           )}
 
-          <button
-            onClick={micStream ? () => { stopMicMonitoring(); stopStream(micStream); setMicStream(null); } : enableMic}
-            className={`w-full px-4 py-2 rounded-lg font-medium transition-all ${
-              micStream 
-                ? 'bg-green-500 text-white hover:bg-green-600' 
-                : 'bg-blue-500 text-white hover:bg-blue-600'
-            }`}
-          >
-            {micStream ? '✅ 接続済み' : '🎤 マイクを有効化'}
-          </button>
+          {/* ボタンを下に配置 */}
+          <div className="mt-auto">
+            <button
+              onClick={micStream ? () => { stopMicMonitoring(); stopStream(micStream); setMicStream(null); } : enableMic}
+              className={`w-full px-4 py-2 rounded-lg font-medium transition-all ${
+                micStream 
+                  ? 'bg-green-500 text-white hover:bg-green-600' 
+                  : 'bg-blue-500 text-white hover:bg-blue-600'
+              }`}
+            >
+              {micStream ? '✅ 接続済み' : '🎤 マイクを有効化'}
+            </button>
+          </div>
         </div>
 
         {/* タブ音声設定 */}
-        <div className="bg-gray-50 p-4 rounded-xl border">
+        <div className="bg-gray-50 p-4 rounded-xl border flex flex-col">
           <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
             🖥️ タブ音声
             {tabStream && <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">接続済み</span>}
@@ -1048,7 +1051,7 @@ export const RecordingPanel: React.FC<Props> = ({
           
           {/* 録画モードトグル - タブ選択前に配置 */}
           <div className={`mb-3 flex items-center justify-between p-3 rounded-lg transition-all ${
-            isVideoMode ? 'bg-blue-100 border border-blue-300' : 'bg-gray-50 border border-gray-200'
+            isVideoMode ? 'bg-blue-100 border border-blue-300' : 'bg-white border border-gray-200'
           }`}>
             <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
               <span>🎥 画面録画モード</span>
@@ -1080,11 +1083,9 @@ export const RecordingPanel: React.FC<Props> = ({
             </div>
           )}
           
-          {/* スペーサー - マイク側のデバイス選択分の高さを確保 */}
-          <div className="flex-1 mb-3">
+          {/* タブ選択の説明 */}
+          <div className="mb-3">
             <div className="text-xs text-gray-600 mb-2">タブを選択して音声を共有</div>
-            <div className="h-8"></div> {/* select要素の高さ分 */}
-            <div className="h-6"></div> {/* デバイス更新ボタンの高さ分 */}
           </div>
 
           {/* 音量レベル */}
@@ -1100,16 +1101,19 @@ export const RecordingPanel: React.FC<Props> = ({
             </div>
           )}
 
-          <button
-            onClick={tabStream ? () => { stopTabMonitoring(); stopStream(tabStream); setTabStream(null); setVideoStream(null); } : pickTabAudio}
-            className={`w-full px-4 py-2 rounded-lg font-medium transition-all ${
-              tabStream 
-                ? 'bg-green-500 text-white hover:bg-green-600' 
-                : 'bg-gray-500 text-white hover:bg-gray-600'
-            }`}
-          >
-            {tabStream ? '✅ 接続済み' : '🖥️ 選択する'}
-          </button>
+          {/* ボタンを下に配置 */}
+          <div className="mt-auto">
+            <button
+              onClick={tabStream ? () => { stopTabMonitoring(); stopStream(tabStream); setTabStream(null); setVideoStream(null); } : pickTabAudio}
+              className={`w-full px-4 py-2 rounded-lg font-medium transition-all ${
+                tabStream 
+                  ? 'bg-green-500 text-white hover:bg-green-600' 
+                  : 'bg-gray-500 text-white hover:bg-gray-600'
+              }`}
+            >
+              {tabStream ? '✅ 接続済み' : '🖥️ 選択する'}
+            </button>
+          </div>
         </div>
       </div>
 
