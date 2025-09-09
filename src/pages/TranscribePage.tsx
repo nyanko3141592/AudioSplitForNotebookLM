@@ -133,10 +133,9 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
         visualCaptures,
         (current, total) => {
           setAnalysisProgress({ current, total });
-          // Save progress for recovery
+          // Save progress for recovery (without analyzedCaptures during analysis)
           saveProgress('visual', {
-            analysisProgress: current / total,
-            analyzedCaptures: analyzedCaptures
+            analysisProgress: current / total
           });
         }
       );
