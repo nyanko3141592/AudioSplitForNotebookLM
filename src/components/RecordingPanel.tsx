@@ -57,8 +57,13 @@ export const RecordingPanel: React.FC<Props> = ({
   const [selectedMicId, setSelectedMicId] = useState<string>('');
   const [recordedSegments, setRecordedSegments] = useState<File[]>([]);
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
+  const [isVideoMode, setIsVideoMode] = useState(false);
+  const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
+  const [recordedVideo, setRecordedVideo] = useState<File | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const videoRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
+  const videoChunksRef = useRef<BlobPart[]>([]);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const previewCtxRef = useRef<AudioContext | null>(null);
   const analyserMicRef = useRef<AnalyserNode | null>(null);
@@ -358,8 +363,8 @@ export const RecordingPanel: React.FC<Props> = ({
     setError(null);
     stopTabMonitoring(); // Stop any existing monitoring
     try {
-      // Only request video if visual capture is enabled
-      const needsVideo = visualCapture.settings.enabled;
+      // Request video if visual capture is enabled OR if video mode is enabled
+      const needsVideo = visualCapture.settings.enabled || isVideoMode;
       const s = await navigator.mediaDevices.getDisplayMedia({
         video: needsVideo,
         audio: true
@@ -383,6 +388,13 @@ export const RecordingPanel: React.FC<Props> = ({
           console.warn('📸 Visual capture failed to start:', visualError);
           // Don't fail the entire tab sharing if visual capture fails
         }
+      }
+      
+      // Store video stream if in video mode
+      if (isVideoMode && s.getVideoTracks().length > 0) {
+        const videoStreamClone = s.clone();
+        setVideoStream(videoStreamClone);
+        console.log('🎬 Video stream stored for recording');
       }
       
       // Remove video track from the main audio stream if present
@@ -586,6 +598,13 @@ export const RecordingPanel: React.FC<Props> = ({
       setError('マイクまたはタブ音声のいずれかを有効にしてください。');
       return;
     }
+    
+    // Check if video mode is enabled but no video stream
+    if (isVideoMode && !videoStream) {
+      setError('録画モードが有効ですが、画面共有が開始されていません。タブを再選択してください。');
+      return;
+    }
+    
     try {
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
       audioCtxRef.current = ctx;
@@ -656,6 +675,36 @@ export const RecordingPanel: React.FC<Props> = ({
         onRecordingStateChange?.(false);
       };
       mr.start(1000);
+      
+      // Start video recording if in video mode
+      if (isVideoMode && videoStream) {
+        const videoOptions: MediaRecorderOptions = {
+          mimeType: 'video/webm;codecs=vp8,opus'
+        };
+        const vr = new MediaRecorder(videoStream, videoOptions);
+        videoRecorderRef.current = vr;
+        videoChunksRef.current = [];
+        
+        vr.ondataavailable = (ev) => {
+          if (ev.data && ev.data.size > 0) videoChunksRef.current.push(ev.data);
+        };
+        
+        vr.onstop = () => {
+          const blob = new Blob(videoChunksRef.current, { type: 'video/webm' });
+          const now = new Date();
+          const pad = (n: number) => n.toString().padStart(2, '0');
+          const fileName = `screen_recording_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.webm`;
+          const file = new File([blob], fileName, { type: blob.type });
+          
+          // Store video file separately for download
+          setRecordedVideo(file);
+          videoChunksRef.current = [];
+        };
+        
+        vr.start(1000);
+        console.log('🎬 Video recording started');
+      }
+      
       setIsRecording(true);
       onRecordingStateChange?.(true);
       const started = Date.now();
@@ -679,6 +728,11 @@ export const RecordingPanel: React.FC<Props> = ({
           timerRef.current = null;
         }
       }
+      // Pause video recording if active
+      if (videoRecorderRef.current && videoRecorderRef.current.state === 'recording') {
+        videoRecorderRef.current.pause();
+        console.log('⏸️ Video recording paused');
+      }
     } catch (e) {
       console.error('Error pausing recording:', e);
     }
@@ -696,6 +750,11 @@ export const RecordingPanel: React.FC<Props> = ({
           setElapsedSec(Math.floor((Date.now() - started) / 1000));
         }, 100);
       }
+      // Resume video recording if active
+      if (videoRecorderRef.current && videoRecorderRef.current.state === 'paused') {
+        videoRecorderRef.current.resume();
+        console.log('▶️ Video recording resumed');
+      }
     } catch (e) {
       console.error('Error resuming recording:', e);
     }
@@ -706,6 +765,11 @@ export const RecordingPanel: React.FC<Props> = ({
     try {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop();
+      }
+      // Stop video recording if active
+      if (videoRecorderRef.current && videoRecorderRef.current.state !== 'inactive') {
+        videoRecorderRef.current.stop();
+        console.log('🎬 Video recording stopped');
       }
     } catch (e) {
       console.error('Error stopping segment:', e);
@@ -747,6 +811,9 @@ export const RecordingPanel: React.FC<Props> = ({
     setRecordedSegments([]);
     setCurrentSegmentIndex(0);
     setElapsedSec(0);
+    setRecordedVideo(null);
+    setVideoStream(null);
+    setIsVideoMode(false);
     
     // Notify parent that segments are cleared
     onSegmentsStateChange?.(false);
@@ -883,6 +950,33 @@ export const RecordingPanel: React.FC<Props> = ({
         </div>
       )}
 
+      {/* 録画済み動画のダウンロード */}
+      {recordedVideo && !isRecording && (
+        <div className="mb-6 p-4 bg-blue-50 border-l-4 border-blue-400 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-blue-600">🎥</span>
+              <span className="font-semibold text-blue-800">画面録画完了</span>
+            </div>
+            <button
+              onClick={() => {
+                const url = URL.createObjectURL(recordedVideo);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = recordedVideo.name;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+            >
+              <span>💾</span>
+              <span>動画をダウンロード</span>
+              <span className="text-xs">({Math.round(recordedVideo.size / 1024 / 1024 * 100) / 100}MB)</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 音声入力設定 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         {/* マイク設定 */}
@@ -967,7 +1061,7 @@ export const RecordingPanel: React.FC<Props> = ({
           )}
 
           <button
-            onClick={tabStream ? () => { stopTabMonitoring(); stopStream(tabStream); setTabStream(null); } : pickTabAudio}
+            onClick={tabStream ? () => { stopTabMonitoring(); stopStream(tabStream); setTabStream(null); setVideoStream(null); } : pickTabAudio}
             className={`w-full px-4 py-2 rounded-lg font-medium transition-all ${
               tabStream 
                 ? 'bg-green-500 text-white hover:bg-green-600' 
@@ -976,6 +1070,28 @@ export const RecordingPanel: React.FC<Props> = ({
           >
             {tabStream ? '✅ 接続済み' : '🖥️ 選択する'}
           </button>
+
+          {/* 録画モードトグル */}
+          {tabStream && (
+            <div className="mt-3 flex items-center justify-between p-2 bg-blue-50 rounded-lg">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <span>🎥 画面録画モード</span>
+              </label>
+              <button
+                onClick={() => setIsVideoMode(!isVideoMode)}
+                disabled={isRecording}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  isVideoMode ? 'bg-blue-600' : 'bg-gray-300'
+                } ${isRecording ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    isVideoMode ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
