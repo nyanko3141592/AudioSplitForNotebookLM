@@ -1046,6 +1046,40 @@ export const RecordingPanel: React.FC<Props> = ({
             {tabStream && <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">接続済み</span>}
           </h4>
           
+          {/* 録画モードトグル - タブ選択前に配置 */}
+          <div className={`mb-3 flex items-center justify-between p-3 rounded-lg transition-all ${
+            isVideoMode ? 'bg-blue-100 border border-blue-300' : 'bg-gray-50 border border-gray-200'
+          }`}>
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+              <span>🎥 画面録画モード</span>
+              {isVideoMode ? (
+                <span className="text-xs text-blue-600 font-semibold">（有効）</span>
+              ) : (
+                <span className="text-xs text-gray-500">（タブ共有時に録画）</span>
+              )}
+            </label>
+            <button
+              onClick={() => setIsVideoMode(!isVideoMode)}
+              disabled={isRecording}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                isVideoMode ? 'bg-blue-600' : 'bg-gray-300'
+              } ${isRecording ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  isVideoMode ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+          
+          {/* 録画モード有効時の説明 */}
+          {isVideoMode && (
+            <div className="mb-3 p-2 bg-blue-50 border-l-2 border-blue-400 rounded text-xs text-blue-700">
+              <p>📹 タブ選択時に画面も録画されます</p>
+            </div>
+          )}
+          
           {/* スペーサー - マイク側のデバイス選択分の高さを確保 */}
           <div className="flex-1 mb-3">
             <div className="text-xs text-gray-600 mb-2">タブを選択して音声を共有</div>
@@ -1076,28 +1110,6 @@ export const RecordingPanel: React.FC<Props> = ({
           >
             {tabStream ? '✅ 接続済み' : '🖥️ 選択する'}
           </button>
-
-          {/* 録画モードトグル */}
-          {tabStream && (
-            <div className="mt-3 flex items-center justify-between p-2 bg-blue-50 rounded-lg">
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                <span>🎥 画面録画モード</span>
-              </label>
-              <button
-                onClick={() => setIsVideoMode(!isVideoMode)}
-                disabled={isRecording}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  isVideoMode ? 'bg-blue-600' : 'bg-gray-300'
-                } ${isRecording ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    isVideoMode ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-          )}
         </div>
       </div>
 
