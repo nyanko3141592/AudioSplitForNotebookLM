@@ -21,6 +21,17 @@ export const SummaryHistory: React.FC = () => {
         if (savedNew) {
           const historyData = JSON.parse(savedNew);
           setHistory(historyData.items || []);
+          // Auto-select pending item if requested
+          try {
+            const pendingId = window.localStorage.getItem('pendingOpenSummaryId');
+            if (pendingId && historyData.items) {
+              const found = (historyData.items as any[]).find((it) => it.id === pendingId);
+              if (found) {
+                setSelectedItem(found);
+              }
+              window.localStorage.removeItem('pendingOpenSummaryId');
+            }
+          } catch {}
         } else {
           // Fallback to old storage key for backward compatibility
           const savedOld = localStorage.getItem('transcription-history');

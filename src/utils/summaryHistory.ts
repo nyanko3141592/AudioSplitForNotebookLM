@@ -56,7 +56,7 @@ const __trySaveSummaryHistory = (history: SummaryHistoryState): boolean => {
 /**
  * Add a new summary to history (maintains max items limit)
  */
-export const addSummaryToHistory = (item: SummaryHistoryItem): void => {
+export const addSummaryToHistory = (item: SummaryHistoryItem): boolean => {
   const history = loadSummaryHistory();
   
   // Add new item at the beginning
@@ -69,7 +69,7 @@ export const addSummaryToHistory = (item: SummaryHistoryItem): void => {
   }
   
   // First attempt
-  if (__trySaveSummaryHistory(history)) return;
+  if (__trySaveSummaryHistory(history)) return true;
 
   // If quota exceeded, try progressively reducing size
   console.warn('Storage quota may be exceeded. Attempting to shrink history data and retry...');
@@ -82,16 +82,17 @@ export const addSummaryToHistory = (item: SummaryHistoryItem): void => {
       visualCaptures: [],
       ...(it.visualSummary ? { visualSummary: undefined } as any : {})
     }));
-    if (__trySaveSummaryHistory(history)) return;
+    if (__trySaveSummaryHistory(history)) return true;
   }
 
   // 2) Trim oldest items until it fits
   while (history.items.length > 0) {
     history.items.pop();
-    if (__trySaveSummaryHistory(history)) return;
+    if (__trySaveSummaryHistory(history)) return true;
   }
 
   console.error('Failed to save summary history even after cleanup.');
+  return false;
 };
 
 /**

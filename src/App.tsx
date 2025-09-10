@@ -13,6 +13,22 @@ function App() {
   const [hasUnsavedData, setHasUnsavedData] = useState(false);
   const [unsavedDetails, setUnsavedDetails] = useState<string[]>([]);
 
+  // Listen for requests to open a specific summary item
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ev = e as CustomEvent<{ id: string }>;
+      try {
+        if (ev.detail?.id) {
+          window.localStorage.setItem('pendingOpenSummaryId', ev.detail.id);
+        }
+      } catch {}
+      setCurrentPage('summary');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+    window.addEventListener('openSummaryById', handler as EventListener);
+    return () => window.removeEventListener('openSummaryById', handler as EventListener);
+  }, []);
+
   const navigateWithConfirm = (next: 'transcribe' | 'split' | 'summary') => {
     if (currentPage === next) return;
     if (isRecording) {
