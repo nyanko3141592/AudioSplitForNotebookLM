@@ -10,13 +10,32 @@ import {
 function App() {
   const [currentPage, setCurrentPage] = useState<'transcribe' | 'split' | 'summary'>('transcribe');
   const [isRecording, setIsRecording] = useState(false);
+  const [hasUnsavedData, setHasUnsavedData] = useState(false);
+  const [unsavedDetails, setUnsavedDetails] = useState<string[]>([]);
+
+  const navigateWithConfirm = (next: 'transcribe' | 'split' | 'summary') => {
+    if (currentPage === next) return;
+    if (isRecording) {
+      // Recording: keep strict (button is disabled in UI), but double-guard here
+      alert('録音中はページ移動できません。録音を停止してください。');
+      return;
+    }
+    if (hasUnsavedData) {
+      const message = unsavedDetails.length > 0
+        ? `${unsavedDetails.join('・')}が失われます。本当に移動しますか？`
+        : '処理したデータが失われます。本当に移動しますか？';
+      const ok = window.confirm(message);
+      if (!ok) return;
+    }
+    setCurrentPage(next);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-violet-50 via-blue-50 to-cyan-50">
       {/* Hero Section - Always visible */}
       <HeroSection 
         currentPage={currentPage} 
-        onPageChange={setCurrentPage}
+        onPageChange={navigateWithConfirm}
         isRecording={isRecording}
       />
 
@@ -24,7 +43,16 @@ function App() {
       {currentPage === 'transcribe' ? (
         <TranscribePage 
           onRecordingStateChange={setIsRecording}
-          onStepStateChange={() => {}}
+          onStepStateChange={(state: any) => {
+            // Determine unsaved data across steps
+            const details: string[] = [];
+            if (state?.hasSplitFiles) details.push('音声ファイル');
+            if (state?.hasTranscriptionResults) details.push('文字起こし結果');
+            if (state?.hasBackgroundInfo) details.push('入力された背景情報');
+            const has = details.length > 0;
+            setHasUnsavedData(has);
+            setUnsavedDetails(details);
+          }}
         />
       ) : currentPage === 'split' ? (
         <SplitPage />

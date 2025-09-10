@@ -34,9 +34,22 @@ export const loadSummaryHistory = (): SummaryHistoryState => {
 export const saveSummaryHistory = (history: SummaryHistoryState): void => {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+    // Notify listeners in this tab that history changed
+    try { window.dispatchEvent(new CustomEvent('summaryHistoryUpdated')); } catch {}
     console.log(`📚 Summary history saved (${history.items.length} items)`);
   } catch (error) {
     console.error('Failed to save summary history:', error);
+  }
+};
+
+// Internal helper: try to save, returning success/failure
+const __trySaveSummaryHistory = (history: SummaryHistoryState): boolean => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+    try { window.dispatchEvent(new CustomEvent('summaryHistoryUpdated')); } catch {}
+    return true;
+  } catch {
+    return false;
   }
 };
 
@@ -55,7 +68,30 @@ export const addSummaryToHistory = (item: SummaryHistoryItem): void => {
     console.log(`🗑️ Trimmed history to ${history.maxItems} items`);
   }
   
-  saveSummaryHistory(history);
+  // First attempt
+  if (__trySaveSummaryHistory(history)) return;
+
+  // If quota exceeded, try progressively reducing size
+  console.warn('Storage quota may be exceeded. Attempting to shrink history data and retry...');
+
+  // 1) Remove images and visual summaries (they are largest)
+  const hadVisuals = history.items.some(it => (it.visualCaptures && it.visualCaptures.length > 0) || it.visualSummary);
+  if (hadVisuals) {
+    history.items = history.items.map(it => ({
+      ...it,
+      visualCaptures: [],
+      ...(it.visualSummary ? { visualSummary: undefined } as any : {})
+    }));
+    if (__trySaveSummaryHistory(history)) return;
+  }
+
+  // 2) Trim oldest items until it fits
+  while (history.items.length > 0) {
+    history.items.pop();
+    if (__trySaveSummaryHistory(history)) return;
+  }
+
+  console.error('Failed to save summary history even after cleanup.');
 };
 
 /**

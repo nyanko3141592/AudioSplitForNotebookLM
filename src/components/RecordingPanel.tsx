@@ -6,6 +6,8 @@ import { VisualCaptureSettingsComponent } from './VisualCaptureSettings';
 import { CaptureGallery } from './CaptureGallery';
 import type { VisualCaptureSettings } from '../types/visualCapture';
 
+import { downloadAllAsZip } from '../utils/download';
+import type { SplitFile } from './DownloadList';
 type Props = {
   onRecorded: (file: File | File[]) => void;
   onRecordingStateChange?: (active: boolean) => void;
@@ -703,6 +705,20 @@ export const RecordingPanel: React.FC<Props> = ({
           
           // Notify parent about video recording
           onVideoRecorded?.(file);
+
+          // Auto-download video locally
+          try {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          } catch (e) {
+            console.warn('Auto-download video failed:', e);
+          }
           
           videoChunksRef.current = [];
         };
@@ -810,6 +826,36 @@ export const RecordingPanel: React.FC<Props> = ({
         // Multiple segments: pass as array for individual transcription
         console.log(`📁 ${recordedSegments.length}個のセグメントを個別に文字起こし処理します`);
         onRecorded(recordedSegments);
+      }
+
+      // Auto-download audio locally if not in video mode
+      if (!isVideoMode) {
+        try {
+          const now = new Date();
+          const pad = (n: number) => n.toString().padStart(2, '0');
+          const baseName = `recording_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.webm`;
+          if (recordedSegments.length === 1) {
+            const blob = recordedSegments[0];
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = blob.name || baseName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          } else {
+            // Zip and download
+            const splitFiles: SplitFile[] = recordedSegments.map((seg, idx) => ({
+              name: seg.name || `segment_${idx + 1}.webm`,
+              size: seg.size,
+              blob: seg
+            }));
+            await downloadAllAsZip(splitFiles, baseName);
+          }
+        } catch (e) {
+          console.warn('Auto-download audio failed:', e);
+        }
       }
     }
     
