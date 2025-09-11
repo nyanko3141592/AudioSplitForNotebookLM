@@ -28,6 +28,7 @@ type Props = {
     hasApiKey: boolean;
     hasSplitFiles: boolean;
     hasTranscriptionResults: boolean;
+    hasBackgroundInfo: boolean;
   }) => void;
 };
 
@@ -202,9 +203,10 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
       hasFile: !!selectedFile,
       hasApiKey: !!apiKey,
       hasSplitFiles: splitFiles.length > 0,
-      hasTranscriptionResults: transcriptionResults.length > 0
+      hasTranscriptionResults: transcriptionResults.length > 0,
+      hasBackgroundInfo: (transcriptionBackgroundInfo || '').trim() !== ''
     });
-  }, [selectedFile, apiKey, splitFiles.length, transcriptionResults.length, onStepStateChange]);
+  }, [selectedFile, apiKey, splitFiles.length, transcriptionResults.length, transcriptionBackgroundInfo, onStepStateChange]);
 
   // Clean up function to release memory - stable function without dependency on splitFiles
   const cleanupSplitFiles = useCallback(() => {

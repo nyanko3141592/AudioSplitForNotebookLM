@@ -393,8 +393,41 @@ ${summarySettings.backgroundInfo}
         }
       };
       
-      addSummaryToHistory(historyItem);
-      console.log('📚 Summary saved to history with generated title:', generatedTitle);
+      const saved = addSummaryToHistory(historyItem);
+      if (saved) {
+        console.log('📚 Summary saved to history with generated title:', generatedTitle);
+        // Success toast with action to show the item
+        try {
+          const toast = document.createElement('div');
+          toast.className = 'fixed bottom-4 right-4 bg-white text-gray-800 px-4 py-3 rounded-lg shadow-lg border border-green-200 z-[9999] flex items-center gap-3';
+          toast.innerHTML = `<span class="text-green-600">✓</span><span>要約を履歴に追加しました</span>`;
+          const btn = document.createElement('button');
+          btn.textContent = '表示する';
+          btn.className = 'ml-2 px-3 py-1 rounded-md bg-green-600 text-white hover:bg-green-700';
+          btn.onclick = () => {
+            // Request App to navigate and open this item
+            try {
+              window.localStorage.setItem('pendingOpenSummaryId', historyItem.id);
+            } catch {}
+            const ev = new CustomEvent('openSummaryById', { detail: { id: historyItem.id } });
+            window.dispatchEvent(ev);
+            toast.remove();
+          };
+          toast.appendChild(btn);
+          document.body.appendChild(toast);
+          setTimeout(() => { toast.remove(); }, 4500);
+        } catch {}
+      } else {
+        console.error('Failed to save summary to history');
+        // Error toast
+        try {
+          const toast = document.createElement('div');
+          toast.className = 'fixed bottom-4 right-4 bg-red-600 text-white px-4 py-3 rounded-lg shadow-lg z-[9999]';
+          toast.textContent = '履歴への保存に失敗しました（容量不足の可能性）';
+          document.body.appendChild(toast);
+          setTimeout(() => { toast.remove(); }, 4000);
+        } catch {}
+      }
       
       setSummarySettings(prev => ({ 
         ...prev, 

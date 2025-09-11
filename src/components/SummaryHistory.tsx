@@ -14,22 +14,49 @@ export const SummaryHistory: React.FC = () => {
 
   // Load history on component mount
   useEffect(() => {
-    try {
-      // First try to load from the new storage key
-      const savedNew = localStorage.getItem('summaryHistory');
-      if (savedNew) {
-        const historyData = JSON.parse(savedNew);
-        setHistory(historyData.items || []);
-      } else {
-        // Fallback to old storage key for backward compatibility
-        const savedOld = localStorage.getItem('transcription-history');
-        if (savedOld) {
-          setHistory(JSON.parse(savedOld));
+    const load = () => {
+      try {
+        // First try to load from the new storage key
+        const savedNew = localStorage.getItem('summaryHistory');
+        if (savedNew) {
+          const historyData = JSON.parse(savedNew);
+          setHistory(historyData.items || []);
+          // Auto-select pending item if requested
+          try {
+            const pendingId = window.localStorage.getItem('pendingOpenSummaryId');
+            if (pendingId && historyData.items) {
+              const found = (historyData.items as any[]).find((it) => it.id === pendingId);
+              if (found) {
+                setSelectedItem(found);
+              }
+              window.localStorage.removeItem('pendingOpenSummaryId');
+            }
+          } catch {}
+        } else {
+          // Fallback to old storage key for backward compatibility
+          const savedOld = localStorage.getItem('transcription-history');
+          if (savedOld) {
+            setHistory(JSON.parse(savedOld));
+          }
         }
+      } catch (error) {
+        console.error('Failed to load history:', error);
       }
-    } catch (error) {
-      console.error('Failed to load history:', error);
-    }
+    };
+
+    load();
+    // Listen to same-tab updates
+    const handler = () => load();
+    window.addEventListener('summaryHistoryUpdated', handler as EventListener);
+    // Cross-tab updates
+    const storageHandler = (e: StorageEvent) => {
+      if (e.key === 'summaryHistory') load();
+    };
+    window.addEventListener('storage', storageHandler);
+    return () => {
+      window.removeEventListener('summaryHistoryUpdated', handler as EventListener);
+      window.removeEventListener('storage', storageHandler);
+    };
   }, []);
 
   const handleLimitChange = (newLimit: number) => {
