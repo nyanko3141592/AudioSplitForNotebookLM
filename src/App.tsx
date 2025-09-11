@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { TranscribePage } from './pages/TranscribePage';
 import { SplitPage } from './pages/SplitPage';
 import { SummaryPage } from './pages/SummaryPage';
@@ -12,6 +12,18 @@ function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [hasUnsavedData, setHasUnsavedData] = useState(false);
   const [unsavedDetails, setUnsavedDetails] = useState<string[]>([]);
+
+  const handleStepStateChange = useCallback((state: any) => {
+    const details: string[] = [];
+    if (state?.hasSplitFiles) details.push('音声ファイル');
+    if (state?.hasTranscriptionResults) details.push('文字起こし結果');
+    if (state?.hasBackgroundInfo) details.push('入力された背景情報');
+    const has = details.length > 0;
+    setHasUnsavedData(prev => (prev === has ? prev : has));
+    setUnsavedDetails(prev => (
+      prev.length === details.length && prev.every((v, i) => v === details[i]) ? prev : details
+    ));
+  }, []);
 
   // Listen for requests to open a specific summary item
   useEffect(() => {
@@ -59,16 +71,7 @@ function App() {
       {currentPage === 'transcribe' ? (
         <TranscribePage 
           onRecordingStateChange={setIsRecording}
-          onStepStateChange={(state: any) => {
-            // Determine unsaved data across steps
-            const details: string[] = [];
-            if (state?.hasSplitFiles) details.push('音声ファイル');
-            if (state?.hasTranscriptionResults) details.push('文字起こし結果');
-            if (state?.hasBackgroundInfo) details.push('入力された背景情報');
-            const has = details.length > 0;
-            setHasUnsavedData(has);
-            setUnsavedDetails(details);
-          }}
+          onStepStateChange={handleStepStateChange}
         />
       ) : currentPage === 'split' ? (
         <SplitPage />

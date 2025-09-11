@@ -28,6 +28,7 @@ type Props = {
     hasApiKey: boolean;
     hasSplitFiles: boolean;
     hasTranscriptionResults: boolean;
+    hasBackgroundInfo: boolean;
   }) => void;
 };
 
