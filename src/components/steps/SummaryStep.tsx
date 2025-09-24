@@ -247,6 +247,72 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
     // TODO: Add toast notification for copy success
   };
 
+  const showSummarySavedOverlay = (historyItem: SummaryHistoryItem) => {
+    try {
+      const existing = document.getElementById('summary-history-saved-overlay');
+      if (existing) {
+        existing.remove();
+      }
+
+      const overlay = document.createElement('div');
+      overlay.id = 'summary-history-saved-overlay';
+      overlay.className = 'fixed inset-0 z-[10000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4';
+
+      const panel = document.createElement('div');
+      panel.className = 'relative bg-white rounded-3xl shadow-2xl max-w-lg w-full px-8 py-8 text-center border border-green-200';
+      panel.innerHTML = `
+        <div class="flex flex-col items-center gap-4">
+          <div class="flex items-center justify-center w-16 h-16 rounded-full bg-green-100 text-green-600 text-3xl font-bold shadow-inner">✓</div>
+          <h4 class="text-2xl font-semibold text-gray-900">要約を保存しました</h4>
+          <p class="text-sm text-gray-600">要約一覧ページでいつでも確認できます。</p>
+        </div>
+      `;
+
+      const actions = document.createElement('div');
+      actions.className = 'mt-8 flex flex-col sm:flex-row justify-center gap-3';
+
+      const viewButton = document.createElement('button');
+      viewButton.type = 'button';
+      viewButton.className = 'px-5 py-3 bg-green-600 text-white font-semibold rounded-full shadow-lg shadow-green-200/80 hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500';
+      viewButton.textContent = '今すぐ表示';
+      viewButton.onclick = () => {
+        try {
+          window.localStorage.setItem('pendingOpenSummaryId', historyItem.id);
+        } catch {}
+        const ev = new CustomEvent('openSummaryById', { detail: { id: historyItem.id } });
+        window.dispatchEvent(ev);
+        overlay.remove();
+      };
+
+      const closeButton = document.createElement('button');
+      closeButton.type = 'button';
+      closeButton.className = 'px-5 py-3 border border-gray-300 text-gray-700 font-medium rounded-full hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300';
+      closeButton.textContent = '閉じる';
+      closeButton.onclick = () => overlay.remove();
+
+      actions.appendChild(viewButton);
+      actions.appendChild(closeButton);
+      panel.appendChild(actions);
+
+      overlay.appendChild(panel);
+      overlay.addEventListener('click', (event) => {
+        if (event.target === overlay) {
+          overlay.remove();
+        }
+      });
+
+      document.body.appendChild(overlay);
+
+      window.setTimeout(() => {
+        if (document.body.contains(overlay)) {
+          overlay.remove();
+        }
+      }, 12000);
+    } catch (overlayError) {
+      console.error('Failed to show summary saved overlay:', overlayError);
+    }
+  };
+
   const handleSummarize = async (preset?: keyof typeof formatPresets) => {
     if (!apiKey || transcriptionResults.length === 0) {
       setError('APIキーと文字起こし結果が必要です');
@@ -396,27 +462,7 @@ ${summarySettings.backgroundInfo}
       const saved = addSummaryToHistory(historyItem);
       if (saved) {
         console.log('📚 Summary saved to history with generated title:', generatedTitle);
-        // Success toast with action to show the item
-        try {
-          const toast = document.createElement('div');
-          toast.className = 'fixed bottom-4 right-4 bg-white text-gray-800 px-4 py-3 rounded-lg shadow-lg border border-green-200 z-[9999] flex items-center gap-3';
-          toast.innerHTML = `<span class="text-green-600">✓</span><span>要約を履歴に追加しました</span>`;
-          const btn = document.createElement('button');
-          btn.textContent = '表示する';
-          btn.className = 'ml-2 px-3 py-1 rounded-md bg-green-600 text-white hover:bg-green-700';
-          btn.onclick = () => {
-            // Request App to navigate and open this item
-            try {
-              window.localStorage.setItem('pendingOpenSummaryId', historyItem.id);
-            } catch {}
-            const ev = new CustomEvent('openSummaryById', { detail: { id: historyItem.id } });
-            window.dispatchEvent(ev);
-            toast.remove();
-          };
-          toast.appendChild(btn);
-          document.body.appendChild(toast);
-          setTimeout(() => { toast.remove(); }, 4500);
-        } catch {}
+        showSummarySavedOverlay(historyItem);
       } else {
         console.error('Failed to save summary to history');
         // Error toast
