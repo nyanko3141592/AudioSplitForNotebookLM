@@ -685,7 +685,26 @@ export const RecordingPanel: React.FC<Props> = ({
         const videoOptions: MediaRecorderOptions = {
           mimeType: 'video/webm;codecs=vp8,opus'
         };
-        const vr = new MediaRecorder(videoStream, videoOptions);
+
+        // Combine the captured screen video with the mixed audio (mic + system)
+        const compositeStream = new MediaStream();
+        videoStream.getVideoTracks().forEach(track => {
+          compositeStream.addTrack(track);
+        });
+
+        const mixedAudioTracks = destination.stream.getAudioTracks();
+        if (mixedAudioTracks.length > 0) {
+          mixedAudioTracks.forEach(track => {
+            compositeStream.addTrack(track);
+          });
+        } else {
+          // Fallback to whatever audio tracks the original screen stream exposed
+          videoStream.getAudioTracks().forEach(track => {
+            compositeStream.addTrack(track);
+          });
+        }
+
+        const vr = new MediaRecorder(compositeStream, videoOptions);
         videoRecorderRef.current = vr;
         videoChunksRef.current = [];
         
