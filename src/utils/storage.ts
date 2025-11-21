@@ -4,6 +4,7 @@ const STORAGE_KEYS = {
   CUSTOM_PROMPT: 'audioSplit_customPrompt',
   SUMMARY_CUSTOM_PROMPT: 'audioSplit_summaryCustomPrompt',
   SUMMARY_BACKGROUND_INFO: 'audioSplit_summaryBackgroundInfo',
+  SUMMARY_PROMPT_PRESETS: 'audioSplit_summaryPromptPresets',
   API_KEY_HASH: 'audioSplit_apiKeyHash',
   API_ENDPOINT: 'audioSplit_apiEndpoint',
   SETTINGS: 'audioSplit_settings'
@@ -173,6 +174,33 @@ export const localStorage = {
   
   clearSummaryBackgroundInfo: (): void => {
     window.localStorage.removeItem(STORAGE_KEYS.SUMMARY_BACKGROUND_INFO);
+  },
+
+  // まとめ用プリセット
+  saveSummaryPromptPresets: (presets: Array<{ id: string; name: string; prompt: string }>): void => {
+    if (!presets || presets.length === 0) {
+      window.localStorage.removeItem(STORAGE_KEYS.SUMMARY_PROMPT_PRESETS);
+      return;
+    }
+    window.localStorage.setItem(STORAGE_KEYS.SUMMARY_PROMPT_PRESETS, JSON.stringify(presets));
+  },
+
+  getSummaryPromptPresets: (): Array<{ id: string; name: string; prompt: string }> => {
+    try {
+      const stored = window.localStorage.getItem(STORAGE_KEYS.SUMMARY_PROMPT_PRESETS);
+      if (!stored) return [];
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((preset) =>
+        preset && typeof preset.id === 'string' && typeof preset.name === 'string' && typeof preset.prompt === 'string'
+      );
+    } catch {
+      return [];
+    }
+  },
+
+  clearSummaryPromptPresets: (): void => {
+    window.localStorage.removeItem(STORAGE_KEYS.SUMMARY_PROMPT_PRESETS);
   },
   
   // アプリ設定

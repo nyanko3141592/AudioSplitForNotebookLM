@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Sparkles, Download, Loader2, AlertCircle, CheckCircle, RefreshCw, Copy, Key } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Sparkles, Download, Loader2, AlertCircle, CheckCircle, RefreshCw, Copy, Key, Trash2, ArrowRight, Pencil } from 'lucide-react';
 // import { recoveryManager } from '../../utils/recoveryManager';
 import { GeminiTranscriber, downloadTranscription } from '../../utils/geminiTranscriber';
 import { markdownToHtml, plainToHtml, buildHtmlDocument, copyHtmlToClipboard } from '../../utils/format';
@@ -7,6 +7,7 @@ import type { TranscriptionResult } from '../../utils/geminiTranscriber';
 import { apiKeyStorage, localStorage, apiEndpointStorage } from '../../utils/storage';
 import { addSummaryToHistory } from '../../utils/summaryHistory';
 import type { SummaryHistoryItem } from '../../types/summaryHistory';
+import { useFormatPresets, type FormatPreset } from '../../hooks/useFormatPresets';
 
 interface SummaryStepProps {
   transcriptionResults: TranscriptionResult[];
@@ -52,10 +53,18 @@ export function SummaryStep({
     return saved === '1';
   });
   const [actualSummaryCost, setActualSummaryCost] = useState<number | null>(null);
+  const [showPresetForm, setShowPresetForm] = useState(false);
+  const [newPresetName, setNewPresetName] = useState('');
+  const [newPresetPrompt, setNewPresetPrompt] = useState('');
+  const [presetFormError, setPresetFormError] = useState<string | null>(null);
+  const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
+  const [lastHistoryItem, setLastHistoryItem] = useState<SummaryHistoryItem | null>(null);
+  const [lastGeneratedTitle, setLastGeneratedTitle] = useState('');
 
   // フォーマットプリセット
-  const formatPresets = {
-    meeting: {
+  const baseFormatPresets = useMemo<FormatPreset[]>(() => [
+    {
+      id: 'meeting',
       name: '議事録形式',
       prompt: `役割と目標：
 * ユーザーの会議内容に基づいて、正確かつ詳細な議事録を作成すること。
@@ -91,7 +100,8 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
 
 上記の会議内容から議事録を作成してください。`
     },
-    summary: {
+    {
+      id: 'summary',
       name: '要約形式',
       prompt: `以下の音声文字起こし結果を簡潔に要約してください。
 
@@ -106,7 +116,8 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
 
 上記の内容を要約してください。`
     },
-    interview: {
+    {
+      id: 'interview',
       name: 'インタビュー形式',
       prompt: `以下の音声文字起こし結果をインタビュー記事の形式でまとめてください。
 
@@ -122,7 +133,8 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
 
 上記をインタビュー記事として整理してください。`
     },
-    lecture: {
+    {
+      id: 'lecture',
       name: '講義ノート形式',
       prompt: `以下の音声文字起こし結果を講義ノート形式でまとめてください。
 
@@ -138,7 +150,9 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
 
 上記を講義ノートとして整理してください。`
     }
-  };
+  ], []);
+
+  const { presets: formatPresets, addCustomPreset, removeCustomPreset, updateCustomPreset } = useFormatPresets(baseFormatPresets);
 
   useEffect(() => {
     // preset APIキーがある場合はそれを使用、なければストレージから読み込み
@@ -168,7 +182,7 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
     const savedPrompt = localStorage.getSummaryCustomPrompt();
     
     // 保存されたプロンプトがある場合はそれを使用、なければ議事録プリセットをデフォルトに
-    const defaultPrompt = formatPresets.meeting.prompt;
+    const defaultPrompt = baseFormatPresets.find(preset => preset.id === 'meeting')?.prompt || '';
     if (savedPrompt) {
       setSummarySettings(prev => ({ ...prev, customPrompt: savedPrompt }));
     } else {
@@ -231,10 +245,55 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
     onBackgroundInfoChange?.(value);
   };
   
-  const handlePresetSelect = (presetKey: keyof typeof formatPresets) => {
-    const preset = formatPresets[presetKey];
+  const handlePresetSelect = (preset: FormatPreset) => {
     setSummarySettings(prev => ({ ...prev, customPrompt: preset.prompt }));
     localStorage.saveSummaryCustomPrompt(preset.prompt);
+  };
+
+  const handleCustomPresetSave = () => {
+    try {
+      if (editingPresetId) {
+        const updated = updateCustomPreset(editingPresetId, {
+          name: newPresetName,
+          prompt: newPresetPrompt
+        });
+        handlePresetSelect(updated);
+      } else {
+        const created = addCustomPreset(newPresetName, newPresetPrompt);
+        handlePresetSelect(created);
+      }
+      setNewPresetName('');
+      setNewPresetPrompt('');
+      setPresetFormError(null);
+      setShowPresetForm(false);
+      setEditingPresetId(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'プリセットの保存に失敗しました';
+      setPresetFormError(message);
+    }
+  };
+
+  const handleCustomPresetCancel = () => {
+    setShowPresetForm(false);
+    setNewPresetName('');
+    setNewPresetPrompt('');
+    setPresetFormError(null);
+    setEditingPresetId(null);
+  };
+
+  const handleCustomPresetDelete = (presetId: string) => {
+    removeCustomPreset(presetId);
+    if (editingPresetId === presetId) {
+      handleCustomPresetCancel();
+    }
+  };
+
+  const handleCustomPresetEdit = (preset: FormatPreset) => {
+    setShowPresetForm(true);
+    setEditingPresetId(preset.id);
+    setNewPresetName(preset.name);
+    setNewPresetPrompt(preset.prompt);
+    setPresetFormError(null);
   };
 
 
@@ -313,7 +372,7 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
     }
   };
 
-  const handleSummarize = async (preset?: keyof typeof formatPresets) => {
+  const handleSummarize = async (preset?: FormatPreset) => {
     if (!apiKey || transcriptionResults.length === 0) {
       setError('APIキーと文字起こし結果が必要です');
       return;
@@ -341,11 +400,11 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
       let formatPrompt = summarySettings.customPrompt;
       
       // プリセットが指定されている場合
-      if (preset && formatPresets[preset]) {
-        formatPrompt = formatPresets[preset].prompt;
+      if (preset) {
+        formatPrompt = preset.prompt;
         setSummarySettings(prev => ({ 
           ...prev, 
-          progress: `${formatPresets[preset].name}形式で処理中...`,
+          progress: `${preset.name}形式で処理中...`,
           currentStep: 1 
         }));
       } else {
@@ -440,31 +499,17 @@ ${summarySettings.backgroundInfo}
       }
 
       // Save to history
-      const historyItem: SummaryHistoryItem = {
-        id: `summary_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        timestamp: new Date().toISOString(),
-        fileName: fileName || 'Untitled',
-        title: generatedTitle, // Use generated title
-        summary: summary,
-        transcriptionResults: transcriptionResults.map(result => ({
-          fileName: result.fileName,
-          text: result.transcription || ''
-        })),
-        visualSummary: visualSummary || undefined,
-        visualCaptures: visualCaptures.length > 0 ? visualCaptures : undefined,
-        metadata: {
-          language: 'ja',
-          model: selectedModel,
-          createdAt: new Date().toISOString()
-        }
-      };
+      const historyItem = createHistoryItem(summary, generatedTitle);
       
       const saved = addSummaryToHistory(historyItem);
       if (saved) {
         console.log('📚 Summary saved to history with generated title:', generatedTitle);
         showSummarySavedOverlay(historyItem);
+        setLastHistoryItem(historyItem);
+        setLastGeneratedTitle(generatedTitle);
       } else {
         console.error('Failed to save summary to history');
+        setLastHistoryItem(null);
         // Error toast
         try {
           const toast = document.createElement('div');
@@ -510,6 +555,51 @@ ${summarySettings.backgroundInfo}
         downloadTranscription(summarySettings.result, 'summary.txt', 'text/plain;charset=utf-8');
       }
     }
+  };
+
+  const createHistoryItem = (summaryText: string, title: string): SummaryHistoryItem => ({
+    id: `summary_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    timestamp: new Date().toISOString(),
+    fileName: fileName || 'Untitled',
+    title,
+    summary: summaryText,
+    transcriptionResults: transcriptionResults.map(result => ({
+      fileName: result.fileName,
+      text: result.transcription || ''
+    })),
+    visualSummary: visualSummary || undefined,
+    visualCaptures: visualCaptures.length > 0 ? visualCaptures : undefined,
+    metadata: {
+      language: 'ja',
+      model: selectedModel,
+      createdAt: new Date().toISOString()
+    }
+  });
+
+  const ensureHistoryItem = (): SummaryHistoryItem | null => {
+    if (lastHistoryItem) return lastHistoryItem;
+    if (!summarySettings.result) return null;
+    const title = lastGeneratedTitle || fileName || 'Untitled';
+    const item = createHistoryItem(summarySettings.result, title);
+    const saved = addSummaryToHistory(item);
+    if (!saved) {
+      return null;
+    }
+    setLastHistoryItem(item);
+    return item;
+  };
+
+  const handleNavigateToHistory = () => {
+    const historyItem = ensureHistoryItem();
+    if (!historyItem) {
+      window.alert('要約の保存に失敗しました。ストレージ容量を確認してください。');
+      return;
+    }
+    try {
+      window.localStorage.setItem('pendingOpenSummaryId', historyItem.id);
+    } catch {}
+    const ev = new CustomEvent('openSummaryById', { detail: { id: historyItem.id } });
+    window.dispatchEvent(ev);
   };
 
   const handleDownloadAsHtml = () => {
@@ -560,19 +650,110 @@ ${summarySettings.backgroundInfo}
 
             {/* Format Presets */}
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-3 block">
-                形式プリセット（下のテキストエリアに自動入力）
-              </label>
+              <div className="flex items-center justify-between mb-3 gap-4">
+                <label className="text-sm font-medium text-gray-700">
+                  形式プリセット（下のテキストエリアに自動入力）
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (showPresetForm) {
+                      handleCustomPresetCancel();
+                    } else {
+                      setShowPresetForm(true);
+                      setEditingPresetId(null);
+                      setNewPresetName('');
+                      setNewPresetPrompt('');
+                      setPresetFormError(null);
+                    }
+                  }}
+                  className="text-xs font-medium text-purple-600 hover:text-purple-700"
+                >
+                  {showPresetForm ? 'フォームを閉じる' : '＋プリセットを追加'}
+                </button>
+              </div>
+
+              {showPresetForm && (
+                <div className="mb-4 p-4 bg-white border border-purple-200 rounded-lg space-y-3 shadow-sm">
+                  <div>
+                    <label className="text-xs text-gray-600 mb-1 block">プリセット名</label>
+                    <input
+                      type="text"
+                      value={newPresetName}
+                      onChange={(e) => setNewPresetName(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                      placeholder="例: 社内報告テンプレート"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600 mb-1 block">プロンプト本文</label>
+                    <textarea
+                      value={newPresetPrompt}
+                      onChange={(e) => setNewPresetPrompt(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm resize-y min-h-28 font-mono"
+                      placeholder="{transcriptions} を差し込む位置を含めたテンプレートを入力してください"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">{`{transcriptions}`} が文字起こし結果に置き換わります</p>
+                  </div>
+                  {presetFormError && (
+                    <p className="text-xs text-red-600">{presetFormError}</p>
+                  )}
+                  <div className="flex flex-wrap gap-2 justify-end">
+                    <button
+                      type="button"
+                      onClick={handleCustomPresetSave}
+                      disabled={!newPresetName.trim() || !newPresetPrompt.trim()}
+                      className="px-4 py-2 bg-purple-600 text-white text-sm font-semibold rounded-lg hover:bg-purple-700 disabled:opacity-40"
+                    >
+                      {editingPresetId ? '更新' : '保存'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCustomPresetCancel}
+                      className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+                    >
+                      キャンセル
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
-                {Object.entries(formatPresets).map(([key, preset]) => (
-                  <button
-                    key={key}
-                    onClick={() => handlePresetSelect(key as keyof typeof formatPresets)}
-                    disabled={summarySettings.isProcessing}
-                    className="px-4 py-3 rounded-lg transition-all text-sm font-medium disabled:opacity-50 bg-white border border-gray-300 text-gray-700 hover:bg-purple-50 hover:border-purple-300 focus:ring-2 focus:ring-purple-500"
-                  >
-                    {preset.name}
-                  </button>
+                {formatPresets.map((preset) => (
+                  <div key={preset.id} className="relative">
+                    <button
+                      onClick={() => handlePresetSelect(preset)}
+                      disabled={summarySettings.isProcessing}
+                      className="w-full px-4 py-3 rounded-lg transition-all text-sm font-medium disabled:opacity-50 bg-white border border-gray-300 text-gray-700 hover:bg-purple-50 hover:border-purple-300 focus:ring-2 focus:ring-purple-500 text-left"
+                    >
+                      <span className="block">{preset.name}</span>
+                      {preset.isCustom && (
+                        <span className="mt-1 inline-flex items-center px-2 py-0.5 text-[10px] font-semibold text-purple-700 bg-purple-100 rounded-full">
+                          ユーザー作成
+                        </span>
+                      )}
+                    </button>
+                    {preset.isCustom && (
+                      <div className="absolute -top-2 -right-2 flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleCustomPresetEdit(preset)}
+                          className="p-1 bg-white border border-gray-200 rounded-full shadow-sm text-gray-500 hover:text-violet-600"
+                          aria-label={`${preset.name}を編集`}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleCustomPresetDelete(preset.id)}
+                          className="p-1 bg-white border border-gray-200 rounded-full shadow-sm text-gray-500 hover:text-red-600"
+                          aria-label={`${preset.name}を削除`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
@@ -801,6 +982,17 @@ ${summarySettings.backgroundInfo}
                 実際のコスト: <span className="font-mono font-semibold">${actualSummaryCost.toFixed(4)}</span>
               </div>
             )}
+
+            <div className="pt-2 flex justify-center">
+              <button
+                type="button"
+                onClick={handleNavigateToHistory}
+                className="px-6 py-3 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 transition-all flex items-center gap-2"
+              >
+                <ArrowRight className="w-4 h-4" />
+                一覧へ
+              </button>
+            </div>
           </div>
         </div>
       )}

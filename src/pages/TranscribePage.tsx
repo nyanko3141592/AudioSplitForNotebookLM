@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useTransition } from 'react';
+import { useState, useCallback, useEffect, useTransition, type DragEvent } from 'react';
 import { FileUpload } from '../components/FileUpload';
 import { TranscriptionStep } from '../components/steps/TranscriptionStep';
 import { SummaryStep } from '../components/steps/SummaryStep';
@@ -10,8 +10,12 @@ import {
   AlertCircle,
   CheckCircle,
   MessageSquare,
-  ArrowDown
+  ArrowDown,
+  Upload,
+  Trash2,
+  FileText
 } from 'lucide-react';
+import { cn } from '../lib/utils';
 import type { TranscriptionResult } from '../utils/geminiTranscriber';
 // import { GeminiTranscriber } from '../utils/geminiTranscriber';
 import { apiEndpointStorage } from '../utils/storage';
@@ -54,6 +58,10 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
   const [visualSummary, setVisualSummary] = useState<string>('');
   const [isGeneratingSummary, setIsGeneratingSummary] = useState<boolean>(false);
   const [recordedVideo, setRecordedVideo] = useState<File | null>(null);
+  const [visualAnalysisCompleted, setVisualAnalysisCompleted] = useState(false);
+  const [manualTranscriptionMeta, setManualTranscriptionMeta] = useState<{ files: string[]; importedAt: number } | null>(null);
+  const [isImportingTranscriptions, setIsImportingTranscriptions] = useState(false);
+  const [isManualDropActive, setIsManualDropActive] = useState(false);
   // Recovery functionality temporarily disabled
   // const [showRecoveryDialog, setShowRecoveryDialog] = useState(false);
   // const [recoveryDialogShown, setRecoveryDialogShown] = useState(false);
@@ -343,8 +351,85 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
     }
   }, [splitFiles, selectedFile]);
 
+  const handleManualTranscriptionUpload = useCallback(async (filesList: FileList | File[] | null) => {
+    if (!filesList || filesList.length === 0) return;
+    setIsImportingTranscriptions(true);
+    setError(null);
+    try {
+      const fileArray = Array.from(filesList as ArrayLike<File>);
+      const importedResults = await Promise.all(
+        fileArray.map(async (file, index) => {
+          const text = await file.text();
+          return {
+            partNumber: index + 1,
+            fileName: file.name,
+            transcription: text,
+            status: 'completed' as const
+          };
+        })
+      );
+
+      const validResults = importedResults.filter(result => (result.transcription || '').trim().length > 0);
+      if (validResults.length === 0) {
+        setError('有効な文字起こしテキストが見つかりませんでした。テキスト形式のファイルを選択してください。');
+        return;
+      }
+
+      const normalizedResults = validResults.map((result, index) => ({
+        ...result,
+        partNumber: index + 1
+      }));
+
+      setTranscriptionResults(normalizedResults);
+      setManualTranscriptionMeta({
+        files: validResults.map(result => result.fileName),
+        importedAt: Date.now()
+      });
+      setSelectedFile(null);
+      setSplitFiles([]);
+      setVisualCaptures([]);
+      setVisualSummary('');
+      setHasRecordedSegments(false);
+      setRecordedVideo(null);
+      setVisualAnalysisCompleted(true);
+    } catch (importError) {
+      console.error('Transcription import failed:', importError);
+      setError('文字起こしファイルの読み込みに失敗しました。テキスト形式か確認してください。');
+    } finally {
+      setIsImportingTranscriptions(false);
+    }
+  }, [setVisualAnalysisCompleted]);
+
+  const handleManualDrop = useCallback((event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsManualDropActive(false);
+    if (isImportingTranscriptions) return;
+    const files = event.dataTransfer?.files;
+    if (files && files.length > 0) {
+      handleManualTranscriptionUpload(files);
+    }
+  }, [handleManualTranscriptionUpload, isImportingTranscriptions]);
+
+  const handleManualDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    if (!isImportingTranscriptions) {
+      setIsManualDropActive(true);
+    }
+  }, [isImportingTranscriptions]);
+
+  const handleManualDragLeave = useCallback((event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsManualDropActive(false);
+  }, []);
+
+  const handleClearManualTranscriptions = useCallback(() => {
+    setManualTranscriptionMeta(null);
+    setTranscriptionResults([]);
+  }, []);
+
   const handleTranscriptionComplete = (results: TranscriptionResult[]) => {
     setTranscriptionResults(results);
+    setManualTranscriptionMeta(null);
     // Clear recovery state when transcription is complete - disabled
     // clearRecovery();
   };
@@ -409,7 +494,8 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
   // ステップの状態を計算
   const hasVisualCaptures = visualCaptures.length > 0;
   // const hasAnalyzedVisuals = visualSummary.length > 0; // Check if visual summary exists
-  const [visualAnalysisCompleted, setVisualAnalysisCompleted] = useState(false); // Track if visual analysis action is completed
+  const isManualTranscriptionMode = !selectedFile && transcriptionResults.length > 0;
+  const shouldHideAudioWorkflow = isManualTranscriptionMode || !!manualTranscriptionMeta;
   
   // Automatically set visualAnalysisCompleted to true when no visual captures exist
   useEffect(() => {
@@ -422,6 +508,10 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
   
   // Calculate current step based on progress and conditions
   const getCurrentStep = () => {
+    if (isManualTranscriptionMode) {
+      return hasVisualCaptures ? 5 : 4;
+    }
+
     if (!selectedFile) return 1; // Step 1: File selection
     
     if (!hasVisualCaptures) {
@@ -435,6 +525,8 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
   };
   
   const currentStep = getCurrentStep();
+  const shouldShowSummaryStep = apiKey && transcriptionResults.length > 0;
+  const summaryFileName = selectedFile?.name || transcriptionResults[0]?.fileName;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -518,6 +610,95 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
           </div>
         </div>
 
+        {/* 既存の文字起こしをアップロード */}
+        <div className="bg-white rounded-2xl shadow-lg p-6 mb-10">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center">
+                <FileText className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">既存の文字起こしを利用</h2>
+                <p className="text-sm text-gray-600">
+                  すでに文字起こし結果がある場合は、ここでアップロードして速やかに要約ステップへ進めます。
+                </p>
+              </div>
+            </div>
+            {manualTranscriptionMeta ? (
+              <span className="inline-flex items-center px-3 py-1 text-xs font-semibold text-green-700 bg-green-100 rounded-full">
+                アップロード済み
+              </span>
+            ) : (
+              <span className="text-xs text-gray-500">対応形式: .txt, .md, .json, .srt, .vtt など</span>
+            )}
+          </div>
+
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <div
+              className={cn(
+                'flex-1 rounded-xl border-2 border-dashed transition-all min-h-[120px]',
+                'flex items-center justify-center px-4 py-3 text-center cursor-pointer relative overflow-hidden',
+                isImportingTranscriptions
+                  ? 'border-gray-300 text-gray-500 bg-gray-50'
+                  : 'border-violet-300 text-violet-700 hover:border-violet-400 hover:bg-violet-50',
+                isManualDropActive && !isImportingTranscriptions && 'border-violet-500 bg-violet-100 shadow-inner'
+              )}
+              onDragOver={handleManualDragOver}
+              onDragLeave={handleManualDragLeave}
+              onDrop={handleManualDrop}
+            >
+              <label className="flex items-center justify-center gap-2 font-semibold w-full h-full">
+                {isImportingTranscriptions ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Upload className="w-4 h-4" />
+                )}
+                <span>{isImportingTranscriptions ? '読み込み中...' : '文字起こしファイルを選択 / ドロップ'}</span>
+                <input
+                  type="file"
+                  className="sr-only"
+                  multiple
+                  accept=".txt,.md,.json,.srt,.vtt,.csv,.html,.log"
+                  disabled={isImportingTranscriptions}
+                  onChange={(event) => {
+                    handleManualTranscriptionUpload(event.target.files);
+                    event.target.value = '';
+                  }}
+                />
+              </label>
+            </div>
+
+            {manualTranscriptionMeta && (
+              <button
+                type="button"
+                onClick={handleClearManualTranscriptions}
+                className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium"
+              >
+                <Trash2 className="w-4 h-4" />
+                リセット
+              </button>
+            )}
+          </div>
+
+          <p className="text-xs text-gray-500 mt-2">
+            テキスト形式の文字起こしをアップロードすると、音声アップロードと文字起こしのステップをスキップして要約作成に進めます。
+          </p>
+
+          {manualTranscriptionMeta && (
+            <div className="mt-4 bg-gray-50 border border-gray-200 rounded-xl p-4">
+              <p className="text-sm font-medium text-gray-800 mb-2">アップロード済みファイル</p>
+              <ul className="text-sm text-gray-700 list-disc pl-5 space-y-1">
+                {manualTranscriptionMeta.files.map((fileName) => (
+                  <li key={fileName}>{fileName}</li>
+                ))}
+              </ul>
+              <p className="text-xs text-gray-500 mt-2">
+                取り込み時刻: {new Date(manualTranscriptionMeta.importedAt).toLocaleString('ja-JP')}
+              </p>
+            </div>
+          )}
+        </div>
+
         {/* Unsaved Data Indicator */}
         {(isRecordingActive || splitFiles.length > 0 || transcriptionResults.length > 0 || transcriptionBackgroundInfo.trim() !== '') && (
           <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center">
@@ -541,6 +722,8 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
           </div>
         )}
 
+        {!shouldHideAudioWorkflow && (
+          <>
         {/* Step 1: API Key & File Selection */}
         <div className="bg-white rounded-2xl shadow-lg p-8 mb-16" id="upload">
           <div className="flex items-center mb-6">
@@ -975,8 +1158,14 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
             )}
 
 
-            {/* Arrow between transcription and summary */}
-            {apiKey && transcriptionResults.length > 0 && (
+          </>
+        )}
+          </>
+        )}
+
+        {shouldShowSummaryStep && (
+          <>
+            {selectedFile && (!hasVisualCaptures || visualAnalysisCompleted) && (
               <div className="flex justify-center mb-8">
                 <div className="flex flex-col items-center">
                   <ArrowDown className="w-8 h-8 text-violet-400 animate-bounce" />
@@ -984,29 +1173,37 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
                 </div>
               </div>
             )}
-            
-            {/* Step 4/5: Summary - Only show if we have transcription results */}
-            {apiKey && transcriptionResults.length > 0 && (
-              <div className="bg-white rounded-2xl shadow-lg p-8 mb-16" data-step="summary">
-                <div className="flex items-center mb-6">
-                  <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold mr-3">
-                    {hasVisualCaptures ? '5' : '4'}
-                  </div>
-                  <h2 className="text-2xl font-bold text-gray-900">要約作成</h2>
+
+            <div className="bg-white rounded-2xl shadow-lg p-8 mb-16" data-step="summary">
+              <div className="flex items-center flex-wrap gap-3 mb-6">
+                <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold">
+                  {hasVisualCaptures ? '5' : '4'}
                 </div>
-                
-                <SummaryStep
-                  transcriptionResults={transcriptionResults}
-                  transcriptionBackgroundInfo={summaryBackgroundInfo}
-                  visualSummary={visualSummary}
-                  visualCaptures={visualCaptures}
-                  fileName={selectedFile?.name}
-                  onBackgroundInfoChange={setSummaryBackgroundInfo}
-                  presetApiKey={apiKey}
-                  presetApiEndpoint={apiEndpoint}
-                />
+                <h2 className="text-2xl font-bold text-gray-900">要約作成</h2>
+                {isManualTranscriptionMode && (
+                  <span className="inline-flex items-center px-3 py-1 text-xs font-semibold text-blue-700 bg-blue-100 rounded-full">
+                    アップロードした文字起こしを使用中
+                  </span>
+                )}
               </div>
-            )}
+
+              {isManualTranscriptionMode && (
+                <p className="text-sm text-gray-600 mb-6">
+                  アップロードした文字起こしファイルから直接要約を生成します。必要に応じて背景情報やカスタムプロンプトを設定してください。
+                </p>
+              )}
+
+              <SummaryStep
+                transcriptionResults={transcriptionResults}
+                transcriptionBackgroundInfo={summaryBackgroundInfo}
+                visualSummary={visualSummary}
+                visualCaptures={visualCaptures}
+                fileName={summaryFileName}
+                onBackgroundInfoChange={setSummaryBackgroundInfo}
+                presetApiKey={apiKey}
+                presetApiEndpoint={apiEndpoint}
+              />
+            </div>
           </>
         )}
       </div>
