@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
-import { FileText, Download, Loader2, Key, AlertCircle, Shield, Trash2, StopCircle, CheckCircle, XCircle, Clock, Sparkles, Copy } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { FileText, Download, Loader2, Key, AlertCircle, Shield, Trash2, StopCircle, CheckCircle, XCircle, Clock, Sparkles, Copy, Pencil } from 'lucide-react';
 import { GeminiTranscriber, downloadTranscription } from '../utils/geminiTranscriber';
 import { markdownToHtml, plainToHtml, buildHtmlDocument, copyHtmlToClipboard } from '../utils/format';
 import type { TranscriptionResult, TranscriptionProgress } from '../utils/geminiTranscriber';
 import type { SplitFile } from './DownloadList';
 import { apiKeyStorage, localStorage, storage, storageMode } from '../utils/storage';
+import { useFormatPresets, type FormatPreset } from '../hooks/useFormatPresets';
 
 interface TranscriptionPanelProps {
   splitFiles: SplitFile[];
@@ -47,6 +48,11 @@ export function TranscriptionPanel({ splitFiles, isProcessing }: TranscriptionPa
     const saved = window.localStorage.getItem('summary_use_markdown');
     return saved === '1';
   });
+  const [showPresetForm, setShowPresetForm] = useState(false);
+  const [newPresetName, setNewPresetName] = useState('');
+  const [newPresetPrompt, setNewPresetPrompt] = useState('');
+  const [presetFormError, setPresetFormError] = useState<string | null>(null);
+  const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
   
   const defaultPrompt = `この音声ファイルの内容を正確に文字起こししてください。
 以下の点に注意してください：
@@ -59,8 +65,9 @@ export function TranscriptionPanel({ splitFiles, isProcessing }: TranscriptionPa
 文字起こし結果のみを出力してください。`;
 
   // フォーマットプリセット
-  const formatPresets = {
-    meeting: {
+  const baseFormatPresets = useMemo<FormatPreset[]>(() => [
+    {
+      id: 'meeting',
       name: '議事録形式',
       prompt: `以下の音声文字起こし結果を議事録形式でまとめてください。
 
@@ -76,7 +83,8 @@ export function TranscriptionPanel({ splitFiles, isProcessing }: TranscriptionPa
 
 上記を議事録として整理してください。`
     },
-    summary: {
+    {
+      id: 'summary',
       name: '要約形式',
       prompt: `以下の音声文字起こし結果を簡潔に要約してください。
 
@@ -91,7 +99,8 @@ export function TranscriptionPanel({ splitFiles, isProcessing }: TranscriptionPa
 
 上記の内容を要約してください。`
     },
-    interview: {
+    {
+      id: 'interview',
       name: 'インタビュー形式',
       prompt: `以下の音声文字起こし結果をインタビュー記事の形式でまとめてください。
 
@@ -107,7 +116,8 @@ export function TranscriptionPanel({ splitFiles, isProcessing }: TranscriptionPa
 
 上記をインタビュー記事として整理してください。`
     },
-    lecture: {
+    {
+      id: 'lecture',
       name: '講義ノート形式',
       prompt: `以下の音声文字起こし結果を講義ノート形式でまとめてください。
 
@@ -123,7 +133,9 @@ export function TranscriptionPanel({ splitFiles, isProcessing }: TranscriptionPa
 
 上記を講義ノートとして整理してください。`
     }
-  };
+  ], []);
+
+  const { presets: formatPresets, addCustomPreset, removeCustomPreset, updateCustomPreset } = useFormatPresets(baseFormatPresets);
 
   // 初回読み込み時にストレージからデータを復元
   useEffect(() => {
@@ -223,7 +235,7 @@ export function TranscriptionPanel({ splitFiles, isProcessing }: TranscriptionPa
   };
 
   // まとめ処理
-  const handleSummarize = async (preset?: keyof typeof formatPresets) => {
+  const handleSummarize = async (preset?: FormatPreset) => {
     if (!apiKey || transcriptionResults.length === 0) {
       setError('APIキーと文字起こし結果が必要です');
       return;
@@ -243,11 +255,11 @@ export function TranscriptionPanel({ splitFiles, isProcessing }: TranscriptionPa
       let formatPrompt = summarySettings.customPrompt;
 
       // プリセットが指定されている場合
-      if (preset && formatPresets[preset]) {
-        formatPrompt = formatPresets[preset].prompt;
+      if (preset) {
+        formatPrompt = preset.prompt;
         setSummarySettings(prev => ({ 
           ...prev, 
-          progress: `${formatPresets[preset].name}形式で処理中...`,
+          progress: `${preset.name}形式で処理中...`,
           currentStep: 1 
         }));
       } else {
@@ -294,6 +306,50 @@ export function TranscriptionPanel({ splitFiles, isProcessing }: TranscriptionPa
     } finally {
       setSummarySettings(prev => ({ ...prev, isProcessing: false }));
     }
+  };
+
+  const handleAddCustomPreset = () => {
+    try {
+      if (editingPresetId) {
+        updateCustomPreset(editingPresetId, {
+          name: newPresetName,
+          prompt: newPresetPrompt
+        });
+      } else {
+        addCustomPreset(newPresetName, newPresetPrompt);
+      }
+      setNewPresetName('');
+      setNewPresetPrompt('');
+      setPresetFormError(null);
+      setShowPresetForm(false);
+      setEditingPresetId(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'プリセットの追加に失敗しました';
+      setPresetFormError(message);
+    }
+  };
+
+  const handleCancelCustomPreset = () => {
+    setShowPresetForm(false);
+    setNewPresetName('');
+    setNewPresetPrompt('');
+    setPresetFormError(null);
+    setEditingPresetId(null);
+  };
+
+  const handleDeleteCustomPreset = (presetId: string) => {
+    removeCustomPreset(presetId);
+    if (editingPresetId === presetId) {
+      handleCancelCustomPreset();
+    }
+  };
+
+  const handleEditCustomPreset = (preset: FormatPreset) => {
+    setShowPresetForm(true);
+    setEditingPresetId(preset.id);
+    setNewPresetName(preset.name);
+    setNewPresetPrompt(preset.prompt);
+    setPresetFormError(null);
   };
 
   const handleDownloadSummary = () => {
@@ -689,16 +745,108 @@ export function TranscriptionPanel({ splitFiles, isProcessing }: TranscriptionPa
             {/* Preset Buttons & Markdown Toggle */}
             {!summarySettings.isProcessing && (
               <>
+                <div className="flex items-center justify-between text-sm text-gray-700 mt-1">
+                  <p>プリセットで即まとめ</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (showPresetForm) {
+                        handleCancelCustomPreset();
+                      } else {
+                        setShowPresetForm(true);
+                        setEditingPresetId(null);
+                        setNewPresetName('');
+                        setNewPresetPrompt('');
+                        setPresetFormError(null);
+                      }
+                    }}
+                    className="text-xs font-semibold text-purple-600 hover:text-purple-700"
+                  >
+                    {showPresetForm ? 'フォームを閉じる' : '＋プリセットを追加'}
+                  </button>
+                </div>
+
+                {showPresetForm && (
+                  <div className="p-4 bg-white border border-purple-200 rounded-lg space-y-3 shadow-sm">
+                    <div>
+                      <label className="text-xs text-gray-600 mb-1 block">プリセット名</label>
+                      <input
+                        type="text"
+                        value={newPresetName}
+                        onChange={(e) => setNewPresetName(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                        placeholder="例: サポート報告書"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-600 mb-1 block">プロンプト本文</label>
+                      <textarea
+                        value={newPresetPrompt}
+                        onChange={(e) => setNewPresetPrompt(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm resize-y min-h-24 font-mono"
+                        placeholder="{transcriptions} を含めたテンプレートを入力してください"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">{`{transcriptions}`} が文字起こし結果に挿入されます</p>
+                    </div>
+                    {presetFormError && (
+                      <p className="text-xs text-red-600">{presetFormError}</p>
+                    )}
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        type="button"
+                        onClick={handleAddCustomPreset}
+                        disabled={!newPresetName.trim() || !newPresetPrompt.trim()}
+                        className="px-4 py-2 bg-purple-600 text-white text-xs font-semibold rounded-lg hover:bg-purple-700 disabled:opacity-40"
+                      >
+                        {editingPresetId ? '更新' : '保存'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCancelCustomPreset}
+                        className="px-4 py-2 text-xs text-gray-600 hover:text-gray-800"
+                      >
+                        キャンセル
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {Object.entries(formatPresets).map(([key, preset]) => (
-                    <button
-                      key={key}
-                      onClick={() => handleSummarize(key as keyof typeof formatPresets)}
-                      disabled={!apiKey}
-                      className="px-4 py-3 bg-white border border-purple-300 text-purple-700 rounded-lg hover:bg-purple-50 hover:border-purple-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm font-medium shadow-sm hover:shadow-md"
-                    >
-                      {preset.name}
-                    </button>
+                  {formatPresets.map((preset) => (
+                    <div key={preset.id} className="relative">
+                      <button
+                        onClick={() => handleSummarize(preset)}
+                        disabled={!apiKey}
+                        className="w-full px-4 py-3 bg-white border border-purple-300 text-purple-700 rounded-lg hover:bg-purple-50 hover:border-purple-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm font-medium shadow-sm hover:shadow-md text-left"
+                      >
+                        <span className="block">{preset.name}</span>
+                        {preset.isCustom && (
+                          <span className="mt-1 inline-flex items-center px-2 py-0.5 text-[10px] font-semibold text-purple-700 bg-purple-100 rounded-full">
+                            ユーザー作成
+                          </span>
+                        )}
+                      </button>
+                      {preset.isCustom && (
+                        <div className="absolute -top-2 -right-2 flex gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleEditCustomPreset(preset)}
+                            className="p-1 bg-white border border-gray-200 rounded-full shadow-sm text-gray-500 hover:text-purple-600"
+                            aria-label={`${preset.name}を編集`}
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCustomPreset(preset.id)}
+                            className="p-1 bg-white border border-gray-200 rounded-full shadow-sm text-gray-500 hover:text-red-600"
+                            aria-label={`${preset.name}を削除`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
 
