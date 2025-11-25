@@ -8,6 +8,9 @@ import { apiKeyStorage, localStorage, apiEndpointStorage } from '../../utils/sto
 import { addSummaryToHistory } from '../../utils/summaryHistory';
 import type { SummaryHistoryItem } from '../../types/summaryHistory';
 import { useFormatPresets, type FormatPreset } from '../../hooks/useFormatPresets';
+import { KnowledgePresetSelector } from '../KnowledgePresetSelector';
+import { useKnowledgePresets, type KnowledgePreset } from '../../hooks/useKnowledgePresets';
+import { defaultKnowledgePresets } from '../../constants/knowledgePresets';
 
 interface SummaryStepProps {
   transcriptionResults: TranscriptionResult[];
@@ -23,6 +26,8 @@ interface SummaryStepProps {
   onBackgroundInfoChange?: (backgroundInfo: string) => void;
   presetApiKey?: string;
   presetApiEndpoint?: string;
+  selectedKnowledgePresetIds?: string[];
+  onKnowledgePresetSelectionChange?: (ids: string[]) => void;
 }
 
 export function SummaryStep({ 
@@ -33,7 +38,9 @@ export function SummaryStep({
   fileName = 'audio',
   onBackgroundInfoChange,
   presetApiKey = '',
-  presetApiEndpoint = ''
+  presetApiEndpoint = '',
+  selectedKnowledgePresetIds,
+  onKnowledgePresetSelectionChange,
 }: SummaryStepProps) {
   const [apiKey, setApiKey] = useState('');
   const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash-lite');
@@ -94,6 +101,18 @@ export function SummaryStep({
   ], []);
 
   const { presets: formatPresets, addCustomPreset, removePreset, updateCustomPreset } = useFormatPresets(baseFormatPresets);
+  const baseKnowledgePresets = useMemo(() => defaultKnowledgePresets, []);
+  const { presets: knowledgePresets, addPreset: addKnowledgePreset, updatePreset: updateKnowledgePreset, removePreset: removeKnowledgePreset } = useKnowledgePresets(baseKnowledgePresets);
+  const [internalKnowledgeSelection, setInternalKnowledgeSelection] = useState<string[]>([]);
+
+  const effectiveKnowledgeSelection = selectedKnowledgePresetIds ?? internalKnowledgeSelection;
+
+  const emitKnowledgeSelection = (ids: string[]) => {
+    onKnowledgePresetSelectionChange?.(ids);
+    if (!selectedKnowledgePresetIds) {
+      setInternalKnowledgeSelection(ids);
+    }
+  };
 
   useEffect(() => {
     // preset APIキーがある場合はそれを使用、なければストレージから読み込み
@@ -199,6 +218,25 @@ export function SummaryStep({
   const handleMeetingDateChange = (value: string) => {
     setMeetingDate(value);
     localStorage.saveSummaryMeetingDate(value);
+  };
+
+  const handleKnowledgePresetInsert = (selectedPresets: KnowledgePreset[]) => {
+    if (!selectedPresets || selectedPresets.length === 0) return;
+    setSummarySettings((prev) => {
+      const trimmedPrev = prev.backgroundInfo.trim();
+      const additions = selectedPresets
+        .map((preset) => preset.content?.trim())
+        .filter((text): text is string => Boolean(text) && !trimmedPrev.includes(text));
+
+      if (additions.length === 0) {
+        return prev;
+      }
+
+      const combinedAdditions = additions.join('\n\n');
+      const nextBackgroundInfo = trimmedPrev ? `${trimmedPrev}\n\n${combinedAdditions}` : combinedAdditions;
+      onBackgroundInfoChange?.(nextBackgroundInfo);
+      return { ...prev, backgroundInfo: nextBackgroundInfo };
+    });
   };
 
   const handleCustomPresetSave = () => {
@@ -737,6 +775,18 @@ ${summarySettings.backgroundInfo}
               <label className="text-sm font-medium text-gray-700 mb-2 block">
                 背景情報（オプション）
               </label>
+              <div className="mb-3">
+                <KnowledgePresetSelector
+                  presets={knowledgePresets}
+                  disabled={summarySettings.isProcessing}
+                  selectedIds={effectiveKnowledgeSelection}
+                  onSelectionChange={emitKnowledgeSelection}
+                  onInsert={handleKnowledgePresetInsert}
+                  addPreset={addKnowledgePreset}
+                  updatePreset={updateKnowledgePreset}
+                  removePreset={removeKnowledgePreset}
+                />
+              </div>
               <textarea
                 value={summarySettings.backgroundInfo}
                 onChange={(e) => handleBackgroundInfoChange(e.target.value)}

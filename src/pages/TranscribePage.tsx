@@ -46,6 +46,7 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
   const [transcriptionResults, setTranscriptionResults] = useState<TranscriptionResult[]>([]);
   const [transcriptionBackgroundInfo, setTranscriptionBackgroundInfo] = useState<string>('');
   const [summaryBackgroundInfo, setSummaryBackgroundInfo] = useState<string>('');
+  const [selectedKnowledgePresetIds, setSelectedKnowledgePresetIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState<string>('');
   const [apiEndpoint, setApiEndpoint] = useState<string>('https://generativelanguage.googleapis.com');
@@ -1084,6 +1085,8 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
                   presetBackgroundInfo={transcriptionBackgroundInfo}
                   presetConcurrencySettings={transcriptionSettings.concurrencySettings}
                   presetCustomPrompt={transcriptionSettings.customPrompt}
+                  selectedKnowledgePresetIds={selectedKnowledgePresetIds}
+                  onKnowledgePresetSelectionChange={setSelectedKnowledgePresetIds}
                 />
               </div>
             ) : (
@@ -1202,6 +1205,8 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
                 onBackgroundInfoChange={setSummaryBackgroundInfo}
                 presetApiKey={apiKey}
                 presetApiEndpoint={apiEndpoint}
+                selectedKnowledgePresetIds={selectedKnowledgePresetIds}
+                onKnowledgePresetSelectionChange={setSelectedKnowledgePresetIds}
               />
             </div>
           </>

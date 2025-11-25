@@ -26,6 +26,9 @@ const STORAGE_KEYS = {
   SHEET_DESTINATIONS: 'audioSplit_sheetDestinations',
   SUMMARY_PROMPT_PRESETS: 'audioSplit_summaryPromptPresets',
   SUMMARY_REMOVED_PRESETS: 'audioSplit_summaryRemovedPresets',
+  KNOWLEDGE_PRESETS: 'audioSplit_knowledgePresets',
+  KNOWLEDGE_OVERRIDES: 'audioSplit_knowledgeOverrides',
+  KNOWLEDGE_REMOVED: 'audioSplit_knowledgeRemoved',
   API_KEY_HASH: 'audioSplit_apiKeyHash',
   API_ENDPOINT: 'audioSplit_apiEndpoint',
   SETTINGS: 'audioSplit_settings'
@@ -222,6 +225,97 @@ export const localStorage = {
 
   clearSummaryPromptPresets: (): void => {
     window.localStorage.removeItem(STORAGE_KEYS.SUMMARY_PROMPT_PRESETS);
+  },
+
+  saveKnowledgePresets: (presets: Array<{ id: string; name: string; description?: string; content: string }>): void => {
+    if (!presets || presets.length === 0) {
+      window.localStorage.removeItem(STORAGE_KEYS.KNOWLEDGE_PRESETS);
+      return;
+    }
+    window.localStorage.setItem(STORAGE_KEYS.KNOWLEDGE_PRESETS, JSON.stringify(presets));
+  },
+
+  getKnowledgePresets: (): Array<{ id: string; name: string; description?: string; content: string }> => {
+    try {
+      const stored = window.localStorage.getItem(STORAGE_KEYS.KNOWLEDGE_PRESETS);
+      if (!stored) return [];
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((preset) =>
+        preset && typeof preset.id === 'string' && typeof preset.name === 'string' && typeof preset.content === 'string'
+      ).map((preset) => ({
+        id: preset.id,
+        name: preset.name,
+        content: preset.content,
+        description: typeof preset.description === 'string' ? preset.description : undefined,
+      }));
+    } catch {
+      return [];
+    }
+  },
+
+  clearKnowledgePresets: (): void => {
+    window.localStorage.removeItem(STORAGE_KEYS.KNOWLEDGE_PRESETS);
+  },
+
+  saveKnowledgeOverrides: (presets: Array<{ id: string; name: string; description?: string; content: string }>): void => {
+    if (!presets || presets.length === 0) {
+      window.localStorage.removeItem(STORAGE_KEYS.KNOWLEDGE_OVERRIDES);
+      return;
+    }
+    window.localStorage.setItem(STORAGE_KEYS.KNOWLEDGE_OVERRIDES, JSON.stringify(presets));
+  },
+
+  getKnowledgeOverrides: (): Array<{ id: string; name: string; description?: string; content: string }> => {
+    try {
+      const stored = window.localStorage.getItem(STORAGE_KEYS.KNOWLEDGE_OVERRIDES);
+      if (!stored) return [];
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((preset) =>
+        preset && typeof preset.id === 'string' && typeof preset.name === 'string' && typeof preset.content === 'string'
+      ).map((preset) => ({
+        id: preset.id,
+        name: preset.name,
+        content: preset.content,
+        description: typeof preset.description === 'string' ? preset.description : undefined,
+      }));
+    } catch {
+      return [];
+    }
+  },
+
+  clearKnowledgeOverrides: (): void => {
+    window.localStorage.removeItem(STORAGE_KEYS.KNOWLEDGE_OVERRIDES);
+  },
+
+  saveKnowledgeRemovedPresetIds: (ids: string[]): void => {
+    const filtered = Array.isArray(ids)
+      ? ids.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+      : [];
+
+    if (filtered.length === 0) {
+      window.localStorage.removeItem(STORAGE_KEYS.KNOWLEDGE_REMOVED);
+      return;
+    }
+
+    window.localStorage.setItem(STORAGE_KEYS.KNOWLEDGE_REMOVED, JSON.stringify(filtered));
+  },
+
+  getKnowledgeRemovedPresetIds: (): string[] => {
+    try {
+      const stored = window.localStorage.getItem(STORAGE_KEYS.KNOWLEDGE_REMOVED);
+      if (!stored) return [];
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
+    } catch {
+      return [];
+    }
+  },
+
+  clearKnowledgeRemovedPresetIds: (): void => {
+    window.localStorage.removeItem(STORAGE_KEYS.KNOWLEDGE_REMOVED);
   },
 
   saveSummaryRemovedPresetIds: (ids: string[]): void => {

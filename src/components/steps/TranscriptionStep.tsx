@@ -1,10 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Download, Loader2, AlertCircle, StopCircle, CheckCircle, XCircle, Clock, Copy, Info, RefreshCw, Sparkles, ArrowRight } from 'lucide-react';
 // import { recoveryManager } from '../../utils/recoveryManager';
 import { GeminiTranscriber, downloadTranscription } from '../../utils/geminiTranscriber';
 import type { TranscriptionResult, TranscriptionProgress } from '../../utils/geminiTranscriber';
 import type { SplitFile } from '../DownloadList';
 import { apiKeyStorage, localStorage, apiEndpointStorage } from '../../utils/storage';
+import { KnowledgePresetSelector } from '../KnowledgePresetSelector';
+import { useKnowledgePresets, type KnowledgePreset } from '../../hooks/useKnowledgePresets';
+import { defaultKnowledgePresets } from '../../constants/knowledgePresets';
 
 interface TranscriptionStepProps {
   splitFiles: SplitFile[];
@@ -32,6 +35,8 @@ interface TranscriptionStepProps {
   selectedFile?: File; // Original file for splitting if needed
   // 文字起こし状態変更コールバック
   onTranscriptionStateChange?: (isTranscribing: boolean, progress?: { isSplitting?: boolean }) => void;
+  selectedKnowledgePresetIds?: string[];
+  onKnowledgePresetSelectionChange?: (ids: string[]) => void;
 }
 
 export function TranscriptionStep({ 
@@ -53,7 +58,9 @@ export function TranscriptionStep({
   presetCustomPrompt = '',
   splitAudio, // 音声分割機能を追加
   selectedFile, // Original file for splitting
-  onTranscriptionStateChange // 文字起こし状態変更コールバック
+  onTranscriptionStateChange, // 文字起こし状態変更コールバック
+  selectedKnowledgePresetIds,
+  onKnowledgePresetSelectionChange,
 }: TranscriptionStepProps) {
   const [apiKey, setApiKey] = useState('');
   const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash-lite');
@@ -79,6 +86,18 @@ export function TranscriptionStep({
     delay: 1000
   });
   const [selectedLanguage, setSelectedLanguage] = useState('ja');
+  const baseKnowledgePresets = useMemo(() => defaultKnowledgePresets, []);
+  const { presets: knowledgePresets, addPreset: addKnowledgePreset, updatePreset: updateKnowledgePreset, removePreset: removeKnowledgePreset } = useKnowledgePresets(baseKnowledgePresets);
+  const [internalKnowledgeSelection, setInternalKnowledgeSelection] = useState<string[]>([]);
+
+  const effectiveKnowledgeSelection = selectedKnowledgePresetIds ?? internalKnowledgeSelection;
+
+  const emitKnowledgeSelection = (ids: string[]) => {
+    onKnowledgePresetSelectionChange?.(ids);
+    if (!selectedKnowledgePresetIds) {
+      setInternalKnowledgeSelection(ids);
+    }
+  };
   
 
   // 初回読み込み時にストレージからデータを復元またはpresetを使用
@@ -178,6 +197,23 @@ export function TranscriptionStep({
   const handleLanguageChange = (value: string) => {
     setSelectedLanguage(value);
     window.localStorage.setItem('transcription_language', value);
+  };
+
+  const handleKnowledgePresetInsert = (selectedPresets: KnowledgePreset[]) => {
+    if (!selectedPresets || selectedPresets.length === 0) return;
+    setBackgroundInfo((prev) => {
+      const trimmedPrev = prev.trim();
+      const additions = selectedPresets
+        .map((preset) => preset.content?.trim())
+        .filter((text): text is string => Boolean(text) && !trimmedPrev.includes(text));
+      if (additions.length === 0) {
+        return prev;
+      }
+      const combinedAdditions = additions.join('\n\n');
+      const nextBackground = trimmedPrev ? `${trimmedPrev}\n\n${combinedAdditions}` : combinedAdditions;
+      onBackgroundInfoChange?.(nextBackground);
+      return nextBackground;
+    });
   };
 
 
@@ -539,16 +575,28 @@ export function TranscriptionStep({
 
       {/* 背景情報セクション */}
       {!hideBackgroundInfo && (
-        <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-          <label className="text-sm font-medium text-blue-800 mb-3 block flex items-center gap-2">
-            <Info className="w-4 h-4" />
-            背景情報（精度向上・オプション）
-          </label>
-          <textarea
-            value={backgroundInfo}
-            onChange={(e) => {
-              setBackgroundInfo(e.target.value);
-              onBackgroundInfoChange?.(e.target.value);
+      <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+        <label className="text-sm font-medium text-blue-800 mb-3 block flex items-center gap-2">
+          <Info className="w-4 h-4" />
+          背景情報（精度向上・オプション）
+        </label>
+        <div className="mb-3">
+          <KnowledgePresetSelector
+            presets={knowledgePresets}
+            disabled={isTranscribing}
+            selectedIds={effectiveKnowledgeSelection}
+            onSelectionChange={emitKnowledgeSelection}
+            onInsert={handleKnowledgePresetInsert}
+            addPreset={addKnowledgePreset}
+            updatePreset={updateKnowledgePreset}
+            removePreset={removeKnowledgePreset}
+          />
+        </div>
+        <textarea
+          value={backgroundInfo}
+          onChange={(e) => {
+            setBackgroundInfo(e.target.value);
+            onBackgroundInfoChange?.(e.target.value);
             }}
             placeholder="例: 2024年1月26日の定例会議。参加者：田中、佐藤、鈴木。議題：新商品の戦略"
             className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm resize-y"
