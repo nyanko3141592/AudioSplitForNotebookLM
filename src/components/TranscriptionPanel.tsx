@@ -69,6 +69,7 @@ export function TranscriptionPanel({ splitFiles, isProcessing }: TranscriptionPa
     {
       id: 'meeting',
       name: '議事録形式',
+      isRemovable: false,
       prompt: `以下の音声文字起こし結果を議事録形式でまとめてください。
 
 要求事項：
@@ -86,6 +87,7 @@ export function TranscriptionPanel({ splitFiles, isProcessing }: TranscriptionPa
     {
       id: 'summary',
       name: '要約形式',
+      isRemovable: true,
       prompt: `以下の音声文字起こし結果を簡潔に要約してください。
 
 要求事項：
@@ -102,6 +104,7 @@ export function TranscriptionPanel({ splitFiles, isProcessing }: TranscriptionPa
     {
       id: 'interview',
       name: 'インタビュー形式',
+      isRemovable: true,
       prompt: `以下の音声文字起こし結果をインタビュー記事の形式でまとめてください。
 
 要求事項：
@@ -119,6 +122,7 @@ export function TranscriptionPanel({ splitFiles, isProcessing }: TranscriptionPa
     {
       id: 'lecture',
       name: '講義ノート形式',
+      isRemovable: true,
       prompt: `以下の音声文字起こし結果を講義ノート形式でまとめてください。
 
 要求事項：
@@ -135,7 +139,7 @@ export function TranscriptionPanel({ splitFiles, isProcessing }: TranscriptionPa
     }
   ], []);
 
-  const { presets: formatPresets, addCustomPreset, removeCustomPreset, updateCustomPreset } = useFormatPresets(baseFormatPresets);
+  const { presets: formatPresets, addCustomPreset, removePreset, updateCustomPreset } = useFormatPresets(baseFormatPresets);
 
   // 初回読み込み時にストレージからデータを復元
   useEffect(() => {
@@ -337,8 +341,8 @@ export function TranscriptionPanel({ splitFiles, isProcessing }: TranscriptionPa
     setEditingPresetId(null);
   };
 
-  const handleDeleteCustomPreset = (presetId: string) => {
-    removeCustomPreset(presetId);
+  const handleDeletePreset = (presetId: string) => {
+    removePreset(presetId);
     if (editingPresetId === presetId) {
       handleCancelCustomPreset();
     }
@@ -826,19 +830,21 @@ export function TranscriptionPanel({ splitFiles, isProcessing }: TranscriptionPa
                           </span>
                         )}
                       </button>
-                      {preset.isCustom && (
+                      {(preset.isCustom || preset.isRemovable) && (
                         <div className="absolute -top-2 -right-2 flex gap-1">
+                          {preset.isCustom && (
+                            <button
+                              type="button"
+                              onClick={() => handleEditCustomPreset(preset)}
+                              className="p-1 bg-white border border-gray-200 rounded-full shadow-sm text-gray-500 hover:text-purple-600"
+                              aria-label={`${preset.name}を編集`}
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           <button
                             type="button"
-                            onClick={() => handleEditCustomPreset(preset)}
-                            className="p-1 bg-white border border-gray-200 rounded-full shadow-sm text-gray-500 hover:text-purple-600"
-                            aria-label={`${preset.name}を編集`}
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteCustomPreset(preset.id)}
+                            onClick={() => handleDeletePreset(preset.id)}
                             className="p-1 bg-white border border-gray-200 rounded-full shadow-sm text-gray-500 hover:text-red-600"
                             aria-label={`${preset.name}を削除`}
                           >

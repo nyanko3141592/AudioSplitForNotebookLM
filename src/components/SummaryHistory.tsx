@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, FileText, Trash2, Eye, Download, X, Image, Settings, Edit2, Check, X as Cancel, List, Grid, Type, Copy, FileDown } from 'lucide-react';
+import { Clock, FileText, Trash2, Eye, Download, X, Image, Settings, Edit2, Check, X as Cancel, List, Grid, Type, Copy, FileDown, Send, Building2, Calendar } from 'lucide-react';
+import { localStorage as storageHelpers, type SheetDestinationConfig, type DestinationFieldMapping } from '../utils/storage';
 import type { SummaryHistoryItem, TranscriptionResult, VisualCapture } from '../types/summaryHistory';
 
 export const SummaryHistory: React.FC = () => {
@@ -11,6 +12,21 @@ export const SummaryHistory: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string>('');
   const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large'>('medium');
+  const emptyFieldMapping = { companyName: '', meetingDate: '', summary: '', title: '', createdAt: '', token: '' };
+  const [destinations, setDestinations] = useState<SheetDestinationConfig[]>(() => storageHelpers.getSheetDestinations());
+  const [destinationForm, setDestinationForm] = useState<{ id: string | null; name: string; url: string; token: string; fieldMapping: typeof emptyFieldMapping }>({
+    id: null,
+    name: '',
+    url: '',
+    token: '',
+    fieldMapping: emptyFieldMapping
+  });
+  const [selectedDestinationId, setSelectedDestinationId] = useState<string>(() => {
+    const first = storageHelpers.getSheetDestinations()[0];
+    return first ? first.id : '';
+  });
+  const [syncState, setSyncState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [syncMessage, setSyncMessage] = useState('');
 
   // Load history on component mount
   useEffect(() => {
@@ -59,6 +75,18 @@ export const SummaryHistory: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (destinations.length === 0) {
+      if (selectedDestinationId) {
+        setSelectedDestinationId('');
+      }
+      return;
+    }
+    if (!selectedDestinationId || !destinations.some(dest => dest.id === selectedDestinationId)) {
+      setSelectedDestinationId(destinations[0].id);
+    }
+  }, [destinations, selectedDestinationId]);
+
   const handleLimitChange = (newLimit: number) => {
     setCurrentLimit(newLimit);
     saveViewSettings();
@@ -104,7 +132,7 @@ export const SummaryHistory: React.FC = () => {
 
   const handleDelete = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm('この要約を削除しますか？')) {
+    if (window.confirm('この議事録を削除しますか？')) {
       const updatedHistory = history.filter(item => item.id !== id);
       setHistory(updatedHistory);
       // Save to new format
@@ -121,7 +149,7 @@ export const SummaryHistory: React.FC = () => {
   };
 
   const handleClearAll = () => {
-    if (window.confirm('すべての要約履歴を削除しますか？この操作は元に戻せません。')) {
+    if (window.confirm('すべての議事録履歴を削除しますか？この操作は元に戻せません。')) {
       setHistory([]);
       localStorage.removeItem('summaryHistory');
       localStorage.removeItem('transcription-history'); // Also clear old key
@@ -207,6 +235,171 @@ export const SummaryHistory: React.FC = () => {
     }
   };
 
+  const createDestinationId = () => {
+    if (typeof window !== 'undefined' && window.crypto?.randomUUID) {
+      return window.crypto.randomUUID();
+    }
+    return `dest-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  };
+
+  const persistDestinations = (items: SheetDestinationConfig[]) => {
+    setDestinations(items);
+    storageHelpers.saveSheetDestinations(items);
+  };
+
+  const resetDestinationForm = () => {
+    setDestinationForm({ id: null, name: '', url: '', token: '', fieldMapping: emptyFieldMapping });
+  };
+
+  const handleDestinationFieldChange = (field: 'name' | 'url' | 'token', value: string) => {
+    setDestinationForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleMappingFieldChange = (field: keyof typeof emptyFieldMapping, value: string) => {
+    setDestinationForm(prev => ({
+      ...prev,
+      fieldMapping: {
+        ...prev.fieldMapping,
+        [field]: value
+      }
+    }));
+  };
+
+  const handleDestinationEdit = (destination: SheetDestinationConfig) => {
+    setDestinationForm({
+      id: destination.id,
+      name: destination.name,
+      url: destination.url,
+      token: destination.token || '',
+      fieldMapping: {
+        ...emptyFieldMapping,
+        ...destination.fieldMapping,
+      }
+    });
+  };
+
+  const handleDestinationDelete = (id: string) => {
+    if (!window.confirm('この送付先を削除しますか？')) return;
+    const updated = destinations.filter(dest => dest.id !== id);
+    persistDestinations(updated);
+    if (selectedDestinationId === id) {
+      setSelectedDestinationId(updated[0]?.id || '');
+    }
+    if (destinationForm.id === id) {
+      resetDestinationForm();
+    }
+  };
+
+  const handleDestinationSave = () => {
+    const name = destinationForm.name.trim();
+    const url = destinationForm.url.trim();
+    const token = destinationForm.token.trim();
+    if (!name || !url) {
+      window.alert('送付先名とURLを入力してください');
+      return;
+    }
+    const fieldMapping = destinationForm.fieldMapping || emptyFieldMapping;
+    const normalizedMapping: DestinationFieldMapping | undefined = Object.values(fieldMapping).some(Boolean)
+      ? {
+          companyName: fieldMapping.companyName || undefined,
+          meetingDate: fieldMapping.meetingDate || undefined,
+          summary: fieldMapping.summary || undefined,
+          title: fieldMapping.title || undefined,
+          createdAt: fieldMapping.createdAt || undefined,
+          token: fieldMapping.token || undefined,
+        }
+      : undefined;
+
+    let updated: SheetDestinationConfig[];
+    if (destinationForm.id) {
+      updated = destinations.map(dest =>
+        dest.id === destinationForm.id
+          ? { ...dest, name, url, token: token || undefined, fieldMapping: normalizedMapping }
+          : dest
+      );
+    } else {
+      updated = [...destinations, { id: createDestinationId(), name, url, token: token || undefined, fieldMapping: normalizedMapping }];
+    }
+    persistDestinations(updated);
+    if (!selectedDestinationId) {
+      setSelectedDestinationId(updated[0]?.id || '');
+    }
+    resetDestinationForm();
+  };
+
+  const handleDestinationSelectChange = (value: string) => {
+    setSelectedDestinationId(value);
+    setSyncState('idle');
+    setSyncMessage('');
+  };
+
+  const handleSyncToDestination = async () => {
+    if (!selectedItem) {
+      setSyncState('error');
+      setSyncMessage('同期したい議事録を選択してください');
+      return;
+    }
+    if (!selectedDestinationId) {
+      setSyncState('error');
+      setSyncMessage('送付先を登録してください');
+      return;
+    }
+    const destination = destinations.find(dest => dest.id === selectedDestinationId);
+    if (!destination) {
+      setSyncState('error');
+      setSyncMessage('選択した送付先が見つかりません');
+      return;
+    }
+    setSyncState('loading');
+    setSyncMessage('送信中...');
+    try {
+      const payload = {
+        companyName: selectedItem.metadata.companyName || '',
+        summary: selectedItem.summary,
+        meetingDate: selectedItem.metadata.meetingDate || selectedItem.timestamp,
+        title: getDisplayTitle(selectedItem),
+        createdAt: selectedItem.timestamp,
+      };
+
+      const mapping = destination.fieldMapping || {};
+      const body = new URLSearchParams();
+      const appendField = (field: keyof DestinationFieldMapping, fallback: string, value: string) => {
+        const key = mapping[field] || fallback;
+        if (key && value) {
+          body.append(key, value);
+        }
+      };
+
+      appendField('companyName', 'companyName', payload.companyName);
+      appendField('meetingDate', 'meetingDate', payload.meetingDate);
+      appendField('summary', 'summary', payload.summary);
+      appendField('title', 'title', payload.title);
+      appendField('createdAt', 'createdAt', payload.createdAt);
+      const tokenValue = destination.token || '';
+      appendField('token', 'token', tokenValue);
+
+      const response = await fetch(destination.url, {
+        method: 'POST',
+        body
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed with status ${response.status}`);
+      }
+
+      setSyncState('success');
+      setSyncMessage('送信しました');
+    } catch (error) {
+      console.error('Sync failed:', error);
+      setSyncState('error');
+      setSyncMessage('送信に失敗しました');
+    } finally {
+      setTimeout(() => {
+        setSyncState('idle');
+        setSyncMessage('');
+      }, 3000);
+    }
+  };
   const formatDate = (timestamp: string) => {
     return new Date(timestamp).toLocaleString('ja-JP', {
       year: 'numeric',
@@ -224,6 +417,19 @@ export const SummaryHistory: React.FC = () => {
     const hours = Math.floor(diff / (1000 * 60 * 60));
     if (hours < 24) return `${hours}時間前`;
     return date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
+  };
+
+  const formatMeetingDateLabel = (date?: string) => {
+    if (!date) return '';
+    try {
+      return new Date(date).toLocaleDateString('ja-JP', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch {
+      return date;
+    }
   };
 
   const getUniqueCaptures = (captures?: VisualCapture[]): VisualCapture[] => {
@@ -328,7 +534,7 @@ export const SummaryHistory: React.FC = () => {
             <div className="flex items-center">
               <h2 className="text-lg lg:text-xl font-bold text-gray-800 flex items-center gap-2">
                 <Clock className="w-5 h-5 text-purple-600" />
-                要約履歴
+                議事録履歴
               </h2>
             </div>
             
@@ -398,8 +604,8 @@ export const SummaryHistory: React.FC = () => {
               <div className="flex-1 flex items-center justify-center text-gray-500">
                 <div className="text-center">
                   <Clock className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                  <p>まだ要約履歴がありません</p>
-                  <p className="text-sm mt-2">要約を作成すると、ここに履歴が表示されます</p>
+                  <p>まだ議事録履歴がありません</p>
+                  <p className="text-sm mt-2">議事録を生成すると、ここに履歴が表示されます</p>
                 </div>
               </div>
             ) : viewMode === 'tile' ? (
@@ -504,6 +710,57 @@ export const SummaryHistory: React.FC = () => {
                           )}
                         </div>
                       </div>
+                    </div>
+                    <div className="mt-4">
+                      {destinations.length > 0 ? (
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                          <div className="flex items-center gap-2 text-sm text-gray-700">
+                            <span className="font-medium">送付先</span>
+                            <select
+                              value={selectedDestinationId}
+                              onChange={(e) => handleDestinationSelectChange(e.target.value)}
+                              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                            >
+                              {destinations.map((destination) => (
+                                <option key={destination.id} value={destination.id}>
+                                  {destination.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                            <button
+                              onClick={handleSyncToDestination}
+                              disabled={!selectedDestinationId || syncState === 'loading'}
+                              className={`px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-sm transition-colors ${
+                                !selectedDestinationId || syncState === 'loading'
+                                  ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                  : 'bg-purple-600 text-white hover:bg-purple-700'
+                              }`}
+                            >
+                              <Send className="w-4 h-4" />
+                              議事録を同期
+                            </button>
+                            {syncState !== 'idle' && (
+                              <span
+                                className={`text-xs ${
+                                  syncState === 'error'
+                                    ? 'text-red-600'
+                                    : syncState === 'success'
+                                      ? 'text-green-600'
+                                      : 'text-gray-600'
+                                }`}
+                              >
+                                {syncMessage || (syncState === 'loading' ? '送信中...' : '')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-500">
+                          右上の設定から送付先を登録すると、ここで選択して同期できます。
+                        </p>
+                      )}
                     </div>
                   </div>
                 );
@@ -692,6 +949,22 @@ export const SummaryHistory: React.FC = () => {
                             <span>言語: {selectedItem.metadata.language}</span>
                           )}
                         </div>
+                        {(selectedItem.metadata.companyName || selectedItem.metadata.meetingDate) && (
+                          <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-gray-600">
+                            {selectedItem.metadata.companyName && (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded-full">
+                                <Building2 className="w-3 h-3" />
+                                {selectedItem.metadata.companyName}
+                              </span>
+                            )}
+                            {selectedItem.metadata.meetingDate && (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full">
+                                <Calendar className="w-3 h-3" />
+                                {formatMeetingDateLabel(selectedItem.metadata.meetingDate)}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                       
                       {/* Individual Download and Font Size Controls */}
@@ -699,9 +972,9 @@ export const SummaryHistory: React.FC = () => {
                         {/* Summary Download Buttons */}
                         <div className="flex items-center gap-1 mr-2">
                           <button
-                            onClick={() => handleCopyText(selectedItem.summary, '要約')}
+                            onClick={() => handleCopyText(selectedItem.summary, '議事録概要')}
                             className="px-2 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1 text-sm font-medium"
-                            title="要約をコピー"
+                            title="議事録概要をコピー"
                           >
                             <Copy className="w-3 h-3" />
                             <span className="hidden sm:inline">コピー</span>
@@ -709,10 +982,10 @@ export const SummaryHistory: React.FC = () => {
                           <button
                             onClick={() => {
                               const timestamp = new Date(selectedItem.timestamp).toISOString().replace(/[:.]/g, '-');
-                              handleDownloadText(selectedItem.summary, `${getDisplayTitle(selectedItem)}_${timestamp}_要約.txt`);
+                              handleDownloadText(selectedItem.summary, `${getDisplayTitle(selectedItem)}_${timestamp}_議事録.txt`);
                             }}
                             className="px-2 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1 text-sm font-medium"
-                            title="要約をダウンロード"
+                            title="議事録概要をダウンロード"
                           >
                             <FileDown className="w-3 h-3" />
                             <span className="hidden sm:inline">DL</span>
@@ -755,6 +1028,57 @@ export const SummaryHistory: React.FC = () => {
                         </div>
                       </div>
                     </div>
+                    <div className="mt-4">
+                      {destinations.length > 0 ? (
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                          <div className="flex items-center gap-2 text-sm text-gray-700">
+                            <span className="font-medium">送付先</span>
+                            <select
+                              value={selectedDestinationId}
+                              onChange={(e) => handleDestinationSelectChange(e.target.value)}
+                              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                            >
+                              {destinations.map((destination) => (
+                                <option key={destination.id} value={destination.id}>
+                                  {destination.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                            <button
+                              onClick={handleSyncToDestination}
+                              disabled={!selectedDestinationId || syncState === 'loading'}
+                              className={`px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-sm transition-colors ${
+                                !selectedDestinationId || syncState === 'loading'
+                                  ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                  : 'bg-purple-600 text-white hover:bg-purple-700'
+                              }`}
+                            >
+                              <Send className="w-4 h-4" />
+                              議事録を同期
+                            </button>
+                            {syncState !== 'idle' && (
+                              <span
+                                className={`text-xs ${
+                                  syncState === 'error'
+                                    ? 'text-red-600'
+                                    : syncState === 'success'
+                                      ? 'text-green-600'
+                                      : 'text-gray-600'
+                                }`}
+                              >
+                                {syncMessage || (syncState === 'loading' ? '送信中...' : '')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-500">
+                          右上の設定からスプレッドシート宛先を登録すると、ここで選択して同期できます。
+                        </p>
+                      )}
+                    </div>
                   </div>
                   
                   {/* Content - Scrollable */}
@@ -763,22 +1087,22 @@ export const SummaryHistory: React.FC = () => {
                       {/* Summary */}
                       <div>
                         <div className="flex justify-between items-center mb-4">
-                          <h4 className="font-semibold text-lg lg:text-xl text-gray-700">要約</h4>
+                          <h4 className="font-semibold text-lg lg:text-xl text-gray-700">議事録概要</h4>
                           <div className="flex gap-2">
                             <button
-                              onClick={() => handleCopyText(selectedItem.summary, '要約')}
+                              onClick={() => handleCopyText(selectedItem.summary, '議事録概要')}
                               className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                              title="要約をコピー"
+                              title="議事録概要をコピー"
                             >
                               <Copy className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => {
                                 const timestamp = new Date(selectedItem.timestamp).toISOString().replace(/[:.]/g, '-');
-                                handleDownloadText(selectedItem.summary, `${getDisplayTitle(selectedItem)}_${timestamp}_要約.txt`);
+                                handleDownloadText(selectedItem.summary, `${getDisplayTitle(selectedItem)}_${timestamp}_議事録.txt`);
                               }}
                               className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                              title="要約をダウンロード"
+                              title="議事録概要をダウンロード"
                             >
                               <FileDown className="w-4 h-4" />
                             </button>
@@ -970,8 +1294,8 @@ export const SummaryHistory: React.FC = () => {
                 <div className="flex-1 flex items-center justify-center text-gray-400">
                   <div className="text-center p-8">
                     <Eye className="w-20 h-20 mx-auto mb-6 opacity-50" />
-                    <p className="text-xl lg:text-2xl mb-2">要約を選択して詳細を表示</p>
-                    <p className="text-sm lg:text-base">左側のリストから確認したい要約をクリックしてください</p>
+                    <p className="text-xl lg:text-2xl mb-2">議事録を選択して詳細を表示</p>
+                    <p className="text-sm lg:text-base">左側のリストから確認したい議事録をクリックしてください</p>
                   </div>
                 </div>
               )}
@@ -1025,7 +1349,7 @@ export const SummaryHistory: React.FC = () => {
                   ))}
                 </div>
               </div>
-              
+
               {/* Clear All Button */}
               <div className="pt-4 border-t border-gray-200">
                 <button

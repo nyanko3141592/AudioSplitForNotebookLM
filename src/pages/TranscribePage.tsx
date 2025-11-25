@@ -1179,7 +1179,7 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
                 <div className="w-8 h-8 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold">
                   {hasVisualCaptures ? '5' : '4'}
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900">要約作成</h2>
+                <h2 className="text-2xl font-bold text-gray-900">議事録作成</h2>
                 {isManualTranscriptionMode && (
                   <span className="inline-flex items-center px-3 py-1 text-xs font-semibold text-blue-700 bg-blue-100 rounded-full">
                     アップロードした文字起こしを使用中
@@ -1187,11 +1187,11 @@ export function TranscribePage({ onRecordingStateChange, onStepStateChange }: Pr
                 )}
               </div>
 
-              {isManualTranscriptionMode && (
-                <p className="text-sm text-gray-600 mb-6">
-                  アップロードした文字起こしファイルから直接要約を生成します。必要に応じて背景情報やカスタムプロンプトを設定してください。
-                </p>
-              )}
+                {isManualTranscriptionMode && (
+                  <p className="text-sm text-gray-600 mb-6">
+                    アップロードした文字起こしファイルから直接議事録を作成します。必要に応じて背景情報やカスタムプロンプトを設定してください。
+                  </p>
+                )}
 
               <SummaryStep
                 transcriptionResults={transcriptionResults}

@@ -26,6 +26,8 @@ export interface SummaryHistoryItem {
     language?: string;
     model?: string;
     createdAt: string;
+    companyName?: string;
+    meetingDate?: string;
   };
 }
 

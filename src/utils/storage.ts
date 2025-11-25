@@ -1,10 +1,31 @@
 // セキュアなストレージユーティリティ
 
+export interface DestinationFieldMapping {
+  companyName?: string;
+  meetingDate?: string;
+  summary?: string;
+  title?: string;
+  createdAt?: string;
+  token?: string;
+}
+
+export interface SheetDestinationConfig {
+  id: string;
+  name: string;
+  url: string;
+  token?: string;
+  fieldMapping?: DestinationFieldMapping;
+}
+
 const STORAGE_KEYS = {
   CUSTOM_PROMPT: 'audioSplit_customPrompt',
   SUMMARY_CUSTOM_PROMPT: 'audioSplit_summaryCustomPrompt',
   SUMMARY_BACKGROUND_INFO: 'audioSplit_summaryBackgroundInfo',
+  SUMMARY_COMPANY_NAME: 'audioSplit_summaryCompanyName',
+  SUMMARY_MEETING_DATE: 'audioSplit_summaryMeetingDate',
+  SHEET_DESTINATIONS: 'audioSplit_sheetDestinations',
   SUMMARY_PROMPT_PRESETS: 'audioSplit_summaryPromptPresets',
+  SUMMARY_REMOVED_PRESETS: 'audioSplit_summaryRemovedPresets',
   API_KEY_HASH: 'audioSplit_apiKeyHash',
   API_ENDPOINT: 'audioSplit_apiEndpoint',
   SETTINGS: 'audioSplit_settings'
@@ -202,7 +223,81 @@ export const localStorage = {
   clearSummaryPromptPresets: (): void => {
     window.localStorage.removeItem(STORAGE_KEYS.SUMMARY_PROMPT_PRESETS);
   },
-  
+
+  saveSummaryRemovedPresetIds: (ids: string[]): void => {
+    const filtered = Array.isArray(ids)
+      ? ids.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+      : [];
+
+    if (filtered.length === 0) {
+      window.localStorage.removeItem(STORAGE_KEYS.SUMMARY_REMOVED_PRESETS);
+      return;
+    }
+
+    window.localStorage.setItem(STORAGE_KEYS.SUMMARY_REMOVED_PRESETS, JSON.stringify(filtered));
+  },
+
+  getSummaryRemovedPresetIds: (): string[] => {
+    try {
+      const stored = window.localStorage.getItem(STORAGE_KEYS.SUMMARY_REMOVED_PRESETS);
+      if (!stored) return [];
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
+    } catch {
+      return [];
+    }
+  },
+
+  clearSummaryRemovedPresetIds: (): void => {
+    window.localStorage.removeItem(STORAGE_KEYS.SUMMARY_REMOVED_PRESETS);
+  },
+
+  saveSheetDestinations: (destinations: SheetDestinationConfig[]): void => {
+    window.localStorage.setItem(STORAGE_KEYS.SHEET_DESTINATIONS, JSON.stringify(destinations));
+  },
+
+  getSheetDestinations: (): SheetDestinationConfig[] => {
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEYS.SHEET_DESTINATIONS);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .filter((dest) => dest && typeof dest.id === 'string' && typeof dest.name === 'string' && typeof dest.url === 'string')
+        .map((dest) => ({
+          ...dest,
+          fieldMapping: dest.fieldMapping || undefined,
+        }));
+    } catch {
+      return [];
+    }
+  },
+
+  saveSummaryCompanyName: (name: string): void => {
+    if (!name.trim()) {
+      window.localStorage.removeItem(STORAGE_KEYS.SUMMARY_COMPANY_NAME);
+      return;
+    }
+    window.localStorage.setItem(STORAGE_KEYS.SUMMARY_COMPANY_NAME, name.trim());
+  },
+
+  getSummaryCompanyName: (): string => {
+    return window.localStorage.getItem(STORAGE_KEYS.SUMMARY_COMPANY_NAME) || '';
+  },
+
+  saveSummaryMeetingDate: (date: string): void => {
+    if (!date) {
+      window.localStorage.removeItem(STORAGE_KEYS.SUMMARY_MEETING_DATE);
+      return;
+    }
+    window.localStorage.setItem(STORAGE_KEYS.SUMMARY_MEETING_DATE, date);
+  },
+
+  getSummaryMeetingDate: (): string => {
+    return window.localStorage.getItem(STORAGE_KEYS.SUMMARY_MEETING_DATE) || '';
+  },
+
   // アプリ設定
   saveSettings: (settings: Record<string, any>): void => {
     window.localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));

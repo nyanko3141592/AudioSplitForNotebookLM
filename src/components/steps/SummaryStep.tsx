@@ -60,99 +60,40 @@ export function SummaryStep({
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
   const [lastHistoryItem, setLastHistoryItem] = useState<SummaryHistoryItem | null>(null);
   const [lastGeneratedTitle, setLastGeneratedTitle] = useState('');
+  const [organizationName, setOrganizationName] = useState<string>(() => localStorage.getSummaryCompanyName());
+  const [meetingDate, setMeetingDate] = useState<string>(() => {
+    return localStorage.getSummaryMeetingDate() || new Date().toISOString().slice(0, 10);
+  });
 
   // フォーマットプリセット
   const baseFormatPresets = useMemo<FormatPreset[]>(() => [
     {
       id: 'meeting',
-      name: '議事録形式',
-      prompt: `役割と目標：
-* ユーザーの会議内容に基づいて、正確かつ詳細な議事録を作成すること。
-* 決定事項、ネクストアクション、メモ（会話のテーマごとに整理）を明確に記録すること。
-* 作成された議事録が見やすく、理解しやすい形式であること。
+      name: '議事録テンプレート',
+      isRemovable: false,
+      prompt: `あなたは会議議事録の専門家です。以下の文字起こしを基に、テンプレートに沿って日本語で整理してください。
 
-振る舞いとルール：
-1) 初期設定：
-a) ユーザーに議事録作成の専門家として挨拶する。
-b) ユーザーに議事録の作成方法について理解していることを伝える。
-c) ユーザーから提供された会議内容（または作成方法の指示）に基づいて議事録を作成する準備ができていることを示す。
+【議事概要】
+- 会議名 / 日付 / 参加者（分かる範囲で）
 
-2) 議事録の作成：
-a) ユーザーが指定した形式（箇条書き、表など）で議事録を作成する。
-b) 決定事項は「▼決まったこと」として明確に箇条書きで記述する。
-c) ネクストアクションは「▼Next Action」として、担当者や期限が明記されていればそれらを含めて記述する。
-d) メモは会話の主要なテーマごとに整理し、「▼Memo」以下に記述する。各テーマの中で、関連する発言や議論の内容を簡潔に箇条書きで記述する。
-e) 曖昧な表現や不明確な点は避け、客観的な事実に基づいて記述する。
-f) 必要に応じて、時間の経過や発言者の変更を記録する。
+【決まったこと】
+- 箇条書きで具体的に。担当者や期限があれば明記。
 
-3) 出力と確認：
-a) 作成した議事録をユーザーに提示する。
-b) ユーザーに議事録の内容を確認してもらい、必要に応じて修正や追記を行う。
-c) ユーザーからのフィードバックを真摯に受け止め、議事録の質を向上させる。
+【Next Action】
+- メンバー名: 内容 / 期限 の形式で列挙。
 
-全体的なトーン：
-* 専門的かつ丁寧な言葉遣いを心がける。
-* 冷静かつ客観的な視点で議事録を作成する。
-* ユーザーの指示を正確に理解し、迅速に対応する。
+【議論サマリ】
+- トピックごとに見出しをつけ、要点を箇条書きで整理。
+
+【メモ・補足】
+- 注意事項や宿題、次回予定があれば記載。
 
 文字起こし結果：
-{transcriptions}
-
-上記の会議内容から議事録を作成してください。`
-    },
-    {
-      id: 'summary',
-      name: '要約形式',
-      prompt: `以下の音声文字起こし結果を簡潔に要約してください。
-
-要求事項：
-- 主要なポイントを3-5つに絞って整理
-- 各ポイントは簡潔に1-2文で表現
-- 結論や重要な決定事項を最後に記載
-- 不要な詳細は省略し、本質的な内容に焦点を当てる
-
-文字起こし結果：
-{transcriptions}
-
-上記の内容を要約してください。`
-    },
-    {
-      id: 'interview',
-      name: 'インタビュー形式',
-      prompt: `以下の音声文字起こし結果をインタビュー記事の形式でまとめてください。
-
-要求事項：
-- Q&A形式で整理（可能な場合）
-- インタビュイーの主要な発言を引用形式で記載
-- 話の流れに沿って段落分けする
-- 重要な発言は見出しとして抜き出す
-- 背景情報があれば補足として追加
-
-文字起こし結果：
-{transcriptions}
-
-上記をインタビュー記事として整理してください。`
-    },
-    {
-      id: 'lecture',
-      name: '講義ノート形式',
-      prompt: `以下の音声文字起こし結果を講義ノート形式でまとめてください。
-
-要求事項：
-- 主要なトピックごとに見出しを設定
-- 重要なポイントは箇条書きで整理
-- キーワードや専門用語を明確にマーク
-- 例や具体例があれば別途整理
-- 学習のポイントを最後にまとめる
-
-文字起こし結果：
-{transcriptions}
-
-上記を講義ノートとして整理してください。`
+{transcriptions}`
     }
   ], []);
 
-  const { presets: formatPresets, addCustomPreset, removeCustomPreset, updateCustomPreset } = useFormatPresets(baseFormatPresets);
+  const { presets: formatPresets, addCustomPreset, removePreset, updateCustomPreset } = useFormatPresets(baseFormatPresets);
 
   useEffect(() => {
     // preset APIキーがある場合はそれを使用、なければストレージから読み込み
@@ -249,6 +190,16 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
     setSummarySettings(prev => ({ ...prev, customPrompt: preset.prompt }));
     localStorage.saveSummaryCustomPrompt(preset.prompt);
   };
+ 
+  const handleOrganizationNameChange = (value: string) => {
+    setOrganizationName(value);
+    localStorage.saveSummaryCompanyName(value);
+  };
+
+  const handleMeetingDateChange = (value: string) => {
+    setMeetingDate(value);
+    localStorage.saveSummaryMeetingDate(value);
+  };
 
   const handleCustomPresetSave = () => {
     try {
@@ -281,8 +232,8 @@ c) ユーザーからのフィードバックを真摯に受け止め、議事�
     setEditingPresetId(null);
   };
 
-  const handleCustomPresetDelete = (presetId: string) => {
-    removeCustomPreset(presetId);
+  const handlePresetDelete = (presetId: string) => {
+    removePreset(presetId);
     if (editingPresetId === presetId) {
       handleCustomPresetCancel();
     }
@@ -476,7 +427,9 @@ ${summarySettings.backgroundInfo}
           : 'まとめが完了しました！',
         currentStep: 3 
       }));
-      
+
+      void syncSummaryToSheets(summary);
+
       // Save summary to recovery state - disabled
       // recoveryManager.updateStepState('summary', {
       //   isProcessing: false,
@@ -572,7 +525,9 @@ ${summarySettings.backgroundInfo}
     metadata: {
       language: 'ja',
       model: selectedModel,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      companyName: organizationName || undefined,
+      meetingDate: meetingDate || undefined
     }
   });
 
@@ -733,19 +688,21 @@ ${summarySettings.backgroundInfo}
                         </span>
                       )}
                     </button>
-                    {preset.isCustom && (
+                    {(preset.isCustom || preset.isRemovable) && (
                       <div className="absolute -top-2 -right-2 flex gap-1">
+                        {preset.isCustom && (
+                          <button
+                            type="button"
+                            onClick={() => handleCustomPresetEdit(preset)}
+                            className="p-1 bg-white border border-gray-200 rounded-full shadow-sm text-gray-500 hover:text-violet-600"
+                            aria-label={`${preset.name}を編集`}
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         <button
                           type="button"
-                          onClick={() => handleCustomPresetEdit(preset)}
-                          className="p-1 bg-white border border-gray-200 rounded-full shadow-sm text-gray-500 hover:text-violet-600"
-                          aria-label={`${preset.name}を編集`}
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleCustomPresetDelete(preset.id)}
+                          onClick={() => handlePresetDelete(preset.id)}
                           className="p-1 bg-white border border-gray-200 rounded-full shadow-sm text-gray-500 hover:text-red-600"
                           aria-label={`${preset.name}を削除`}
                         >
@@ -789,6 +746,39 @@ ${summarySettings.backgroundInfo}
               />
               <p className="text-xs text-gray-500 mt-1">
                 会議の詳細情報を入力すると、より精度の高いまとめが生成されます
+              </p>
+            </div>
+
+            {/* Meeting metadata */}
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">
+                議事録の基本情報
+              </label>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <span className="text-xs text-gray-600 mb-1 block">企業・チーム名</span>
+                  <input
+                    type="text"
+                    value={organizationName}
+                    onChange={(e) => handleOrganizationNameChange(e.target.value)}
+                    placeholder="例: 株式会社テスト 開発部"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                    disabled={summarySettings.isProcessing}
+                  />
+                </div>
+                <div>
+                  <span className="text-xs text-gray-600 mb-1 block">議事録の日付</span>
+                  <input
+                    type="date"
+                    value={meetingDate}
+                    onChange={(e) => handleMeetingDateChange(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                    disabled={summarySettings.isProcessing}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                この情報は要約履歴やスプレッドシート連携のメタデータとして利用されます
               </p>
             </div>
 
