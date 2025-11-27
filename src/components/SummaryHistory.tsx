@@ -12,15 +12,7 @@ export const SummaryHistory: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string>('');
   const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large'>('medium');
-  const emptyFieldMapping = { companyName: '', meetingDate: '', summary: '', title: '', createdAt: '', token: '' };
   const [destinations, setDestinations] = useState<SheetDestinationConfig[]>(() => storageHelpers.getSheetDestinations());
-  const [destinationForm, setDestinationForm] = useState<{ id: string | null; name: string; url: string; token: string; fieldMapping: typeof emptyFieldMapping }>({
-    id: null,
-    name: '',
-    url: '',
-    token: '',
-    fieldMapping: emptyFieldMapping
-  });
   const [selectedDestinationId, setSelectedDestinationId] = useState<string>(() => {
     const first = storageHelpers.getSheetDestinations()[0];
     return first ? first.id : '';
@@ -73,6 +65,18 @@ export const SummaryHistory: React.FC = () => {
       window.removeEventListener('summaryHistoryUpdated', handler as EventListener);
       window.removeEventListener('storage', storageHandler);
     };
+  }, []);
+
+  useEffect(() => {
+    const refreshDestinations = () => setDestinations(storageHelpers.getSheetDestinations());
+    const storageHandler = (e: StorageEvent) => {
+      if (e.key === 'audioSplit_sheetDestinations') {
+        refreshDestinations();
+      }
+    };
+    refreshDestinations();
+    window.addEventListener('storage', storageHandler);
+    return () => window.removeEventListener('storage', storageHandler);
   }, []);
 
   useEffect(() => {
@@ -233,98 +237,6 @@ export const SummaryHistory: React.FC = () => {
     } catch (error) {
       console.error('Failed to download image:', error);
     }
-  };
-
-  const createDestinationId = () => {
-    if (typeof window !== 'undefined' && window.crypto?.randomUUID) {
-      return window.crypto.randomUUID();
-    }
-    return `dest-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  };
-
-  const persistDestinations = (items: SheetDestinationConfig[]) => {
-    setDestinations(items);
-    storageHelpers.saveSheetDestinations(items);
-  };
-
-  const resetDestinationForm = () => {
-    setDestinationForm({ id: null, name: '', url: '', token: '', fieldMapping: emptyFieldMapping });
-  };
-
-  const handleDestinationFieldChange = (field: 'name' | 'url' | 'token', value: string) => {
-    setDestinationForm(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleMappingFieldChange = (field: keyof typeof emptyFieldMapping, value: string) => {
-    setDestinationForm(prev => ({
-      ...prev,
-      fieldMapping: {
-        ...prev.fieldMapping,
-        [field]: value
-      }
-    }));
-  };
-
-  const handleDestinationEdit = (destination: SheetDestinationConfig) => {
-    setDestinationForm({
-      id: destination.id,
-      name: destination.name,
-      url: destination.url,
-      token: destination.token || '',
-      fieldMapping: {
-        ...emptyFieldMapping,
-        ...destination.fieldMapping,
-      }
-    });
-  };
-
-  const handleDestinationDelete = (id: string) => {
-    if (!window.confirm('この送付先を削除しますか？')) return;
-    const updated = destinations.filter(dest => dest.id !== id);
-    persistDestinations(updated);
-    if (selectedDestinationId === id) {
-      setSelectedDestinationId(updated[0]?.id || '');
-    }
-    if (destinationForm.id === id) {
-      resetDestinationForm();
-    }
-  };
-
-  const handleDestinationSave = () => {
-    const name = destinationForm.name.trim();
-    const url = destinationForm.url.trim();
-    const token = destinationForm.token.trim();
-    if (!name || !url) {
-      window.alert('送付先名とURLを入力してください');
-      return;
-    }
-    const fieldMapping = destinationForm.fieldMapping || emptyFieldMapping;
-    const normalizedMapping: DestinationFieldMapping | undefined = Object.values(fieldMapping).some(Boolean)
-      ? {
-          companyName: fieldMapping.companyName || undefined,
-          meetingDate: fieldMapping.meetingDate || undefined,
-          summary: fieldMapping.summary || undefined,
-          title: fieldMapping.title || undefined,
-          createdAt: fieldMapping.createdAt || undefined,
-          token: fieldMapping.token || undefined,
-        }
-      : undefined;
-
-    let updated: SheetDestinationConfig[];
-    if (destinationForm.id) {
-      updated = destinations.map(dest =>
-        dest.id === destinationForm.id
-          ? { ...dest, name, url, token: token || undefined, fieldMapping: normalizedMapping }
-          : dest
-      );
-    } else {
-      updated = [...destinations, { id: createDestinationId(), name, url, token: token || undefined, fieldMapping: normalizedMapping }];
-    }
-    persistDestinations(updated);
-    if (!selectedDestinationId) {
-      setSelectedDestinationId(updated[0]?.id || '');
-    }
-    resetDestinationForm();
   };
 
   const handleDestinationSelectChange = (value: string) => {

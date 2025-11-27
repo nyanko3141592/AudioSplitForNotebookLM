@@ -4,7 +4,7 @@ import { Sparkles, Download, Loader2, AlertCircle, CheckCircle, RefreshCw, Copy,
 import { GeminiTranscriber, downloadTranscription } from '../../utils/geminiTranscriber';
 import { markdownToHtml, plainToHtml, buildHtmlDocument, copyHtmlToClipboard } from '../../utils/format';
 import type { TranscriptionResult } from '../../utils/geminiTranscriber';
-import { apiKeyStorage, localStorage, apiEndpointStorage } from '../../utils/storage';
+import { apiKeyStorage, localStorage, apiEndpointStorage, type DestinationFieldMapping } from '../../utils/storage';
 import { addSummaryToHistory } from '../../utils/summaryHistory';
 import type { SummaryHistoryItem } from '../../types/summaryHistory';
 import { useFormatPresets, type FormatPreset } from '../../hooks/useFormatPresets';
@@ -358,6 +358,40 @@ export function SummaryStep({
       }, 12000);
     } catch (overlayError) {
       console.error('Failed to show summary saved overlay:', overlayError);
+    }
+  };
+
+  const syncSummaryToSheets = async (summaryText: string) => {
+    try {
+      const destinations = localStorage.getSheetDestinations();
+      if (!destinations || destinations.length === 0) return;
+
+      const destination = destinations[0];
+      if (!destination.url) return;
+
+      const mapping: DestinationFieldMapping = destination.fieldMapping || {};
+      const body = new URLSearchParams();
+      const appendField = (field: keyof DestinationFieldMapping, fallback: string, value?: string) => {
+        if (!value) return;
+        const key = mapping[field] || fallback;
+        if (key) {
+          body.append(key, value);
+        }
+      };
+
+      appendField('companyName', 'companyName', organizationName);
+      appendField('meetingDate', 'meetingDate', meetingDate);
+      appendField('summary', 'summary', summaryText);
+      appendField('title', 'title', fileName || 'Untitled');
+      appendField('createdAt', 'createdAt', new Date().toISOString());
+      appendField('token', 'token', destination.token || '');
+
+      await fetch(destination.url, {
+        method: 'POST',
+        body
+      });
+    } catch (syncError) {
+      console.error('Summary auto-sync failed:', syncError);
     }
   };
 
